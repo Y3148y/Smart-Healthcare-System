@@ -1,0 +1,28 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-request: true
+      force-response: true
+spring:
+  application:
+    name: ai-hospital-agent
+  datasource:
+    url: ${AI_DB_URL:jdbc:h2:file:./data/ai-hospital;MODE=MySQL;DATABASE_TO_LOWER=TRUE}
+    username: ${AI_DB_USER:sa}
+    password: ${AI_DB_PASSWORD:}
+  sql:
+    init:
+      mode: always
+  servlet:
+    multipart:
+      max-file-size: 5MB
+ai:
+  mode: ${AI_MODE:demo} # demo | openai-compatible
+  base-url: ${AI_BASE_URL:}
+  api-key: ${AI_API_KEY:}
+  model: ${AI_MODEL:}
+  timeout-seconds: ${AI_TIMEOUT_SECONDS:35}

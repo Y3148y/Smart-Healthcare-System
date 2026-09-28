@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: ${AI_DB_URL:jdbc:mysql://127.0.0.1:3306/ai_hospital?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${AI_DB_USER:root}
+    password: ${AI_DB_PASSWORD:}

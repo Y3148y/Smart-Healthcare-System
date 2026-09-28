@@ -1,0 +1,9 @@
+{
+  "name": "ai-hospital-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "vue-tsc --noEmit && vite build", "test:auth": "node --test tests/api-auth-retry.cjs" },
+  "dependencies": { "@vitejs/plugin-vue": "^5.2.1", "typescript": "^5.6.3", "vite": "^5.4.10", "vue": "^3.5.13", "vue-tsc": "^2.1.10" },
+  "devDependencies": {}
+}

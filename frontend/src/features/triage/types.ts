@@ -1,0 +1,10 @@
+export type Doctor={id:string,name:string,title:string,department:string,period:string,date:string,remaining:number,total:number,fee:number}
+export type Evidence={title:string,source:string,excerpt:string,score:number}
+export type Trace={tool:string,label:string,input:string,outcome:string,elapsedMs:number}
+export type Candidate={department:string,reason:string,doctor:Doctor|null}
+export type Result={sessionId:string,riskLevel:string,confidence:number,department:string,doctor:Doctor|null,summary:string,safetyTip:string,evidence:Evidence[],tools:Trace[],candidates:Candidate[],modelStatus:'LIVE'|'FALLBACK'|'DEMO'|'SAFETY_RULE',modelName:string}
+export type ChatMessage={id:string,role:'USER'|'ASSISTANT',content:string,createdAt:string}
+export type ChatSession={id:string,title:string,preview:string,status:string,createdAt:string,updatedAt:string}
+export type Assessment={version:number,result:Result,createdAt:string,assistantMessageId:string|null}
+export type Conversation={session:ChatSession,messages:ChatMessage[],assessments:Assessment[]}
+export type TimelineEvent={sessionId:string,sessionTitle:string,messageId:string,content:string,source:string,occurredAt:string}

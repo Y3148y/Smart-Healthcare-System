@@ -1,0 +1,44 @@
+.native-entry{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+.login-form{margin:0}
+.login-form .wide{border:0;cursor:pointer}
+.native-nav{display:flex;align-items:center;text-decoration:none;color:inherit}
+.demo-admin-link{display:block;margin-top:14px;color:#eaf6ff;text-decoration:underline;font-size:14px}
+.side-title a{background:#fff;color:#2e91fb;border-radius:20px;padding:8px 13px;text-decoration:none;font-size:14px}
+.filters a{display:inline-block;padding:9px 17px;border-radius:21px;margin:2px;background:#f2f5f9;color:#667384;text-decoration:none}
+.filters a.selected{background:#2e96fb;color:#fff}
+.admin-side a{text-align:left;padding:16px 27px;font-size:16px;color:#516073;text-decoration:none}
+.admin-side a.on{background:#ecf6ff;color:#268efd;font-weight:700;border-right:3px solid #268efd}
+.full{font-size:13px;color:#98a4b1}
+.evidence-source{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#8a98a8}.evidence-source a{color:#258ffb;text-decoration:none;background:#eef7ff;border-radius:5px;padding:2px 7px}.evidence-source a:hover{text-decoration:underline}
+.model-badge{display:inline-block;margin-left:12px;padding:4px 9px;border-radius:5px;font-size:12px;font-weight:600;vertical-align:middle}.model-badge.live{background:#e5f8eb;color:#218653}.model-badge.fallback{background:#fff2d9;color:#a26706}
+.session-button{display:block;width:calc(100% - 24px);text-align:left;cursor:pointer}
+.session-button.selected{border-color:#2e95fb;background:#eef7ff}
+.session-button:hover{border-color:#8ac6ff}
+.side-title button{background:#fff;color:#2e91fb;border-radius:20px;padding:8px 13px;font-size:14px}
+.candidate-list{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.candidate-list b{width:100%;font-size:14px}
+.candidate-list span{background:#fff;border:1px solid #cfe7ff;border-radius:7px;padding:7px 10px;font-size:13px;color:#526d89}
+.candidate-list>b small{font-weight:400;color:#7189a2;margin-left:8px}
+.candidate-option{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;background:#fff;border:1px solid #cfe7ff;border-radius:9px;padding:12px 14px}
+.candidate-option>div{display:grid;gap:5px;min-width:0}
+.candidate-option strong{color:#173b62}
+.candidate-option span{padding:0;border:0;background:none}
+.candidate-option small{color:#5680a9}
+.candidate-option .primary{flex-shrink:0;font-size:13px}
+.versioned-result{width:100%;margin:18px 0;scroll-margin-top:110px}
+.assessment-index{align-items:center;margin:0 0 14px;color:#4e7296;font-size:13px}
+.historic-note{display:block;margin-top:12px;color:#69839d}
+.timeline-list{display:grid;gap:10px;margin-bottom:30px}
+.timeline-list article{background:#fff;border:1px solid #e3edf7;border-left:3px solid #52a7ff;border-radius:9px;padding:15px 18px}
+.timeline-list small,.timeline-list b{display:block}
+.timeline-list small{color:#8393a5;margin-bottom:7px}
+.timeline-list p{margin:8px 0 0;color:#3d4e63}
+.eligibility-check{display:flex;align-items:center;gap:8px;padding:8px 23px;color:#5a6b7c;font-size:13px;background:#fff}
+.eligibility-check input{accent-color:#2e95fb}
+.assessment-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.assessment-tabs button{background:#fff;color:#5b90c4;border:1px solid #c8e3fc;padding:5px 10px;border-radius:6px;font-size:12px}
+.assessment-tabs button.selected{background:#2e95fb;color:#fff;border-color:#2e95fb}
+.assessment-tabs span{align-self:center;color:#376d9c;font-size:13px;font-weight:700;margin-right:5px}
+.version-explanation{margin:0 0 14px;padding:10px 13px;border-left:3px solid #3298fb;border-radius:6px;background:#fff;color:#456685;font-size:13px;line-height:1.7}
+.conversation-list{overflow-y:auto}
+.conversation-list .side-title{position:sticky;top:0;z-index:1}

@@ -1,0 +1,16 @@
+.tools/
+**/target/
+backend/.m2/
+frontend/node_modules/
+frontend/.npm-cache/
+frontend/dist/
+.idea/
+*.log
+backend/data/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+.vscode/
+.DS_Store
