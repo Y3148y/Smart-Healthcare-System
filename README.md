@@ -36,6 +36,8 @@ npm run dev
 
 当前代码分层与依赖方向见 [项目分层架构](docs/ARCHITECTURE.md)；此前的阶段 A 实施、接口收敛与测试记录见 [阶段 A 实施与测试记录](docs/PHASE_A_PROGRESS_2026-09-27.md)。
 
+预问诊的多轮收集、预约触发条件和紧急信号处理见 [多轮预问诊与安全预警](docs/TRIAGE_CONVERSATION_AND_SAFETY.md)。
+
 后续扩展的模块边界、接口地图、真实模型/RAG/数据库接入方式与已知限制见 [后续扩展说明](docs/EXTENSION_GUIDE.md)；接口联调记录见 [2026-09-24 验收记录](QA_RUN_2026-09-24.md) 和 [2026-09-26 全链路回归记录](QA_RUN_2026-09-26.md)。
 
 真实模型连通性验证与安全配置原则见 [模型连通性记录](QA_MODEL_CONNECTIVITY_2026-09-25.md)。密钥不得写入项目文件。

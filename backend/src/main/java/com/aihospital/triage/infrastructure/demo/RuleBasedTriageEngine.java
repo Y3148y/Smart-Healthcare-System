@@ -34,7 +34,35 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     @Override public boolean requiresImmediateCare(String symptoms) { return safety.requiresImmediateCare(symptoms); }
-    @Override public boolean needsClarification(String symptoms) { return candidatesFor(symptoms).isEmpty(); }
+
+    /**
+     * A known symptom alone is useful for a conversation, but normally is not enough
+     * to attach a simulated appointment.  We wait for a duration/change/associated
+     * symptom, unless the user explicitly asks for a booking direction or a possible
+     * fracture needs prompt offline assessment.
+     */
+    @Override public boolean needsClarification(String symptoms) {
+        if (requiresImmediateCare(symptoms)) return false;
+        List<DepartmentCandidate> candidates = candidatesFor(symptoms);
+        if (candidates.isEmpty()) return true;
+        if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
+        return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
+    }
+
+    @Override public String clarificationPrompt(String text) {
+        List<DepartmentCandidate> candidates = candidatesFor(text);
+        String departments = candidates.stream().map(DepartmentCandidate::department)
+                .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
+        String fallback = guidedFallback(text, candidates);
+        List<Evidence> evidence = knowledge.search(safety.removeNegatedRedFlags(text) + " " + departments).stream().limit(2).toList();
+        NarrationModel.Answer answer = narration.guide(text, departments,
+                evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback);
+        calls.record(new CallLog("call" + callIds.incrementAndGet(), LocalDateTime.now(), "预问诊引导", "患者",
+                answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
+                0, 0, 0, true, List.of(new ToolTrace("medical_knowledge_retrieve", "医学知识库检索", departments,
+                "为多轮预问诊提供一般健康信息", 58))));
+        return answer.text();
+    }
 
     @Override public TriageResult triage(String sessionId, String text, String user) {
         boolean urgent = safety.requiresImmediateCare(text);
@@ -50,8 +78,8 @@ public class RuleBasedTriageEngine implements TriageEngine {
         String retrievalQuery = safety.removeNegatedRedFlags(text) + " " + department + (urgent ? " 急诊 红旗症状" : "");
         List<Evidence> evidence = knowledge.search(retrievalQuery).stream().limit(2).toList();
         Doctor doctor = urgent ? null : doctors.doctors(department).stream().findFirst().orElse(null);
-        boolean possibleFracture = text.matches("(?s).*(骨折|摔断|骨头断|手摔断|脚摔断).*");
-        String safetyTip = urgent ? "检测到可能的紧急症状，请立即前往急诊或拨打当地急救电话；不要等待线上分诊。"
+        boolean possibleFracture = possibleFracture(text);
+        String safetyTip = urgent ? safety.emergencyAdvice(text)
                 : possibleFracture ? "如果怀疑骨折，请尽快到线下医疗机构评估；若骨头外露、伤口大量出血或肢体明显变形，应立即急诊。模拟预约不能代替及时就医。"
                 : candidates.size() > 1 ? "症状涉及多个科室方向，建议先咨询全科或人工导诊；本建议不构成诊断、处方或治疗意见。"
                 : "本建议仅用于辅助分诊和挂号参考，不构成诊断、处方或治疗意见。";
@@ -85,6 +113,42 @@ public class RuleBasedTriageEngine implements TriageEngine {
             found.add(new DepartmentCandidate("骨科", "描述中有外伤、疑似骨折或骨关节不适，需线下评估", null));
         if (menstrual) found.add(new DepartmentCandidate("妇科", "描述中有经期疼痛相关不适", null));
         return found;
+    }
+
+    private boolean hasBookingIntent(String text) {
+        return text.matches("(?s).*(挂什么科|看什么科|哪个科|挂号|预约|就诊方向).*" );
+    }
+
+    private boolean hasTimeCourse(String text) {
+        return text.matches("(?s).*(今天|昨天|前天|刚刚|近日|最近|反复|持续|加重|缓解|突然|[0-9一二两三四五六七八九十半]+\\s*(小时|天|周|个月|年)).*");
+    }
+
+    private boolean hasClinicalQualifier(String text) {
+        return text.matches("(?s).*(发热|体温|咳痰|痰|肿|麻|无力|外伤|摔|扭|经量|周期|恶心|呕吐|反酸|腹泻|便秘|出汗|无|没有|否认|不伴|影响|夜间).*" );
+    }
+
+    private boolean possibleFracture(String text) {
+        return text != null && text.matches("(?s).*(骨折|摔断|骨头断|手摔断|脚摔断).*" );
+    }
+
+    private String guidedFallback(String text, List<DepartmentCandidate> candidates) {
+        if (candidates.isEmpty())
+            return "我还不能据此判断合适的就医方向，也不会直接生成预约建议。请先说说最不舒服的部位、从什么时候开始，以及有没有明显加重或伴随不适。";
+        if (candidates.size() > 1)
+            return "你提到的症状可能涉及" + candidates.stream().map(DepartmentCandidate::department).reduce("", (a, b) -> a + "、" + b)
+                    + "等不同方向。线上无法判断它们是否相关；请先告诉我哪一种最困扰你、持续多久、近期是否明显加重。确认后我会分别给出可预约方向。";
+        String department = candidates.get(0).department();
+        if ("呼吸内科".equals(department))
+            return "咽痛、咳嗽等症状常见于呼吸道不适，但线上不能据此诊断。为了判断是否适合普通门诊，请问症状持续多久了，是否发热、咳痰或逐渐加重？目前暂不生成预约建议。";
+        if ("神经内科".equals(department))
+            return "头晕或头痛有多种原因，线上不能仅凭一句话确定原因。请问是突然开始还是反复出现、持续多久，是否伴随走路不稳或恶心？如出现说话不清或肢体无力，请立即急诊。";
+        if ("消化内科".equals(department))
+            return "胃部或腹部不适可能与消化系统有关，但暂不能下结论。请问最明显的位置、持续多久，以及有没有呕吐、腹泻、反酸或黑便？确认后再生成预约方向。";
+        if ("妇科".equals(department))
+            return "经期疼痛较常见，但线上不能判断具体原因。请问疼痛是否与平时不同、持续多久，以及经量或周期是否有明显变化？确认后我再给出预约参考。";
+        if ("骨科".equals(department))
+            return "外伤或关节疼痛通常需要结合受伤方式和活动情况评估。请问何时受伤、疼痛或肿胀是否加重、能否正常活动？若明显变形、出血不止或骨头外露，请立即急诊。";
+        return "我会先帮你梳理症状，再决定是否生成预约建议。请补充持续时间和最明显的伴随不适。";
     }
 
     private String fallbackAnswer(String department, boolean urgent, List<DepartmentCandidate> candidates) {

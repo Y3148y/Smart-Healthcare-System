@@ -69,9 +69,8 @@ public class TriageConversationService {
         List<String> patientTexts = current.messages().stream().filter(message -> "USER".equals(message.role()))
                 .map(Message::content).toList();
         String combined = patientTexts.stream().collect(Collectors.joining("。"));
-        if (!triageEngine.requiresImmediateCare(combined) && patientTexts.size() == 1
-                && triageEngine.needsClarification(combined)) {
-            append(id, "ASSISTANT", followUp(content));
+        if (!triageEngine.requiresImmediateCare(combined) && triageEngine.needsClarification(combined)) {
+            append(id, "ASSISTANT", triageEngine.clarificationPrompt(combined));
             update(id, title, content.substring(0, Math.min(120, content.length())), "待补充信息");
             return conversation(id, patient);
         }
@@ -111,16 +110,6 @@ public class TriageConversationService {
         return new TriageResult(result.sessionId(), result.riskLevel(), result.confidence(), result.department(),
                 available, result.summary(), result.safetyTip(), result.evidence(), result.tools(), candidates,
                 result.modelStatus(), result.modelName(), result.createdAt());
-    }
-
-    private String followUp(String content) {
-        if (content.matches("(?s).*(头晕|眩晕|头痛|头昏).*"))
-            return "为了更准确地建议就医方向，请补充：这种不适持续多久了？是否突然出现，或伴有走路不稳、肢体无力、说话不清？";
-        if (content.matches("(?s).*(咳|痰|喘|胸闷).*"))
-            return "请补充症状持续多久、是否发热或咳痰；有没有明显呼吸困难或持续胸痛？";
-        if (content.matches("(?s).*(胃|腹痛|反酸|腹泻|恶心|呕吐).*"))
-            return "请补充不适持续多久、最明显的部位，以及是否反复呕吐、呕血或出现黑便？";
-        return "请补充最不舒服的部位、持续时间、是否突然出现，以及有没有其他伴随不适。";
     }
 
     private List<Assessment> associateLegacyAnchors(List<Message> messages, List<Assessment> assessments) {

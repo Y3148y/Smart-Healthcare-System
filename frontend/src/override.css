@@ -42,3 +42,5 @@
 .version-explanation{margin:0 0 14px;padding:10px 13px;border-left:3px solid #3298fb;border-radius:6px;background:#fff;color:#456685;font-size:13px;line-height:1.7}
 .conversation-list{overflow-y:auto}
 .conversation-list .side-title{position:sticky;top:0;z-index:1}
+.triage-stage-note{margin:0 18px 10px;padding:10px 12px;border-left:3px solid #55a7f8;background:#f0f8ff;color:#477395;font-size:13px;line-height:1.65}
+.emergency-alert{display:grid;gap:7px;margin:15px 0;padding:15px 17px;border:1px solid #ffaaa4;border-left:5px solid #ef5a52;border-radius:9px;background:#fff3f1;color:#8b2d27;line-height:1.6}.emergency-alert strong{font-size:16px}.emergency-alert small{color:#9d544e}

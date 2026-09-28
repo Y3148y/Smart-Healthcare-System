@@ -152,11 +152,17 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals("尽快就医", bone.path("assessments").get(0).path("result").path("riskLevel").asText());
 
         String throat = create(owner);
-        JsonNode respiratory = turn(owner, throat, "我嗓子疼");
+        JsonNode throatGuide = turn(owner, throat, "我嗓子疼");
+        org.junit.jupiter.api.Assertions.assertEquals("待补充信息", throatGuide.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(0, throatGuide.path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertTrue(throatGuide.path("messages").get(1).path("content").asText().contains("持续多久"));
+        JsonNode respiratory = turn(owner, throat, "已经三天了，没有发热和呼吸困难");
         org.junit.jupiter.api.Assertions.assertEquals("呼吸内科", respiratory.path("assessments").get(0).path("result").path("department").asText());
 
         String period = create(owner);
-        JsonNode gynecology = turn(owner, period, "我痛经");
+        JsonNode periodGuide = turn(owner, period, "我痛经");
+        org.junit.jupiter.api.Assertions.assertEquals(0, periodGuide.path("assessments").size());
+        JsonNode gynecology = turn(owner, period, "持续两天，经量和平时差不多");
         org.junit.jupiter.api.Assertions.assertEquals("妇科", gynecology.path("assessments").get(0).path("result").path("department").asText());
 
         JsonNode combined = turn(owner, fracture, "我嗓子疼，而且痛经");
@@ -172,5 +178,14 @@ class TriageConversationTests {
         JsonNode urgent = turn(owner, create(owner), "摔伤后骨头外露");
         org.junit.jupiter.api.Assertions.assertEquals("紧急提示", urgent.path("session").path("status").asText());
         org.junit.jupiter.api.Assertions.assertTrue(urgent.path("assessments").get(0).path("result").path("doctor").isNull());
+    }
+
+    @Test
+    void safetyWarningDoesNotWaitForFollowUp() throws Exception {
+        String owner = token("warning-" + UUID.randomUUID());
+        JsonNode urgent = turn(owner, create(owner), "我突然脸肿、吞咽不了，感觉喘不上气");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急", urgent.path("assessments").get(0).path("result").path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(urgent.path("assessments").get(0).path("result").path("safetyTip").asText().contains("气道"));
+        org.junit.jupiter.api.Assertions.assertEquals(2, urgent.path("messages").size());
     }
 }

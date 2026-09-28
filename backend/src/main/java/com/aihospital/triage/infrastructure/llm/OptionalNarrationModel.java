@@ -48,4 +48,24 @@ public class OptionalNarrationModel implements NarrationModel {
             return new Answer(fallback, "FALLBACK", model);
         }
     }
+
+    @Override public Answer guide(String symptom, String candidateDepartments, String evidence, String fallback) {
+        if (!"openai-compatible".equalsIgnoreCase(mode) || apiKey.isBlank() || model.isBlank())
+            return new Answer(fallback, "DEMO", "");
+        try {
+            var builder = OpenAiChatModel.builder().apiKey(apiKey).modelName(model).temperature(0.1)
+                    .maxTokens(220).timeout(Duration.ofSeconds(Math.max(3, timeoutSeconds))).maxRetries(0);
+            if (!baseUrl.isBlank()) builder.baseUrl(baseUrl);
+            String response = builder.build().generate("你是医院预问诊助手，正在进行多轮对话的早期信息收集。"
+                    + "请先用一两句回答患者已经提到的症状可注意什么，再只问一个最能影响风险判断或挂号方向的问题。"
+                    + "不要诊断、开药或催促所有患者补充完整病史；没有危险信号时明确说明还未生成预约推荐。"
+                    + "如存在危险信号，只提示立即急诊。可参考方向：" + candidateDepartments
+                    + "。知识依据：" + evidence + "。患者原话：" + symptom);
+            if (response == null || response.isBlank()) return new Answer(fallback, "FALLBACK", model);
+            return new Answer(response.trim(), "LIVE", model);
+        } catch (Exception ex) {
+            log.warn("LLM conversation unavailable; using guided fallback: {}", ex.toString());
+            return new Answer(fallback, "FALLBACK", model);
+        }
+    }
 }

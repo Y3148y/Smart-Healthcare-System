@@ -83,7 +83,8 @@ function newConversation(){
       <div v-if="pendingMessage" class="bubble user">{{ pendingMessage }}</div>
       <div v-if="triageRunning" class="bubble ai loading">{{ triageStatus }}</div>
     </div>
-    <div class="disclaimer">预问诊由 AI 引导描述症状，仅供挂号参考，不构成诊断意见</div>
+    <div class="disclaimer">预问诊会先回答一般健康问题、识别危险信号并按需追问；信息足够后才生成挂号建议。它不构成诊断或处方。</div>
+    <div v-if="activeConversation?.session.status==='待补充信息'" class="triage-stage-note">当前处于预问诊阶段：请回答助手刚提出的关键问题。补充信息会保留在本会话中，后续分诊结果将作为新版本保存。</div>
     <label v-if="!activeConversation" class="eligibility-check"><input v-model="eligible" type="checkbox"> 我已年满 18 岁、为本人提问，且不处于孕产期；急症请立即线下求助。</label>
     <form class="chat-input" @submit.prevent="startTriage">
       <textarea v-model="question" placeholder="例如：我最近咳嗽得厉害，胸闷，痰多。"></textarea>

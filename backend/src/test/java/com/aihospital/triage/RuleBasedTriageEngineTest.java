@@ -42,6 +42,14 @@ class RuleBasedTriageEngineTest {
     }
 
     @Test
+    void expandedEmergencySignalsAreUrgent() {
+        assertTrue(safety.requiresImmediateCare("脸肿而且吞咽不了"));
+        assertTrue(safety.requiresImmediateCare("突然抽搐后意识不清"));
+        assertTrue(safety.requiresImmediateCare("呕血和黑便"));
+        assertFalse(safety.requiresImmediateCare("没有胸痛，也没有呼吸困难"));
+    }
+
+    @Test
     void bundledProfessionalKnowledgeIsSearchableAndTraceable() {
         NarrationModel narration = mock(NarrationModel.class);
         when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString()))
