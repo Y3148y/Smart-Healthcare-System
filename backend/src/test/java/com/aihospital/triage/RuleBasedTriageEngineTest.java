@@ -46,6 +46,7 @@ class RuleBasedTriageEngineTest {
         assertTrue(safety.requiresImmediateCare("脸肿而且吞咽不了"));
         assertTrue(safety.requiresImmediateCare("突然抽搐后意识不清"));
         assertTrue(safety.requiresImmediateCare("呕血和黑便"));
+        assertTrue(safety.requiresImmediateCare("我胸痛，喘不过气"));
         assertFalse(safety.requiresImmediateCare("没有胸痛，也没有呼吸困难"));
     }
 

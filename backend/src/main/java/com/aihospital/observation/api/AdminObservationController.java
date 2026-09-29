@@ -5,6 +5,7 @@ import com.aihospital.observation.domain.CallLogStore;
 import com.aihospital.shared.model.Models.CallLog;
 import com.aihospital.shared.model.Models.Dashboard;
 import com.aihospital.shared.security.RoleGuard;
+import com.aihospital.triage.domain.NarrationModel;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,13 +16,17 @@ public class AdminObservationController {
     private final AdminOverviewService overview;
     private final CallLogStore calls;
     private final RoleGuard guard;
-    public AdminObservationController(AdminOverviewService overview, CallLogStore calls, RoleGuard guard) {
-        this.overview = overview; this.calls = calls; this.guard = guard;
+    private final NarrationModel narration;
+    public AdminObservationController(AdminOverviewService overview, CallLogStore calls, RoleGuard guard, NarrationModel narration) {
+        this.overview = overview; this.calls = calls; this.guard = guard; this.narration = narration;
     }
     @GetMapping("/dashboard") public Dashboard dashboard(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return overview.dashboard();
     }
     @GetMapping("/calls") public List<CallLog> calls(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return calls.calls();
+    }
+    @GetMapping("/ai-runtime") public NarrationModel.RuntimeStatus aiRuntime(@RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return narration.runtimeStatus();
     }
 }

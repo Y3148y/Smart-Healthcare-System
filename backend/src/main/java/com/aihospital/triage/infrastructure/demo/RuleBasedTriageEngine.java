@@ -53,8 +53,8 @@ public class RuleBasedTriageEngine implements TriageEngine {
         List<DepartmentCandidate> candidates = candidatesFor(text);
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
-        String fallback = guidedFallback(text, candidates);
         List<Evidence> evidence = knowledge.search(safety.removeNegatedRedFlags(text) + " " + departments).stream().limit(2).toList();
+        String fallback = guidedFallback(text, candidates, evidence);
         NarrationModel.Answer answer = narration.guide(text, departments,
                 evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback);
         calls.record(new CallLog("call" + callIds.incrementAndGet(), LocalDateTime.now(), "预问诊引导", "患者",
@@ -131,23 +131,24 @@ public class RuleBasedTriageEngine implements TriageEngine {
         return text != null && text.matches("(?s).*(骨折|摔断|骨头断|手摔断|脚摔断).*" );
     }
 
-    private String guidedFallback(String text, List<DepartmentCandidate> candidates) {
+    private String guidedFallback(String text, List<DepartmentCandidate> candidates, List<Evidence> evidence) {
         if (candidates.isEmpty())
             return "我还不能据此判断合适的就医方向，也不会直接生成预约建议。请先说说最不舒服的部位、从什么时候开始，以及有没有明显加重或伴随不适。";
         if (candidates.size() > 1)
             return "你提到的症状可能涉及" + candidates.stream().map(DepartmentCandidate::department).reduce("", (a, b) -> a + "、" + b)
                     + "等不同方向。线上无法判断它们是否相关；请先告诉我哪一种最困扰你、持续多久、近期是否明显加重。确认后我会分别给出可预约方向。";
         String department = candidates.get(0).department();
+        String knowledgeHint = evidence.isEmpty() ? "" : "参考已检索的“" + evidence.get(0).title() + "”，";
         if ("呼吸内科".equals(department))
-            return "咽痛、咳嗽等症状常见于呼吸道不适，但线上不能据此诊断。为了判断是否适合普通门诊，请问症状持续多久了，是否发热、咳痰或逐渐加重？目前暂不生成预约建议。";
+            return knowledgeHint + "你提到的呼吸道或咽喉不适可先按一般呼吸道症状观察，但线上不能据此诊断。为了判断是否适合普通门诊，请问症状持续多久了，是否发热、咳痰或逐渐加重？目前暂不生成预约建议。";
         if ("神经内科".equals(department))
-            return "头晕或头痛有多种原因，线上不能仅凭一句话确定原因。请问是突然开始还是反复出现、持续多久，是否伴随走路不稳或恶心？如出现说话不清或肢体无力，请立即急诊。";
+            return knowledgeHint + "头晕或头痛有多种原因，线上不能仅凭一句话确定原因。请问是突然开始还是反复出现、持续多久，是否伴随走路不稳或恶心？如出现说话不清或肢体无力，请立即急诊。";
         if ("消化内科".equals(department))
-            return "胃部或腹部不适可能与消化系统有关，但暂不能下结论。请问最明显的位置、持续多久，以及有没有呕吐、腹泻、反酸或黑便？确认后再生成预约方向。";
+            return knowledgeHint + "胃部或腹部不适可能与消化系统有关，但暂不能下结论。请问最明显的位置、持续多久，以及有没有呕吐、腹泻、反酸或黑便？确认后再生成预约方向。";
         if ("妇科".equals(department))
-            return "经期疼痛较常见，但线上不能判断具体原因。请问疼痛是否与平时不同、持续多久，以及经量或周期是否有明显变化？确认后我再给出预约参考。";
+            return knowledgeHint + "经期疼痛较常见，但线上不能判断具体原因。请问疼痛是否与平时不同、持续多久，以及经量或周期是否有明显变化？确认后我再给出预约参考。";
         if ("骨科".equals(department))
-            return "外伤或关节疼痛通常需要结合受伤方式和活动情况评估。请问何时受伤、疼痛或肿胀是否加重、能否正常活动？若明显变形、出血不止或骨头外露，请立即急诊。";
+            return knowledgeHint + "外伤或关节疼痛通常需要结合受伤方式和活动情况评估。请问何时受伤、疼痛或肿胀是否加重、能否正常活动？若明显变形、出血不止或骨头外露，请立即急诊。";
         return "我会先帮你梳理症状，再决定是否生成预约建议。请补充持续时间和最明显的伴随不适。";
     }
 
