@@ -35,18 +35,31 @@ public class MybatisTriageStore implements TriageStore {
     }
     @Override public List<Message> messages(String sessionId) {
         return mapper.messages(sessionId).stream().map(row -> new Message(string(row, "id"), string(row, "role"),
-                string(row, "content"), dateTime(row, "created_at"))).toList();
+                string(row, "content"), dateTime(row, "created_at"), readProvenance(string(row, "meta_json")))).toList();
     }
     @Override public List<Assessment> assessments(String sessionId) {
         return mapper.assessments(sessionId).stream().map(row -> new Assessment(integer(row, "version_number"),
                 readResult(string(row, "result_json")), dateTime(row, "created_at"),
                 string(row, "assistant_message_id"))).toList();
     }
+    @Override public HumanReview humanReview(String sessionId) {
+        var row = mapper.humanReview(sessionId);
+        if (row == null || row.isEmpty()) return null;
+        return new HumanReview(string(row, "id"), string(row, "session_id"), string(row, "patient_id"),
+                string(row, "reason"), string(row, "status"), dateTime(row, "created_at"));
+    }
+    @Override @Transactional public HumanReview createHumanReview(String sessionId, String patient, String reason, LocalDateTime now) {
+        String id = UUID.randomUUID().toString();
+        mapper.insertHumanReview(id, sessionId, patient, reason, now);
+        return new HumanReview(id, sessionId, patient, reason, "PENDING", now);
+    }
     @Override @Transactional public void saveAssessmentAndAnswer(String sessionId, int version, TriageResult result) {
         try {
             String assessmentId = UUID.randomUUID().toString();
             mapper.insertAssessment(assessmentId, sessionId, version, json.writeValueAsString(result), LocalDateTime.now());
-            String assistantMessageId = appendMessage(sessionId, "ASSISTANT", result.summary());
+            ResponseProvenance provenance = new ResponseProvenance(result.modelStatus(), result.evidence().size(),
+                    result.tools().size(), (int) result.tools().stream().filter(trace -> !trace.success()).count());
+            String assistantMessageId = appendAssistantMessage(sessionId, result.summary(), provenance);
             mapper.insertAnchor(assessmentId, assistantMessageId);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("无法保存分诊结果", ex);
@@ -62,11 +75,23 @@ public class MybatisTriageStore implements TriageStore {
         mapper.insertMessage(id, sessionId, role, content, LocalDateTime.now());
         return id;
     }
+    @Override @Transactional public String appendAssistantMessage(String sessionId, String content,
+                                                                   ResponseProvenance provenance) {
+        String id = appendMessage(sessionId, "ASSISTANT", content);
+        try { mapper.insertMessageProvenance(id, json.writeValueAsString(provenance)); }
+        catch (JsonProcessingException ex) { throw new IllegalStateException("无法保存回答来源状态", ex); }
+        return id;
+    }
     @Override public void updateSession(String id, String title, String preview, String status) {
         mapper.updateSession(id, title, preview, status, LocalDateTime.now());
     }
     private TriageResult readResult(String value) {
         try { return json.readValue(value, TriageResult.class); }
         catch (JsonProcessingException ex) { throw new IllegalStateException("分诊结果损坏", ex); }
+    }
+    private ResponseProvenance readProvenance(String value) {
+        if (value == null || value.isBlank()) return null;
+        try { return json.readValue(value, ResponseProvenance.class); }
+        catch (JsonProcessingException ex) { throw new IllegalStateException("回答来源状态损坏", ex); }
     }
 }

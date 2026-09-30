@@ -24,6 +24,9 @@ public class AdminKnowledgeController {
     @GetMapping public List<KnowledgeDocument> documents(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.documents();
     }
+    @GetMapping("/runtime") public Map<String,String> runtime(@RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return Map.of("mode", knowledge.retrievalMode());
+    }
     @PostMapping public KnowledgeDocument add(@RequestBody Map<String, String> body,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");
@@ -32,11 +35,29 @@ public class AdminKnowledgeController {
     @PostMapping("/upload") public KnowledgeDocument upload(@RequestParam("file") MultipartFile file,
             @RequestHeader(value = "Authorization", required = false) String auth) throws IOException {
         guard.require(auth, "ADMIN");
-        return knowledge.addDocument(Optional.ofNullable(file.getOriginalFilename()).orElse("上传资料"),
-                new String(file.getBytes(), StandardCharsets.UTF_8));
+        String filename = Optional.ofNullable(file.getOriginalFilename()).orElse("");
+        String normalized = filename.toLowerCase(java.util.Locale.ROOT);
+        if (!normalized.endsWith(".txt") && !normalized.endsWith(".md"))
+            throw new IllegalArgumentException("只允许上传 TXT 或 Markdown 文件");
+        if (file.isEmpty() || file.getSize() > 100_000)
+            throw new IllegalArgumentException("知识资料必须为 1 至 100000 字节");
+        String body;
+        try {
+            body = StandardCharsets.UTF_8.newDecoder()
+                    .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                    .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                    .decode(java.nio.ByteBuffer.wrap(file.getBytes())).toString();
+        } catch (java.nio.charset.CharacterCodingException ex) {
+            throw new IllegalArgumentException("知识资料必须采用 UTF-8 编码", ex);
+        }
+        return knowledge.addDocument(filename, body);
     }
     @GetMapping("/search") public List<Evidence> search(@RequestParam(defaultValue = "") String q,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.search(q);
+    }
+    @PostMapping("/{id}/approve") public KnowledgeDocument approve(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.approveDocument(id);
     }
 }

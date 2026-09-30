@@ -15,6 +15,10 @@
 | `05-digestive-clinic.md` | 消化科门诊分流 | 北京协和医院消化内科；北京市卫健委急诊分级 | 反酸、腹痛、恶心等稳定症状推荐消化内科，并识别消化道出血等风险 |
 | `06-basic-emergency-care.md` | 基础急救评估 | WHO/ICRC Basic Emergency Care | 支撑气道、呼吸、循环、意识改变等安全规则 |
 | `07-dizziness.md` | 头晕、眩晕伴恶心 | 北京协和医院头晕科普；国家卫健委卒中警示 | 针对“头晕想吐”追问起病方式及危险信号，辅助神经内科初诊分流 |
+| `08-fracture-triage.md` | 疑似四肢骨折 | NHS 骨折就医说明 | 外伤与疑似骨折的就医方向及急诊信号 |
+| `09-sore-throat.md` | 咽喉疼痛 | NHS 咽痛说明 | 咽痛的一般门诊入口与危险信号 |
+| `10-period-pain.md` | 经期疼痛 | NHS 经期疼痛说明 | 经期疼痛的非诊断性就医方向 |
+| `11-runny-nose.md` | 流鼻涕、鼻塞 | NHS 普通感冒；MedlinePlus 鼻部症状说明 | 常见鼻部症状的一般答复，不强迫立即挂号 |
 
 ## 来源链接
 
@@ -29,6 +33,8 @@
 - 北京协和医院消化内科：https://www.pumch.cn/department_ims/doctor/detail/4192.html
 - 北京协和医院头晕科普：https://www.pumch.cn/detail/13499.html
 - 国家卫健委卒中警示：https://www.nhc.gov.cn/jkj/c100063/202109/fe3b5805d4a147c799701d641a57c75e.shtml
+- NHS 普通感冒：https://www.nhs.uk/conditions/common-cold/
+- MedlinePlus 成人鼻部症状：https://medlineplus.gov/ency/article/003049.htm
 
 ## 整理与入库规则
 
@@ -36,6 +42,7 @@
 2. 不复制整篇网页；将与导诊直接相关的信息改写为短知识片段，保留原始 URL。
 3. 明确区分“普通门诊推荐”和“紧急就医阻断”，危险信号优先级高于科室推荐。
 4. 启动时自动读取 Markdown；管理员上传内容仍可作为补充，但官方资料在同等相关度下优先。
+   主题词也参与索引，避免“摔断、骨科”等只写在主题栏时漏召回。
 5. 查询中的否定症状不参与危险知识加权，例如“没有胸痛”不会提高胸痛急诊文档得分。
 
 ## 2026-09-26 验证结果

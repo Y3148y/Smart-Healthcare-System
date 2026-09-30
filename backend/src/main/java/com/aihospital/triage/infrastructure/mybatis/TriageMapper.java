@@ -23,16 +23,33 @@ public interface TriageMapper {
     @Insert("INSERT INTO triage_eligibility(session_id,confirmed_at) VALUES(#{sessionId},#{confirmedAt})")
     int insertEligibility(@Param("sessionId") String sessionId, @Param("confirmedAt") LocalDateTime confirmedAt);
 
-    @Select("SELECT id,role,content,created_at FROM triage_message WHERE session_id=#{sessionId} ORDER BY created_at,id")
+    @Select("SELECT m.id,m.role,m.content,m.created_at,p.meta_json FROM triage_message m LEFT JOIN triage_message_provenance p ON p.message_id=m.id WHERE m.session_id=#{sessionId} ORDER BY m.created_at,m.id")
     List<Map<String, Object>> messages(@Param("sessionId") String sessionId);
 
     @Select("SELECT a.version_number,a.result_json,a.created_at,anchor.assistant_message_id FROM triage_assessment a LEFT JOIN triage_assessment_anchor anchor ON anchor.assessment_id=a.id WHERE a.session_id=#{sessionId} ORDER BY a.version_number")
     List<Map<String, Object>> assessments(@Param("sessionId") String sessionId);
 
+    @Select("SELECT id,session_id,patient_id,reason,status,created_at FROM human_review_request WHERE session_id=#{sessionId} ORDER BY created_at DESC LIMIT 1")
+    Map<String, Object> humanReview(@Param("sessionId") String sessionId);
+
+    @Select("SELECT id,session_id,patient_id,reason,status,created_at FROM human_review_request ORDER BY created_at DESC")
+    List<Map<String, Object>> humanReviews();
+
+    @Update("UPDATE human_review_request SET status=#{status} WHERE id=#{id} AND status='PENDING'")
+    int updateHumanReview(@Param("id") String id, @Param("status") String status);
+
+    @Insert("INSERT INTO human_review_request(id,session_id,patient_id,reason,status,created_at) VALUES(#{id},#{sessionId},#{patient},#{reason},'PENDING',#{createdAt})")
+    int insertHumanReview(@Param("id") String id, @Param("sessionId") String sessionId,
+                          @Param("patient") String patient, @Param("reason") String reason,
+                          @Param("createdAt") LocalDateTime createdAt);
+
     @Insert("INSERT INTO triage_message(id,session_id,role,content,created_at) VALUES(#{id},#{sessionId},#{role},#{content},#{createdAt})")
     int insertMessage(@Param("id") String id, @Param("sessionId") String sessionId,
                       @Param("role") String role, @Param("content") String content,
                       @Param("createdAt") LocalDateTime createdAt);
+
+    @Insert("INSERT INTO triage_message_provenance(message_id,meta_json) VALUES(#{messageId},#{metaJson})")
+    int insertMessageProvenance(@Param("messageId") String messageId, @Param("metaJson") String metaJson);
 
     @Update("UPDATE triage_session SET title=#{title},preview=#{preview},status=#{status},updated_at=#{updatedAt} WHERE id=#{id}")
     int updateSession(@Param("id") String id, @Param("title") String title, @Param("preview") String preview,

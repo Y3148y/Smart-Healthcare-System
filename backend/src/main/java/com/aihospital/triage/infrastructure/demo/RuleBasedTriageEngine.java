@@ -2,17 +2,19 @@ package com.aihospital.triage.infrastructure.demo;
 
 import com.aihospital.catalog.domain.DoctorDirectory;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
+import com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval;
 import com.aihospital.observation.domain.CallLogStore;
 import com.aihospital.shared.model.Models.*;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
+import com.aihospital.tools.application.HospitalToolExecutor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.UUID;
 
 /** Demo routing policy. The LLM may explain the result but cannot replace safety decisions. */
 @Component
@@ -22,17 +24,20 @@ public class RuleBasedTriageEngine implements TriageEngine {
     private final KnowledgeCatalog knowledge;
     private final NarrationModel narration;
     private final CallLogStore calls;
-    private final AtomicInteger callIds = new AtomicInteger(100);
+    private final HospitalToolExecutor toolExecutor;
 
     public RuleBasedTriageEngine(TriageSafetyPolicy safety, DoctorDirectory doctors,
-                                 KnowledgeCatalog knowledge, NarrationModel narration, CallLogStore calls) {
+                                 KnowledgeCatalog knowledge, NarrationModel narration, CallLogStore calls,
+                                 HospitalToolExecutor toolExecutor) {
         this.safety = safety;
         this.doctors = doctors;
         this.knowledge = knowledge;
         this.narration = narration;
         this.calls = calls;
+        this.toolExecutor = toolExecutor;
     }
 
+    @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
     @Override public boolean requiresImmediateCare(String symptoms) { return safety.requiresImmediateCare(symptoms); }
 
     /**
@@ -49,58 +54,85 @@ public class RuleBasedTriageEngine implements TriageEngine {
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
 
-    @Override public String clarificationPrompt(String text) {
+    @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
+        long started = System.nanoTime();
         List<DepartmentCandidate> candidates = candidatesFor(text);
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
-        List<Evidence> evidence = knowledge.search(safety.removeNegatedRedFlags(text) + " " + departments).stream().limit(2).toList();
-        String fallback = guidedFallback(text, candidates, evidence);
-        NarrationModel.Answer answer = narration.guide(text, departments,
-                evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback);
-        calls.record(new CallLog("call" + callIds.incrementAndGet(), LocalDateTime.now(), "预问诊引导", "患者",
+        HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve",
+                java.util.Map.of("query", safety.removeNegatedRedFlags(text) + " " + departments));
+        Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
+                ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
+        List<Evidence> evidence = retrieval.evidence();
+        String fallback = guidedFallback(text, candidates, evidence, history);
+        NarrationModel.Answer answer = retrieval.grounded() ? narration.guide(text, departments,
+                evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history)
+                : narration.guideGeneral(text, fallback, history);
+        long elapsed = elapsedMillis(started);
+        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊引导", "患者",
                 answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
-                0, 0, 0, true, List.of(new ToolTrace("medical_knowledge_retrieve", "医学知识库检索", departments,
-                "为多轮预问诊提供一般健康信息", 58))));
-        return answer.text();
+                0, 0, elapsed, retrievalExecution.trace().success(), List.of(retrievalExecution.trace())));
+        return new Guidance(answer.text(), answer.status(), evidence.size(), 1,
+                retrievalExecution.trace().success() ? 0 : 1);
     }
 
-    @Override public TriageResult triage(String sessionId, String text, String user) {
-        boolean urgent = safety.requiresImmediateCare(text);
-        List<DepartmentCandidate> candidates = urgent ? List.of() : candidatesFor(text);
-        String department = urgent ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
+    @Override public TriageResult triage(String sessionId, String text, String user, List<NarrationModel.Turn> history) {
+        long callStarted = System.nanoTime();
+        List<ToolTrace> trace = new ArrayList<>();
+        HospitalToolExecutor.Execution symptomExecution = toolExecutor.execute("symptom_tag_search", java.util.Map.of("query", text));
+        SafetyAssessment safetyAssessment = symptomExecution.data() instanceof SafetyAssessment found
+                ? found : safety.assess(text);
+        boolean emergency = safetyAssessment.stopRoutineFlow();
+        List<DepartmentCandidate> candidates = emergency ? List.of() : candidatesFor(text);
+        trace.add(symptomExecution.trace());
+        String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
                 ? "全科医学科" : candidates.get(0).department();
-        List<ToolTrace> trace = List.of(
-                new ToolTrace("symptom_tag_search", "症状标签检索", text, "识别到与" + department + "相关的症状标签", 38),
-                new ToolTrace("medical_knowledge_retrieve", "医学知识库检索", department, "命中 2 条经审核知识片段", 91),
-                new ToolTrace("department_search", "科室查询", department, "确认推荐科室存在", 24),
-                new ToolTrace("doctor_schedule_search", "医生出诊排班查询", department,
-                        urgent ? "紧急情况不查询普通号源" : "返回 1 个可约号源", 45));
-        String retrievalQuery = safety.removeNegatedRedFlags(text) + " " + department + (urgent ? " 急诊 红旗症状" : "");
-        List<Evidence> evidence = knowledge.search(retrievalQuery).stream().limit(2).toList();
-        Doctor doctor = urgent ? null : doctors.doctors(department).stream().findFirst().orElse(null);
+        String retrievalQuery = safety.removeNegatedRedFlags(text) + " " + department + (emergency ? " 急诊 红旗症状" : "");
+        HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
+        Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
+                ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
+        List<Evidence> evidence = retrieval.evidence();
+        trace.add(retrievalExecution.trace());
+        if (!emergency) {
+            HospitalToolExecutor.Execution departmentExecution = toolExecutor.execute("department_search", java.util.Map.of("department", department));
+            trace.add(departmentExecution.trace());
+        }
+        Doctor doctor = null;
+        if (!emergency) {
+            HospitalToolExecutor.Execution scheduleExecution = toolExecutor.execute("doctor_schedule_search", java.util.Map.of("department", department));
+            trace.add(scheduleExecution.trace());
+            if (scheduleExecution.data() instanceof List<?> slots)
+                doctor = slots.stream().filter(Doctor.class::isInstance).map(Doctor.class::cast).findFirst().orElse(null);
+        }
         boolean possibleFracture = possibleFracture(text);
-        String safetyTip = urgent ? safety.emergencyAdvice(text)
+        String safetyTip = emergency ? safety.emergencyAdvice(safetyAssessment)
                 : possibleFracture ? "如果怀疑骨折，请尽快到线下医疗机构评估；若骨头外露、伤口大量出血或肢体明显变形，应立即急诊。模拟预约不能代替及时就医。"
                 : candidates.size() > 1 ? "症状涉及多个科室方向，建议先咨询全科或人工导诊；本建议不构成诊断、处方或治疗意见。"
                 : "本建议仅用于辅助分诊和挂号参考，不构成诊断、处方或治疗意见。";
-        String fallback = fallbackAnswer(department, urgent, candidates);
-        NarrationModel.Answer answer = urgent ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
+        String fallback = fallbackAnswer(department, emergency, candidates);
+        boolean grounded = emergency || retrieval.grounded();
+        NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
+                : !grounded ? narration.guideGeneral(text,
+                        "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或申请人工导诊。", history)
                 : narration.explain(text, department,
                         candidates.stream().map(DepartmentCandidate::department)
                                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right),
-                        evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback);
-        int confidence = urgent ? 100 : "全科医学科".equals(department) ? 55 : 72;
-        String risk = urgent ? "紧急" : possibleFracture ? "尽快就医" : candidates.size() > 1
+                        evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history);
+        int confidence = emergency ? 100 : !grounded ? 35 : "全科医学科".equals(department) ? 55 : 72;
+        String risk = emergency ? "紧急" : possibleFracture || "URGENT".equals(safetyAssessment.acuity()) ? "尽快就医" : candidates.size() > 1
                 ? "多科室参考" : confidence < 60 ? "待补充信息" : "普通";
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, doctor, answer.text(),
-                safetyTip, evidence, trace, candidates, answer.status(), answer.modelName(), LocalDateTime.now());
-        calls.record(new CallLog("call" + callIds.incrementAndGet(), LocalDateTime.now(), "分诊Agent", user,
+                safetyTip, evidence, List.copyOf(trace), candidates, answer.status(), answer.modelName(), LocalDateTime.now(),
+                safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核");
+        long totalElapsed = elapsedMillis(callStarted);
+        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "分诊Agent", user,
                 answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
-                0, 0, 0, true, trace));
+                0, 0, totalElapsed, true, List.copyOf(trace)));
         return result;
     }
 
     private List<DepartmentCandidate> candidatesFor(String text) {
+        text = safety.removeNegatedRedFlags(text);
         List<DepartmentCandidate> found = new ArrayList<>();
         if (text.matches("(?s).*(头晕|眩晕|头痛|头昏|站不稳).*"))
             found.add(new DepartmentCandidate("神经内科", "描述中有头晕、头痛或平衡相关不适", null));
@@ -131,7 +163,15 @@ public class RuleBasedTriageEngine implements TriageEngine {
         return text != null && text.matches("(?s).*(骨折|摔断|骨头断|手摔断|脚摔断).*" );
     }
 
-    private String guidedFallback(String text, List<DepartmentCandidate> candidates, List<Evidence> evidence) {
+    private String guidedFallback(String text, List<DepartmentCandidate> candidates, List<Evidence> evidence,
+                                  List<NarrationModel.Turn> history) {
+        if (text.matches("(?s).*(流鼻涕|鼻塞|打喷嚏|鼻涕多).*") && candidates.isEmpty()) {
+            boolean alreadyAsked = history != null && history.stream().anyMatch(turn -> "ASSISTANT".equals(turn.role())
+                    && turn.content().contains("持续多久"));
+            return alreadyAsked
+                    ? "简单说，流鼻涕是常见的鼻部症状，单凭这一点不能判断原因，也不必为了了解一般信息先完成挂号分诊。可先注意休息、补充水分；如果症状持续、明显加重或伴发热，建议线下咨询。若你希望我帮你选就医方向，再告诉我持续时间和其他不适。"
+                    : "流鼻涕是常见鼻部症状，单凭这一点不能判断原因。一般可先注意休息、补充水分；若持续不缓解、明显加重或伴发热，建议线下咨询。目前不需要马上生成预约；如果想进一步判断就医方向，可以说说持续多久、是否鼻塞或发热。";
+        }
         if (candidates.isEmpty())
             return "我还不能据此判断合适的就医方向，也不会直接生成预约建议。请先说说最不舒服的部位、从什么时候开始，以及有没有明显加重或伴随不适。";
         if (candidates.size() > 1)
@@ -161,5 +201,9 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if ("消化内科".equals(department)) return "你描述的胃部或腹部不适可先咨询消化内科，但现在无法判断原因。请补充持续多久、疼痛位置，以及有没有反复呕吐、呕血或黑便；症状明显加重时应及时就医。";
         if ("呼吸内科".equals(department)) return "你描述的咳嗽或胸闷可先咨询呼吸内科。请补充持续时间、是否发热或咳痰；若出现明显呼吸困难或持续胸痛，请立即急诊。";
         return "目前的信息不足以可靠推荐专科，建议先由全科医学科评估。请补充最不舒服的部位、持续时间，以及是否有发热、胸痛、呼吸困难或意识变化。";
+    }
+
+    private long elapsedMillis(long startedAtNanos) {
+        return Math.max(1, (System.nanoTime() - startedAtNanos) / 1_000_000);
     }
 }

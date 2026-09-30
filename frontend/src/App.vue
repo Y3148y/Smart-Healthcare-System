@@ -6,7 +6,7 @@ import HomePage from './features/home/HomePage.vue'
 import BookingPage from './features/booking/BookingPage.vue'
 import VisitsPage from './features/visits/VisitsPage.vue'
 import AdminPage from './features/admin/AdminPage.vue'
-import type { Doctor, ChatSession, TimelineEvent } from './features/triage/types'
+import type { Doctor, ChatSession, TimelineEvent, HumanReview } from './features/triage/types'
 const params=new URLSearchParams(window.location.search), demo=params.get('demo'), loginFromForm=(params.get('login')||'').trim(), initialRole=(demo==='admin'||loginFromForm.toLowerCase()==='admin')?'ADMIN':'PATIENT', isDemoEntry=Boolean(demo||loginFromForm)
 const readStored=(key:string)=>{try{return localStorage.getItem(key)}catch{return null}}
 const store=(key:string,value:string)=>{try{localStorage.setItem(key,value)}catch{}}
@@ -15,7 +15,7 @@ const clearStored=()=>{try{localStorage.clear()}catch{}}
 // A native demo-login form navigates with ?login=...; enter the matching demo role immediately,
 // then obtain/refresh its API token in the background so the UI never appears to ignore a click.
 const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), loginName=ref('zhangsan'), password=ref('123456'), role=ref(isDemoEntry?initialRole:(readStored('ai-hospital-role')||initialRole)), displayName=ref(isDemoEntry?(initialRole==='ADMIN'?'系统管理员':loginFromForm.toLowerCase()==='lisi'?'李四':'张三'):(readStored('ai-hospital-name')||(initialRole==='ADMIN'?'系统管理员':'张三')))
-const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null)
+const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), reviews=ref<HumanReview[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null), knowledgeRuntime=ref<any>(null)
 const bookingRunning=ref(false), toast=ref('')
 const depts=['全部','消化内科','心血管内科','呼吸内科','骨科','神经内科','妇科']
 const isAdmin=computed(()=>role.value==='ADMIN')
@@ -35,7 +35,7 @@ async function establishDemoSession():Promise<boolean>{
   showToast('后端认证暂不可用，请刷新后重试');return false
 }
 async function loadPatient(){try{[doctors.value,visits.value,sessions.value,timeline.value]=await Promise.all([api<Doctor[]>('/doctors'),api<any[]>('/appointments'),api<ChatSession[]>('/triage/sessions'),api<TimelineEvent[]>('/triage/timeline')])}catch(e:any){showToast(`患者数据加载失败：${e?.message||'请检查后端服务'}`)}}
-async function loadAdmin(){try{[dashboard.value,knowledge.value,tools.value,calls.value,aiRuntime.value]=await Promise.all([api('/admin/dashboard'),api<any[]>('/admin/knowledge'),api<any[]>('/admin/tools'),api<any[]>('/admin/calls'),api('/admin/ai-runtime')])}catch{}}
+async function loadAdmin(){try{[dashboard.value,knowledge.value,tools.value,calls.value,aiRuntime.value,reviews.value,knowledgeRuntime.value]=await Promise.all([api('/admin/dashboard'),api<any[]>('/admin/knowledge'),api<any[]>('/admin/tools'),api<any[]>('/admin/calls'),api('/admin/ai-runtime'),api<HumanReview[]>('/admin/human-reviews'),api('/admin/knowledge/runtime')])}catch(e:any){showToast(`管理数据加载失败：${e?.message||'请求失败'}`)}}
 function patientRoute(next:string, extra:Record<string,string>={}) { return '?' + new URLSearchParams(readStored('ai-hospital-login')==='lisi'?{login:'lisi',page:next,...extra}:{demo:'patient',page:next,...extra}).toString() }
 function adminRoute(next:string) { return '?' + new URLSearchParams({demo:'admin',page:'admin',adminPage:next}).toString() }
 onMounted(async()=>{
@@ -59,7 +59,10 @@ async function book(d:Doctor, sessionId='walk-in'){
   }catch(e:any){showToast(`预约未完成：${e.message}`)}finally{bookingRunning.value=false}
 }
 async function toggleTool(t:any){try{const next=await api<any>(`/admin/tools/${t.code}/toggle`,{method:'PATCH'});tools.value=tools.value.map(x=>x.code===t.code?next:x)}catch(e:any){showToast(e.message)}}
-async function addKnowledge(){const title=prompt('知识资料标题');const body=prompt('请输入医学知识内容');if(title&&body){await api('/admin/knowledge',{method:'POST',body:JSON.stringify({title,body})});await loadAdmin();showToast('知识资料已入库并完成演示向量化')}}
+async function runTool(tool:any){const key=['doctor_schedule_search','department_search'].includes(tool.code)?'department':'query';const value=prompt(key==='department'?'请输入科室名称':'请输入检索问题或症状');if(!value)return;try{const result:any=await api(`/admin/tools/${tool.code}/run`,{method:'POST',body:JSON.stringify({[key]:value})});showToast(result.trace?.success?`实际调用成功：${result.trace.outcome}`:`工具调用失败：${result.trace?.error||'未知错误'}`);calls.value=await api<any[]>('/admin/calls')}catch(e:any){showToast(`工具调用失败：${e?.message||'请求失败'}`)}}
+async function addKnowledge(){const title=prompt('知识资料标题');const body=prompt('请输入医学知识内容');if(title&&body){await api('/admin/knowledge',{method:'POST',body:JSON.stringify({title,body})});await loadAdmin();showToast('资料已提交，须经审核后才能参与患者检索')}}
+async function approveKnowledge(id:string){try{await api(`/admin/knowledge/${id}/approve`,{method:'POST'});await loadAdmin();showToast('资料已通过审核，索引将在可用时同步更新')}catch(e:any){showToast(`审核失败：${e?.message||'请求失败'}`)}}
+async function handleReview(id:string,status:'ACCEPTED'|'CLOSED'){try{await api(`/admin/human-reviews/${id}`,{method:'PATCH',body:JSON.stringify({status})});reviews.value=await api<HumanReview[]>('/admin/human-reviews');showToast('人工导诊申请状态已更新')}catch(e:any){showToast(`处理失败：${e?.message||'请求失败'}`)}}
 function logout(){clearStored();loggedIn.value=false;role.value='PATIENT';page.value='home'}
 const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:doctors.value.filter(d=>d.department===selectedDept.value))
 </script>
@@ -74,7 +77,7 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
       <BookingPage v-else-if="page==='booking'" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
       <VisitsPage v-else-if="page==='visits'" :visits="visits" :timeline="timeline" />
     </template>
-    <AdminPage v-else :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :runtime="aiRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @toggle-tool="toggleTool" />
+    <AdminPage v-else :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :reviews="reviews" :runtime="aiRuntime" :knowledge-runtime="knowledgeRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @approve-knowledge="approveKnowledge" @toggle-tool="toggleTool" @run-tool="runTool" @handle-review="handleReview" />
     <div v-if="toast" class="toast">{{ toast }}</div>
   </main>
 </template>

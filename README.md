@@ -15,7 +15,7 @@ mvn spring-boot:run
 # 终端 2：前端
 cd frontend
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5188
 ```
 
 打开 `http://127.0.0.1:5188`。演示账号为 `zhangsan`、`lisi` 或 `admin`，密码任意。默认使用本地持久化 H2 数据库，文件在 `backend/data/`；测试使用独立的内存数据库。
@@ -27,12 +27,19 @@ npm run dev
 - `POST /api/triage/sessions`、`POST /api/triage/sessions/{id}/turns`：创建本人会话并多轮预问诊。
 - `GET /api/triage/sessions`、`GET /api/triage/sessions/{id}`、`GET /api/triage/timeline`：查看本人会话、评估版本和症状时间线。
 - `POST /api/appointments`：使用 `doctorId`、`sessionId` 和 `idempotencyKey` 创建模拟预约，事务内扣减演示号源；`GET /api/appointments` 仅返回本人记录。
-- `GET /mcp/tools` 与 `POST /mcp/tools/{code}`：医院业务工具的 HTTP MCP 边界。
+- `POST /mcp`：带管理员认证的 MCP Streamable HTTP 工具列表与调用子集；`/mcp/tools/*` 保留为旧版兼容入口。Agent 在同一进程内调用共用的工具执行器，并非外部 MCP 客户端。
+- `POST /api/triage/sessions/{id}/human-review`、`GET/PATCH /api/admin/human-reviews`：提交、查看与处理人工导诊申请队列。
 - `/api/admin/*`：知识库、工具中心和 AI 调用观测。
 
-`docker compose up -d` 可启动 MySQL 与 Qdrant；当前默认不依赖它们。MySQL 配置位于 `backend/src/main/resources/application-mysql.yml`，但此阶段尚未在本机 MySQL 实例上完成联调。可通过 `AI_MODE=openai-compatible`、`AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` 启用兼容模型；密钥只应放在进程环境变量中。知识检索和工具轨迹目前仍含演示实现，不能视为已完成真实向量 RAG 或完整 MCP Agent 编排。
+`docker compose up -d` 可启动 MySQL 与 Qdrant；当前默认不依赖它们。MySQL 配置位于 `backend/src/main/resources/application-mysql.yml`，但此阶段尚未在本机 MySQL 实例上完成联调。可通过 `AI_MODE=openai-compatible`、`AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` 启用兼容模型；密钥只应放在进程环境变量中。配置 `AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY`、`AI_EMBEDDING_BASE_URL` 和 `AI_QDRANT_URL` 后可启用 Qdrant 向量检索；未配置时使用本地医学词和字符向量检索。当前工具仍连接演示医院数据，不代表真实 HIS 接入或完整 MCP Agent 编排。
+
+模型回答会携带最近最多 5 个用户轮次的会话消息（历史合计不超过 4000 字符）；演示模式不调用外部模型。检索阈值可用 `AI_RETRIEVAL_MIN_SCORE`（默认 0.28）与 `AI_SEMANTIC_MIN_SCORE`（默认 0.45）调整。新上传知识需要管理员批准才会参与检索；批准后尝试增量更新 Qdrant，外部索引失败则回退本地检索。资料及审批状态目前只保存在内存，服务重启会丢失。
 
 > 系统仅用于辅助分诊和挂号演示，不输出诊断、处方或治疗建议。出现胸痛、严重呼吸困难、意识障碍等症状时会优先给出紧急就医提醒。
+
+当前 P0 变更、测试结果与上线阻断项见 [P0 实施及验收记录](docs/P0_IMPLEMENTATION_2026-09-29.md)。演示登录接受任意非空密码，只可用于本机演示；对外部署必须关闭 `AI_DEMO_AUTH_ENABLED` 并接入正式认证。
+
+本轮四项返工、文件与函数清单、验证和答辩要点见 [P0 返工讲解页](docs/P0_REWORK_BRIEF_2026-09-29.md)。
 
 当前代码分层与依赖方向见 [项目分层架构](docs/ARCHITECTURE.md)；此前的阶段 A 实施、接口收敛与测试记录见 [阶段 A 实施与测试记录](docs/PHASE_A_PROGRESS_2026-09-27.md)。
 

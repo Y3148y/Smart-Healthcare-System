@@ -5,6 +5,7 @@ import com.aihospital.shared.model.Models.Doctor;
 import com.aihospital.catalog.application.DoctorCatalogService;
 import com.aihospital.catalog.domain.SlotStore;
 import com.aihospital.booking.domain.BookingStore;
+import com.aihospital.triage.application.TriageConversationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +20,14 @@ public class SimulationBookingService {
     private final BookingStore store;
     private final DoctorCatalogService catalog;
     private final SlotStore slots;
+    private final TriageConversationService triage;
 
-    public SimulationBookingService(BookingStore store, DoctorCatalogService catalog, SlotStore slots) {
+    public SimulationBookingService(BookingStore store, DoctorCatalogService catalog, SlotStore slots,
+                                    TriageConversationService triage) {
         this.store = store;
         this.catalog = catalog;
         this.slots = slots;
+        this.triage = triage;
     }
 
     public List<Doctor> doctors(String department) {
@@ -44,6 +48,19 @@ public class SimulationBookingService {
             if (!existing.doctor().id().equals(doctorId) || !existing.triageSessionId().equals(sessionId))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "预约幂等键已用于其他号源");
             return existing;
+        }
+
+        if (sessionId != null && !sessionId.isBlank() && !"walk-in".equals(sessionId)) {
+            var session = triage.requireOwner(sessionId, patient);
+            var result = triage.latestResult(sessionId, patient);
+            if ("紧急提示".equals(session.status()) || "待补充信息".equals(session.status())
+                    || result == null || !result.grounded())
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该分诊会话当前不允许普通预约，请线下就医或申请人工导诊");
+            boolean recommended = result.doctor() != null && doctorId.equals(result.doctor().id())
+                    || result.candidates() != null && result.candidates().stream().anyMatch(candidate ->
+                    candidate.doctor() != null && doctorId.equals(candidate.doctor().id()));
+            if (!recommended)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该医生不属于当前分诊版本的推荐号源");
         }
 
         Doctor doctor = catalog.find(doctorId);

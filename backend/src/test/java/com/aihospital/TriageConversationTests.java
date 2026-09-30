@@ -17,6 +17,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,6 +111,10 @@ class TriageConversationTests {
         mvc.perform(post("/api/triage/sessions/{id}/turns", id).header("Authorization", owner)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"还想挂号\"}"))
                 .andExpect(status().isConflict());
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(java.util.Map.of(
+                        "doctorId", "d1", "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
     }
 
     @Test
@@ -187,5 +192,87 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals("紧急", urgent.path("assessments").get(0).path("result").path("riskLevel").asText());
         org.junit.jupiter.api.Assertions.assertTrue(urgent.path("assessments").get(0).path("result").path("safetyTip").asText().contains("气道"));
         org.junit.jupiter.api.Assertions.assertEquals(2, urgent.path("messages").size());
+    }
+
+    @Test
+    void patientCanRequestHumanReviewAndAdminCanProcessQueue() throws Exception {
+        String owner = token("human-" + UUID.randomUUID());
+        String id = create(owner);
+        turn(owner, id, "我头晕三天并且恶心，没有胸痛");
+        String created = mvc.perform(post("/api/triage/sessions/{id}/human-review", id)
+                        .header("Authorization", owner).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"希望人工确认就医方向\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String requestId = json.readTree(created).path("id").asText();
+        mvc.perform(get("/api/admin/human-reviews").header("Authorization", owner))
+                .andExpect(status().isForbidden());
+        String admin = "Bearer " + jwt.issue("系统管理员", "ADMIN");
+        mvc.perform(get("/api/admin/human-reviews").header("Authorization", admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[*].id", hasItem(requestId)));
+        mvc.perform(patch("/api/admin/human-reviews/{id}", requestId).header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"ACCEPTED\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ACCEPTED"));
+        mvc.perform(get("/api/triage/sessions/{id}", id).header("Authorization", owner))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.humanReview.status").value("ACCEPTED"));
+    }
+
+    @Test
+    void mcpToolsUseRealDataAndRejectMissingMetadata() throws Exception {
+        String admin = "Bearer " + jwt.issue("系统管理员", "ADMIN");
+        String metadata = "\"_meta\":{\"io.modelcontextprotocol/protocolVersion\":\"2026-07-28\","
+                + "\"io.modelcontextprotocol/clientInfo\":{\"name\":\"test\",\"version\":\"1.0\"},"
+                + "\"io.modelcontextprotocol/clientCapabilities\":{}}";
+        mvc.perform(post("/mcp").header("Authorization", admin).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\",\"params\":{" + metadata + "}}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/mcp").header("Authorization", admin)
+                        .header("MCP-Protocol-Version", "2026-07-28").header("Mcp-Method", "tools/call")
+                        .header("Mcp-Name", "doctor_schedule_search").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{"
+                                + metadata + ",\"name\":\"doctor_schedule_search\",\"arguments\":{\"department\":\"骨科\"}}}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.result.isError").value(false))
+                .andExpect(jsonPath("$.result.structuredContent[0].department").value("骨科"));
+    }
+
+    @Test
+    void knowledgeApprovalIsAdminOnlyAndPublishesPendingDocument() throws Exception {
+        String admin = "Bearer " + jwt.issue("系统管理员", "ADMIN");
+        String patient = token("knowledge-" + UUID.randomUUID());
+        String title = "新增骨折审核资料" + UUID.randomUUID().toString().substring(0, 8);
+        String created = mvc.perform(post("/api/admin/knowledge").header("Authorization", admin)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("title", title,
+                                "body", "膝关节骨折与骨折部位需要由医生检查评估。"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_REVIEW"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String id = json.readTree(created).path("id").asText();
+        mvc.perform(post("/api/admin/knowledge/{id}/approve", id).header("Authorization", patient))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/knowledge/{id}/approve", id).header("Authorization", admin))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("READY"));
+        mvc.perform(get("/api/admin/knowledge/search").header("Authorization", admin)
+                        .param("q", "膝关节骨折"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[*].title", hasItem(title)));
+    }
+
+    @Test
+    void runnyNoseConversationAnswersNormallyWithoutRepeatingEvidenceBlock() throws Exception {
+        String owner = token("nasal-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode first = turn(owner, id, "流鼻涕");
+        String firstReply = first.path("messages").get(1).path("content").asText();
+        org.junit.jupiter.api.Assertions.assertTrue(firstReply.contains("流鼻涕"));
+        org.junit.jupiter.api.Assertions.assertFalse(firstReply.contains("知识库没有检索到"));
+        org.junit.jupiter.api.Assertions.assertEquals(0, first.path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertTrue(first.path("messages").get(1).path("provenance").path("knowledgeHits").asInt() > 0);
+        org.junit.jupiter.api.Assertions.assertEquals("DEMO", first.path("messages").get(1).path("provenance").path("modelStatus").asText());
+
+        JsonNode second = turn(owner, id, "流鼻涕啊，有什么好说的");
+        String secondReply = second.path("messages").get(3).path("content").asText();
+        org.junit.jupiter.api.Assertions.assertTrue(secondReply.contains("流鼻涕"));
+        org.junit.jupiter.api.Assertions.assertNotEquals(firstReply, secondReply);
+        org.junit.jupiter.api.Assertions.assertEquals(0, second.path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertEquals(1, second.path("messages").get(3).path("provenance").path("localToolCalls").asInt());
     }
 }

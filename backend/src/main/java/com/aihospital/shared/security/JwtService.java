@@ -4,6 +4,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.regex.Matcher;
@@ -11,7 +12,7 @@ import java.util.regex.Pattern;
 
 /** Small dependency-free HS256 JWT issuer for the demo accounts. */
 public class JwtService {
-    private static final String SECRET = "ai-hospital-demo-signing-key-change-before-production";
+    private static final String SECRET = secret();
     private static final Pattern SUBJECT = Pattern.compile("\\\"sub\\\":\\\"([^\\\"]+)\\\"");
     private static final Pattern ROLE = Pattern.compile("\\\"role\\\":\\\"([^\\\"]+)\\\"");
     private static final Pattern EXPIRES_AT = Pattern.compile("\\\"exp\\\":(\\d+)");
@@ -53,4 +54,15 @@ public class JwtService {
     }
     private String sign(String content) { try { Mac mac=Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256")); return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(content.getBytes(StandardCharsets.UTF_8))); } catch(Exception e) { throw new IllegalStateException(e); } }
     private String b64(String value) { return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8)); }
+    private static String secret() {
+        String configured = System.getenv("AI_JWT_SECRET");
+        if (configured != null && !configured.isBlank()) {
+            if (configured.getBytes(StandardCharsets.UTF_8).length < 32)
+                throw new IllegalStateException("AI_JWT_SECRET 至少需要 32 字节");
+            return configured;
+        }
+        byte[] random = new byte[48];
+        new SecureRandom().nextBytes(random);
+        return Base64.getEncoder().encodeToString(random);
+    }
 }

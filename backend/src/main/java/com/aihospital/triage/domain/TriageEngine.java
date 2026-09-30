@@ -1,13 +1,17 @@
 package com.aihospital.triage.domain;
 
 import com.aihospital.shared.model.Models.TriageResult;
+import com.aihospital.shared.model.Models.SafetyAssessment;
+import java.util.List;
 
 /** Application boundary for a replaceable triage implementation. */
 public interface TriageEngine {
+    record Guidance(String text, String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {}
+    SafetyAssessment assessSafety(String symptoms);
     boolean requiresImmediateCare(String symptoms);
     /** True when the dialogue needs a material fact before creating a booking recommendation. */
     boolean needsClarification(String symptoms);
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
-    String clarificationPrompt(String symptoms);
-    TriageResult triage(String sessionId, String symptoms, String patient);
+    Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
+    TriageResult triage(String sessionId, String symptoms, String patient, List<NarrationModel.Turn> history);
 }

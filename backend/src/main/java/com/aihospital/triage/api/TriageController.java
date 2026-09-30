@@ -42,6 +42,13 @@ public class TriageController {
             @RequestHeader(value = "Authorization", required = false) String auth) {
         return conversations.latestResult(id, guard.require(auth, "PATIENT").subject());
     }
+    @PostMapping("/sessions/{id}/human-review") public HumanReview humanReview(@PathVariable String id,
+            @RequestBody(required = false) HumanReviewRequest body,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        return conversations.requestHumanReview(id, guard.require(auth, "PATIENT").subject(),
+                body == null ? "" : body.reason());
+    }
+    private record HumanReviewRequest(String reason) {}
     private String decodeNumericHtmlEntities(String raw) {
         if (raw == null || raw.isEmpty()) return "";
         Matcher matcher = NUMERIC_HTML_ENTITY.matcher(raw);

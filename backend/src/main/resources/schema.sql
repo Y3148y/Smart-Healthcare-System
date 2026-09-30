@@ -17,6 +17,12 @@ CREATE TABLE IF NOT EXISTS triage_message (
   FOREIGN KEY (session_id) REFERENCES triage_session(id)
 );
 
+CREATE TABLE IF NOT EXISTS triage_message_provenance (
+  message_id VARCHAR(64) PRIMARY KEY,
+  meta_json TEXT NOT NULL,
+  FOREIGN KEY (message_id) REFERENCES triage_message(id)
+);
+
 CREATE TABLE IF NOT EXISTS triage_assessment (
   id VARCHAR(64) PRIMARY KEY,
   session_id VARCHAR(64) NOT NULL,
@@ -38,6 +44,29 @@ CREATE TABLE IF NOT EXISTS triage_eligibility (
   session_id VARCHAR(64) PRIMARY KEY,
   confirmed_at TIMESTAMP NOT NULL,
   FOREIGN KEY (session_id) REFERENCES triage_session(id)
+);
+
+CREATE TABLE IF NOT EXISTS human_review_request (
+  id VARCHAR(64) PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL UNIQUE,
+  patient_id VARCHAR(128) NOT NULL,
+  reason VARCHAR(500) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  FOREIGN KEY (session_id) REFERENCES triage_session(id)
+);
+
+CREATE TABLE IF NOT EXISTS agent_call_log (
+  id VARCHAR(64) PRIMARY KEY,
+  called_at TIMESTAMP NOT NULL,
+  purpose VARCHAR(160) NOT NULL,
+  actor VARCHAR(128) NOT NULL,
+  model VARCHAR(160) NOT NULL,
+  input_tokens INT NOT NULL,
+  output_tokens INT NOT NULL,
+  elapsed_ms BIGINT NOT NULL,
+  success BOOLEAN NOT NULL,
+  tools_json TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sim_slot (

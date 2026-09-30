@@ -20,7 +20,7 @@ backend/src/main/java/com/aihospital/
   triage/                          # 多轮会话、分诊版本、规则与模型解释
   booking/                         # 预约资格校验、幂等与原子扣号
   catalog/                         # 医生与号源目录
-  knowledge/                       # 知识目录（当前演示实现）
+  knowledge/                       # 本地检索与可选 Qdrant 向量索引
   tools/                           # 工具注册（当前演示实现）
   observation/                     # 统计与调用日志
   shared/                          # API 契约、JWT、统一异常和 MyBatis 通用转换
@@ -41,9 +41,20 @@ HTTP 请求 → api → application → domain 接口
 
 跨模块依赖保持单向：预约可读取分诊结果和目录；分诊可读取目录、知识和工具；目录不依赖预约或分诊。分诊结果和助手回复在同一事务内保存。预约号源扣减由数据库条件更新保障，不在前端做库存判断。`shared/model/Models` 暂时保留既有 JSON 契约，以避免重构时破坏已运行的前后端接口；后续如引入正式医院数据模型，可逐个模块迁移 DTO 映射。
 
+## 生成侧安全边界（P0，不能代替临床审核）
+
+1. **规则管结构**：`TriageSafetyPolicy.assess` 给出风险和命中规则；`RuleBasedTriageEngine.triage` 决定结构化科室、医生和风险，模型只生成文字。`TriageConversationService.send` 在追问或分诊前检查危险信号。
+2. **grounded / EVIDENCE_BLOCKED**：`RuleBasedTriageEngine.clarificationPrompt/triage` 在检索无依据时不调用模型，改用拒答与人工导诊提示；`OptionalNarrationModel.guide/explain` 对空证据再次拒绝。
+3. **检索阈值**：`HospitalToolExecutor.execute` 使用 `ai.retrieval.min-score`；`HybridKnowledgeCatalog.retrieve` 使用 `ai.retrieval.semantic-min-score`。配置位于 `application.yml`。阈值不能验证模型每句话的真实性。
+4. **UNSAFE_OUTPUT**：`OptionalNarrationModel.validate` 以 `UNSAFE_OUTPUT` 正则拦截部分确定性诊断与用药表达，不是完整医学安全分类器。
+5. **药品句过滤**：`OptionalNarrationModel.removeMedicationDirections` 移除涉及处方、用药或剂量的句子；过滤后仍可能有遗漏。
+6. **SAFETY_RULE 不可覆盖**：`RuleBasedTriageEngine.triage` 对紧急情况直接生成 `SAFETY_RULE` 回答，不调用 LLM；`SimulationBookingService.book` 再次阻止普通预约。
+
+多轮消息由 `TriageConversationService.send` 传给 `NarrationModel`，`OptionalNarrationModel.buildMessages` 构造 LangChain4j 消息列表，保留最近最多 5 个用户轮次且历史文本合计不超过 4000 字符，超窗从最早消息开始移除。患者文本和 `<evidence>` 都标为不可信内容。demo 模式仍返回规则与知识兜底，不伪称调用外部模型。
+
 ## 当前边界与下一步
 
-当前的 MyBatis 负责会话、版本、预约、号源、统计的关系型数据访问。知识资料和工具注册仍是内存演示实现；`/mcp` 是演示 HTTP 工具入口，**不是**已经对接医院的独立 MCP 服务。模型解释是可选适配，缺少配置或调用失败时分诊规则仍可给出明确的演示结果。前端页面已按患者功能和管理端分别拆到 `features`，`App.vue` 保留路由入口、登录态和跨页数据加载；其中后台四个视图仍共用一个 `AdminPage.vue`，下一步可在实际交互完善时继续细分。这样描述当前实际代码边界，不把目录调整误称为完整 DDD 或生产级医院集成。
+当前的 MyBatis 负责会话、版本、预约、号源、统计与调用记录的关系型数据访问。知识资料和工具注册仍是内存演示实现；`/mcp` 是演示 HTTP 工具入口，**不是**已经对接医院的独立 MCP 服务。模型解释是可选适配，缺少配置或调用失败时分诊规则仍可给出演示结果。前端页面已按患者功能和管理端分别拆到 `features`，`App.vue` 保留路由入口、登录态和跨页数据加载；后台多个视图仍共用一个 `AdminPage.vue`。这不是完整 DDD，也不意味着已完成真实医院集成。
 
 ## 验证命令
 
