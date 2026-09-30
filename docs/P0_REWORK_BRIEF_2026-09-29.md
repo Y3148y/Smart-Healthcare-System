@@ -22,7 +22,7 @@
 
 ## 验证
 
-JDK 17：在 `backend` 执行 `mvn test -q`，**35 项通过、0 失败、0 错误**。在 `frontend` 执行 `npm run build`，类型检查与构建通过。本轮 Qdrant 测试使用模拟 HTTP 服务；**没有**调用真实 LLM、Embedding 服务或医院系统。密钥只从环境变量读取，仓库不保存密钥。
+JDK 17：在 `backend` 执行 `mvn test -q`，**35 项通过、0 失败、0 错误**。2026-09-30 复测（清除 AI_* 环境变量）：当前基线提交内 8 个测试文件共 30 个 `@Test`，**30 项通过、0 失败 0 错误**，两处计数不一致以复测为准，见 [Qdrant 实测记录](QDRANT_LIVE_VERIFICATION_2026-09-30.md)。在 `frontend` 执行 `npm run build`，类型检查与构建通过。本轮 Qdrant 测试使用模拟 HTTP 服务；**没有**调用真实 LLM、Embedding 服务或医院系统。密钥只从环境变量读取，仓库不保存密钥。2026-09-30 补充：Qdrant 与 Embedding 链路已另行完成真实服务实测。
 
 ## 面试常问
 
