@@ -33,7 +33,25 @@
 | ERROR | mock 返回毫秒时间戳（本次排障发现的 DTO int 溢出） | 同样 `ERROR` → 回退正常——解析异常也被 G6 兜住 |
 | REJECTED | 单元测试 10 例（白名单/置信度/坏 JSON/不安全依据等） | 全部按设计拒绝 |
 
-**如实声明**：ACCEPTED 路径当前由本地 mock 端点补证（脚本见附录），非真实模型输出；真实模型的 ACCEPTED 需在百炼控制台充值或关闭"仅免费额度"后，用同一会话输入一句话复验（预期 CallLog 出现 `ACCEPTED/qwen-plus`）。embedding 额度独立，Qdrant 混合检索不受影响。
+**如实声明**：ACCEPTED 路径当前由本地 mock 端点补证（脚本见附录），非真实模型输出。embedding 额度独立，Qdrant 混合检索不受影响。
+
+## 真实供应商探测（2026-10-01 17:00-17:50，未成功拿到 ACCEPTED）
+
+换供应商后的实测记录，全部失败原因已定位到"额度/限流/思考型模型"，**没有一条是业务代码缺陷**：
+
+| 供应商 | 配置 | 实测结果 |
+| --- | --- | --- |
+| 百炼 chat | `qwen-plus`/`turbo`/`max`、`deepseek-v3`、`glm-4.6`、`qwen3-max-preview` | 全部 `AllocationQuota.FreeTierOnly`，账号级免费额度耗尽，换模型名无效 |
+| 百炼 embedding | `qwen3.7-text-embedding` | ✅ 正常返回 1024 维，Qdrant 混合检索不受影响 |
+| 商汤（旧端点） | `https://api.sensenova.cn/compatible-mode/v1` | `code 7 Forbidden`；该 host 只有这一条 chat 路由，其余路径 `no Route matched`——**这个 key 不适用于该端点** |
+| 商汤（正确端点） | `https://token.sensenova.cn/v1`，模型清单：`glm-5.2`、`deepseek-v4-flash/pro`、`deepseek-v4.1-flash`、`deepseek-flash`、`kimi-k3`、`sensenova-6.8-flash-lite`、`sensenova-u1-fast`、`sensenova-u1.5-lite` | key 鉴权通过 ✅；`glm-5.2` 直连 891ms 返回 ✅ |
+| 商汤 `glm-5.2` 接入后 | 应用内决策+解释 | 决策 `REJECTED/glm-5.2 ms=3428`、解释 `FALLBACK`：响应里 `content` 为空、409 字符全在 `reasoning_content`、`finish_reason=length`——**强制思考型模型，输出预算被思考吃光** |
+| 商汤 `deepseek-v4-flash` | 直连 220/900 tokens | 直连 content 正常（76/65 字符）✅；接入应用后决策与解释同时报 `OpenAiHttpException 429 inference exceeds tpm/rpm limit`——**探测并发把 TPM/RPM 配额打爆** |
+| 商汤 `deepseek-v4-pro`、`kimi-k3` | 直连 | 同样触发 TPM/RPM 限流 |
+| 商汤 `deepseek-v4.1-flash`、`sensenova-u1.5-lite` | 直连 | `not available in the current token plan` / `model is not found` |
+| 本地 Ollama `qwen3.5:4b` | `http://127.0.0.1:11434/v1` | 决策 `REJECTED/qwen3.5:4b ms=30301`、解释 `FALLBACK`：消息字段是 `reasoning`（非 `reasoning_content`），`max_tokens=1024` 与 `think:false` 均无效，`content` 恒为空、`finish_reason=length`——**同样是强制思考型** |
+
+结论与下一步（未做）：真实模型的 ACCEPTED 复验需要先解决"强制思考型模型"这一类供应商，可选路径是①把决策/解释的 token 预算提到 4096 以上并允许配置化；②按供应商关闭思考（GLM 系 `extra_body.thinking.type=disabled`、Qwen 系 Ollama `/api/chat` 的 `think:false`），需要能读到 `reasoning_content` 之外的输出字段；③换用确认非思考型的模型再复验。护栏与回退逻辑本身已由 44 项测试锁定，不依赖这三项选择。
 
 ## 测试与构建
 
@@ -41,12 +59,14 @@
 - 新增引擎测试：接受替换科室与置信度并展示依据；拒绝保持规则结果；紧急路径不咨询；未配置不咨询
 - `frontend npm run build` 通过
 - 演示请求体必须以 UTF-8 字节发送（PowerShell 5.1 字符串体会损坏中文，本次实测踩坑）
+- 本轮把决策 `maxTokens` 220→1024、解释 256→1024、追问 120→512、一般信息 150→512（思考型模型会先消耗预算导致 `finish_reason=length` 且 content 为空）；44 项测试仍全绿，但 1024 对实测的强制思考型模型仍不够，预算需要继续抬高并配置化
 
 ## 边界（未完成/待外部）
 
 - 决策仅覆盖"多候选主科室选择"这一个点；单候选、澄清追问、紧急分流不调用模型
 - 临床有效性未审核；置信度为模型自报值，仅供展示，不参与任何分支判断
 - 供应商额度、网络可用性依赖外部；本地降级路径已实测
+- 真实模型的 ACCEPTED 仍未复验（见上节），根因是额度/限流/强制思考型模型，不是代码逻辑
 
 ## 讲解三问
 

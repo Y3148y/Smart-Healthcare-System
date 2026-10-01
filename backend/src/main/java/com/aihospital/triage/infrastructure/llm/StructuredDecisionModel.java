@@ -82,11 +82,14 @@ public class StructuredDecisionModel {
         if (!enabled()) return new Proposal(Proposal.SKIPPED, Optional.empty());
         Set<String> allowed = whitelist(candidates);
         try {
+            // Reasoning-capable compatible models spend part of the budget before the JSON answer;
+            // a tight cap ends the request with finish_reason=length and an empty content, which
+            // would be indistinguishable from a malformed answer. Keep the cap generous.
             var builder = OpenAiChatModel.builder()
                     .apiKey(apiKey)
                     .modelName(model)
                     .temperature(0.0)
-                    .maxTokens(220)
+                    .maxTokens(1024)
                     .timeout(Duration.ofSeconds(Math.max(8, timeoutSeconds)))
                     .maxRetries(0);
             if (baseUrl != null && !baseUrl.isBlank()) builder.baseUrl(baseUrl);
