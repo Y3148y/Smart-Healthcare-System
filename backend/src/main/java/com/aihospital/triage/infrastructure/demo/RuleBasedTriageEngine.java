@@ -8,6 +8,7 @@ import com.aihospital.shared.model.Models.*;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
+import com.aihospital.triage.infrastructure.llm.StructuredDecisionModel;
 import com.aihospital.tools.application.HospitalToolExecutor;
 import org.springframework.stereotype.Component;
 
@@ -25,16 +26,18 @@ public class RuleBasedTriageEngine implements TriageEngine {
     private final NarrationModel narration;
     private final CallLogStore calls;
     private final HospitalToolExecutor toolExecutor;
+    private final StructuredDecisionModel structuredDecisions;
 
     public RuleBasedTriageEngine(TriageSafetyPolicy safety, DoctorDirectory doctors,
                                  KnowledgeCatalog knowledge, NarrationModel narration, CallLogStore calls,
-                                 HospitalToolExecutor toolExecutor) {
+                                 HospitalToolExecutor toolExecutor, StructuredDecisionModel structuredDecisions) {
         this.safety = safety;
         this.doctors = doctors;
         this.knowledge = knowledge;
         this.narration = narration;
         this.calls = calls;
         this.toolExecutor = toolExecutor;
+        this.structuredDecisions = structuredDecisions;
     }
 
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
@@ -87,6 +90,25 @@ public class RuleBasedTriageEngine implements TriageEngine {
         trace.add(symptomExecution.trace());
         String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
                 ? "全科医学科" : candidates.get(0).department();
+        int structuredConfidence = -1;
+        if (!emergency && candidates.size() > 1 && structuredDecisions.enabled()) {
+            long decisionStarted = System.nanoTime();
+            StructuredDecisionModel.Proposal proposal = structuredDecisions.propose(text, candidates, history);
+            calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "结构化分诊决策", user,
+                    proposal.status() + "/" + structuredDecisions.modelName(), 0, 0, elapsedMillis(decisionStarted),
+                    StructuredDecisionModel.Proposal.ACCEPTED.equals(proposal.status()), List.of()));
+            if (proposal.decision().isPresent()) {
+                StructuredDecisionModel.Decision decision = proposal.decision().get();
+                String chosen = decision.department();
+                department = chosen;
+                structuredConfidence = decision.confidence();
+                candidates = candidates.stream()
+                        .map(candidate -> candidate.department().equals(chosen)
+                                ? new DepartmentCandidate(candidate.department(), decision.basis(), candidate.doctor())
+                                : candidate)
+                        .toList();
+            }
+        }
         String retrievalQuery = safety.removeNegatedRedFlags(text) + " " + department + (emergency ? " 急诊 红旗症状" : "");
         HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
         Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
@@ -118,7 +140,8 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         candidates.stream().map(DepartmentCandidate::department)
                                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right),
                         evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history);
-        int confidence = emergency ? 100 : !grounded ? 35 : "全科医学科".equals(department) ? 55 : 72;
+        int confidence = emergency ? 100 : !grounded ? 35 : structuredConfidence > 0 ? structuredConfidence
+                : "全科医学科".equals(department) ? 55 : 72;
         String risk = emergency ? "紧急" : possibleFracture || "URGENT".equals(safetyAssessment.acuity()) ? "尽快就医" : candidates.size() > 1
                 ? "多科室参考" : confidence < 60 ? "待补充信息" : "普通";
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, doctor, answer.text(),

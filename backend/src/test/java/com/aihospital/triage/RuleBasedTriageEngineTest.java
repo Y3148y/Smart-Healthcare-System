@@ -6,6 +6,7 @@ import com.aihospital.observation.infrastructure.demo.InMemoryCallLogStore;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
 import com.aihospital.triage.infrastructure.demo.RuleBasedTriageEngine;
+import com.aihospital.triage.infrastructure.llm.StructuredDecisionModel;
 import com.aihospital.tools.application.HospitalToolExecutor;
 import com.aihospital.tools.infrastructure.demo.InMemoryToolRegistry;
 
@@ -22,11 +23,24 @@ import static org.mockito.Mockito.when;
 class RuleBasedTriageEngineTest {
     private final TriageSafetyPolicy safety = new TriageSafetyPolicy();
 
+    private static StructuredDecisionModel notConfigured() {
+        return new StructuredDecisionModel("demo", "", "", "", 5);
+    }
+
     private RuleBasedTriageEngine engine(NarrationModel narration) {
         var doctors = new DemoDoctorDirectory();
         var knowledge = new InMemoryKnowledgeCatalog();
         return new RuleBasedTriageEngine(safety, doctors, knowledge, narration, new InMemoryCallLogStore(),
-                new HospitalToolExecutor(new InMemoryToolRegistry(), doctors, knowledge, safety, new InMemoryCallLogStore()));
+                new HospitalToolExecutor(new InMemoryToolRegistry(), doctors, knowledge, safety, new InMemoryCallLogStore()),
+                notConfigured());
+    }
+
+    private RuleBasedTriageEngine engine(NarrationModel narration, StructuredDecisionModel structured) {
+        var doctors = new DemoDoctorDirectory();
+        var knowledge = new InMemoryKnowledgeCatalog();
+        return new RuleBasedTriageEngine(safety, doctors, knowledge, narration, new InMemoryCallLogStore(),
+                new HospitalToolExecutor(new InMemoryToolRegistry(), doctors, knowledge, safety, new InMemoryCallLogStore()),
+                structured);
     }
 
     @Test
@@ -95,7 +109,7 @@ class RuleBasedTriageEngineTest {
         InMemoryKnowledgeCatalog knowledge = new InMemoryKnowledgeCatalog();
         RuleBasedTriageEngine service = new RuleBasedTriageEngine(safety, new DemoDoctorDirectory(), knowledge,
                 narration, new InMemoryCallLogStore(), new HospitalToolExecutor(new InMemoryToolRegistry(),
-                new DemoDoctorDirectory(), knowledge, safety, new InMemoryCallLogStore()));
+                new DemoDoctorDirectory(), knowledge, safety, new InMemoryCallLogStore()), notConfigured());
 
         var respiratory = knowledge.search("咳嗽胸闷挂什么科");
         assertFalse(respiratory.isEmpty());
@@ -132,5 +146,84 @@ class RuleBasedTriageEngineTest {
         assertTrue(result.riskLevel().equals("多科室参考"));
         assertTrue(result.candidates().stream().anyMatch(candidate -> candidate.department().equals("神经内科")));
         assertTrue(result.candidates().stream().anyMatch(candidate -> candidate.department().equals("消化内科")));
+    }
+
+    @Test
+    void structuredDecisionPicksOneRuleCandidateAndSurfacesBasis() {
+        NarrationModel narration = mock(NarrationModel.class);
+        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+            .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "LIVE", "stub-model"));
+        StructuredDecisionModel accepting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
+            @Override public Proposal propose(String symptoms,
+                                              java.util.List<com.aihospital.shared.model.Models.DepartmentCandidate> candidates,
+                                              java.util.List<NarrationModel.Turn> history) {
+                return new Proposal(Proposal.ACCEPTED,
+                        java.util.Optional.of(new Decision("消化内科", "以反酸和腹痛为主要表现", 70)));
+            }
+        };
+        RuleBasedTriageEngine service = engine(narration, accepting);
+        var result = service.triage("structured-case", "头晕三天，同时腹痛并反酸", "张三", java.util.List.of());
+        assertTrue(result.department().equals("消化内科"), "structured decision should replace the generic department");
+        assertTrue(result.confidence() == 70, "confidence should come from the guarded decision");
+        assertTrue(result.candidates().stream().anyMatch(candidate ->
+                candidate.department().equals("消化内科") && candidate.reason().equals("以反酸和腹痛为主要表现")));
+    }
+
+    @Test
+    void rejectedStructuredDecisionKeepsRuleResult() {
+        NarrationModel narration = mock(NarrationModel.class);
+        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+            .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
+        StructuredDecisionModel rejecting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
+            @Override public Proposal propose(String symptoms,
+                                              java.util.List<com.aihospital.shared.model.Models.DepartmentCandidate> candidates,
+                                              java.util.List<NarrationModel.Turn> history) {
+                return new Proposal(Proposal.REJECTED, java.util.Optional.empty());
+            }
+        };
+        RuleBasedTriageEngine service = engine(narration, rejecting);
+        var result = service.triage("rejected-case", "头晕三天，同时腹痛并反酸", "张三", java.util.List.of());
+        assertTrue(result.department().equals("全科医学科"));
+        assertTrue(result.riskLevel().equals("多科室参考"));
+    }
+
+    @Test
+    void emergencyFlowNeverConsultsStructuredDecision() {
+        NarrationModel narration = mock(NarrationModel.class);
+        var consulted = new java.util.concurrent.atomic.AtomicBoolean(false);
+        StructuredDecisionModel accepting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
+            @Override public Proposal propose(String symptoms,
+                                              java.util.List<com.aihospital.shared.model.Models.DepartmentCandidate> candidates,
+                                              java.util.List<NarrationModel.Turn> history) {
+                consulted.set(true);
+                return new Proposal(Proposal.ACCEPTED,
+                        java.util.Optional.of(new Decision("全科医学科", "不应被调用", 50)));
+            }
+        };
+        RuleBasedTriageEngine service = engine(narration, accepting);
+        var result = service.triage("emergency-case", "突然剧烈胸痛，呼吸困难，出冷汗", "张三", java.util.List.of());
+        assertTrue(result.department().equals("急诊科"));
+        assertTrue(result.modelStatus().equals("SAFETY_RULE"));
+        assertFalse(consulted.get(), "safety rule path must never consult the model");
+    }
+
+    @Test
+    void unconfiguredStructuredModelIsNeverConsulted() {
+        NarrationModel narration = mock(NarrationModel.class);
+        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+            .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
+        var consulted = new java.util.concurrent.atomic.AtomicBoolean(false);
+        StructuredDecisionModel unconfigured = new StructuredDecisionModel("demo", "", "", "", 5) {
+            @Override public Proposal propose(String symptoms,
+                                              java.util.List<com.aihospital.shared.model.Models.DepartmentCandidate> candidates,
+                                              java.util.List<NarrationModel.Turn> history) {
+                consulted.set(true);
+                return new Proposal(Proposal.SKIPPED, java.util.Optional.empty());
+            }
+        };
+        RuleBasedTriageEngine service = engine(narration, unconfigured);
+        var result = service.triage("demo-case", "头晕三天，同时腹痛并反酸", "张三", java.util.List.of());
+        assertTrue(result.department().equals("全科医学科"));
+        assertFalse(consulted.get(), "demo mode must not call the decision model");
     }
 }

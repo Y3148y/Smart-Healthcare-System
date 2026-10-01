@@ -43,6 +43,8 @@ npm run dev -- --host 127.0.0.1 --port 5188
 
 Qdrant 真实向量检索的本机实测数据（命中分数、降级与恢复、无密钥底线）及四种状态/三问讲解材料见 [Qdrant 实测记录](docs/QDRANT_LIVE_VERIFICATION_2026-09-30.md)。
 
+多候选场景下 LLM 输出结构化分诊决策（白名单、置信度、依据护栏与四态回退）的实现、实测与边界见 [结构化分诊决策记录](docs/LLM_STRUCTURED_TRIAGE_2026-10-01.md)。安全评估与风险等级始终由服务端规则控制，模型不能修改。
+
 当前代码分层与依赖方向见 [项目分层架构](docs/ARCHITECTURE.md)；此前的阶段 A 实施、接口收敛与测试记录见 [阶段 A 实施与测试记录](docs/PHASE_A_PROGRESS_2026-09-27.md)。
 
 预问诊的多轮收集、预约触发条件和紧急信号处理见 [多轮预问诊与安全预警](docs/TRIAGE_CONVERSATION_AND_SAFETY.md)。
