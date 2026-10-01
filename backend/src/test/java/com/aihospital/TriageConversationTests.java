@@ -308,4 +308,34 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 turn(owner, id, "我要挂号").path("assessments").size());
     }
+
+    @Test
+    void suspectedFoodReactionWithGeneralizedRashStopsRoutineBooking() throws Exception {
+        String owner = token("allergy-warning-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我食物过敏了，现在全身好多红肿，好痒，想挂号");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急提示", conversation.path("session").path("status").asText());
+        JsonNode result = conversation.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("SAFETY_RULE", result.path("modelStatus").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull());
+        org.junit.jupiter.api.Assertions.assertEquals("ER-ALLERGY-001",
+                result.path("safetyAssessment").path("signals").get(0).path("ruleCode").asText());
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void negatedOrLocalRashDoesNotTriggerGeneralizedFoodReactionRule() throws Exception {
+        String owner = token("allergy-negative-" + UUID.randomUUID());
+        String local = create(owner);
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, local, "不是食物过敏，只是胳膊上一小块红点").path("assessments").size());
+        String negated = create(owner);
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, negated, "我食物过敏了，但没有全身红疹").path("assessments").size());
+    }
 }

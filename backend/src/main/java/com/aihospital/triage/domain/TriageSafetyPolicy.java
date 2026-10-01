@@ -15,7 +15,9 @@ import java.util.regex.Pattern;
 @Component
 public class TriageSafetyPolicy {
     public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.09-P0";
-    private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得)");
+    private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
+    private static final Pattern FOOD_REACTION = Pattern.compile("食物过敏|吃(了|完).{0,16}(过敏|起疹|红疹|红肿|风团)");
+    private static final Pattern GENERALIZED_RASH = Pattern.compile("(全身|大面积|大片|遍身).{0,16}(红肿|红疹|红点|皮疹|风团|荨麻疹|起疹)");
     private static final Pattern HISTORICAL = Pattern.compile("(以前|从前|去年|多年前|小时候|曾经|既往|已经好了|现已缓解|已缓解)");
     private static final Pattern CURRENT_RESET = Pattern.compile("(现在|目前|如今|今天|此刻|再次|又出现|又开始)");
     private static final List<Rule> RULES = List.of(
@@ -47,6 +49,11 @@ public class TriageSafetyPolicy {
                     urgent |= rule.acuity() == Acuity.URGENT;
                 }
             }
+        }
+        if (hasAsserted(source, FOOD_REACTION) && hasAsserted(source, GENERALIZED_RASH)) {
+            signals.putIfAbsent("ER-ALLERGY-001", new SafetySignal("ER-ALLERGY-001", "疑似严重过敏",
+                    "食物相关不适伴全身性皮疹或红肿", "可能出现严重全身性过敏反应，不能等待普通门诊预约"));
+            emergency = true;
         }
         String acuity = emergency ? "EMERGENCY" : urgent ? "URGENT" : "ROUTINE";
         List<String> actions = emergency
@@ -87,6 +94,14 @@ public class TriageSafetyPolicy {
     }
 
     public String emergencyAdvice(String text) { return emergencyAdvice(assess(text)); }
+
+    private boolean hasAsserted(String text, Pattern pattern) {
+        for (String clause : text.split("[，,。；;！!？?]|但是|但|然而")) {
+            Matcher matcher = pattern.matcher(clause);
+            while (matcher.find()) if (isAsserted(clause, matcher.start())) return true;
+        }
+        return false;
+    }
 
     private boolean isAsserted(String clause, int start) {
         String prefix = clause.substring(Math.max(0, start - 14), start);
