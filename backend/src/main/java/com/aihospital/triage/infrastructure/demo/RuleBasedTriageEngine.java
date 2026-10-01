@@ -46,6 +46,8 @@ public class RuleBasedTriageEngine implements TriageEngine {
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
     @Override public boolean requiresImmediateCare(String symptoms) { return safety.requiresImmediateCare(symptoms); }
 
+    private static final Pattern DIAGNOSIS_OR_PRESCRIPTION_INTENT = Pattern.compile("(?s).*(开药|处方|开方|买药|确诊|是不是.*病|帮我看看|诊断一下|能治吗|怎么治疗|要用什么药).*");
+
     /**
      * A known symptom alone is useful for a conversation, but normally is not enough
      * to attach a simulated appointment.  We wait for a duration/change/associated
@@ -54,14 +56,28 @@ public class RuleBasedTriageEngine implements TriageEngine {
      */
     @Override public boolean needsClarification(String symptoms) {
         if (requiresImmediateCare(symptoms)) return false;
+        if (hasDiagnosisOrPrescriptionIntent(symptoms)) return true;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
         if (candidates.isEmpty()) return bookingFallbackCandidates(symptoms).isEmpty();
         if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
 
+    private boolean hasDiagnosisOrPrescriptionIntent(String text) {
+        return text != null && DIAGNOSIS_OR_PRESCRIPTION_INTENT.matcher(text).matches();
+    }
+
     @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
         long started = System.nanoTime();
+        if (hasDiagnosisOrPrescriptionIntent(text)) {
+            String fallback = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。你希望判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
+            NarrationModel.Answer answer = narration.guideGeneral(text, fallback, history);
+            long elapsed = elapsedMillis(started);
+            calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊引导", "患者",
+                    answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
+                    0, 0, elapsed, false, List.of()));
+            return new Guidance(answer.text(), answer.status(), 0, 0, 0);
+        }
         List<DepartmentCandidate> candidates = candidatesFor(text);
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
@@ -137,9 +153,13 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 : "本建议仅用于辅助分诊和挂号参考，不构成诊断、处方或治疗意见。";
         String fallback = fallbackAnswer(department, emergency, candidates);
         boolean grounded = emergency || retrieval.grounded();
+        if (!emergency && hasDiagnosisOrPrescriptionIntent(text)) {
+            fallback = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。若需要判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
+            grounded = false;
+        }
         NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
                 : !grounded ? narration.guideGeneral(text,
-                        "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或申请人工导诊。", history)
+                        "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或在会话页申请人工导诊。", history)
                 : narration.explain(text, department,
                         candidates.stream().map(DepartmentCandidate::department)
                                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right),
