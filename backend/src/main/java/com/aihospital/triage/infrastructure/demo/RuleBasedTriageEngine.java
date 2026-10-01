@@ -16,10 +16,13 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Demo routing policy. The LLM may explain the result but cannot replace safety decisions. */
 @Component
 public class RuleBasedTriageEngine implements TriageEngine {
+    private static final Pattern NASAL_SYMPTOM = Pattern.compile("流鼻涕|鼻塞|打喷嚏|鼻涕多");
     private final TriageSafetyPolicy safety;
     private final DoctorDirectory doctors;
     private final KnowledgeCatalog knowledge;
@@ -52,7 +55,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
     @Override public boolean needsClarification(String symptoms) {
         if (requiresImmediateCare(symptoms)) return false;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
-        if (candidates.isEmpty()) return true;
+        if (candidates.isEmpty()) return bookingFallbackCandidates(symptoms).isEmpty();
         if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
@@ -87,6 +90,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 ? found : safety.assess(text);
         boolean emergency = safetyAssessment.stopRoutineFlow();
         List<DepartmentCandidate> candidates = emergency ? List.of() : candidatesFor(text);
+        if (!emergency && candidates.isEmpty()) candidates = bookingFallbackCandidates(text);
         trace.add(symptomExecution.trace());
         String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
                 ? "全科医学科" : candidates.get(0).department();
@@ -172,6 +176,23 @@ public class RuleBasedTriageEngine implements TriageEngine {
 
     private boolean hasBookingIntent(String text) {
         return text.matches("(?s).*(挂什么科|看什么科|哪个科|挂号|预约|就诊方向).*" );
+    }
+
+    /** A booking request for supported nasal symptoms may use general medicine; unknown text may not. */
+    private List<DepartmentCandidate> bookingFallbackCandidates(String text) {
+        if (!hasBookingIntent(text) || !hasAffirmedNasalSymptom(text)) return List.of();
+        return List.of(new DepartmentCandidate("全科医学科", "鼻部症状未映射到演示专科；患者明确要求挂号，可先由全科评估", null));
+    }
+
+    private boolean hasAffirmedNasalSymptom(String text) {
+        for (String clause : text.split("[，,。；;！!？?]|但是|但|然而")) {
+            Matcher match = NASAL_SYMPTOM.matcher(clause);
+            while (match.find()) {
+                String prefix = clause.substring(Math.max(0, match.start() - 10), match.start());
+                if (!prefix.matches("(?s).*(没有|并无|否认|不伴|无).{0,6}")) return true;
+            }
+        }
+        return false;
     }
 
     private boolean hasTimeCourse(String text) {

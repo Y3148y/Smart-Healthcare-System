@@ -275,4 +275,37 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals(0, second.path("assessments").size());
         org.junit.jupiter.api.Assertions.assertEquals(1, second.path("messages").get(3).path("provenance").path("localToolCalls").asInt());
     }
+
+    @Test
+    void explicitBookingForNasalSymptomsCreatesGroundedGeneralMedicineRecommendation() throws Exception {
+        String owner = token("nasal-booking-" + UUID.randomUUID());
+        String id = create(owner);
+        org.junit.jupiter.api.Assertions.assertEquals(0, turn(owner, id, "我流鼻涕").path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, id, "没有发热，鼻塞从昨晚开始").path("assessments").size());
+        JsonNode bookedDirection = turn(owner, id, "太难受了，我要挂号");
+        org.junit.jupiter.api.Assertions.assertEquals("已完成分诊", bookedDirection.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(1, bookedDirection.path("assessments").size());
+        JsonNode result = bookedDirection.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("全科医学科", result.path("department").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("grounded").asBoolean());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("evidence").size() > 0);
+        String doctorId = result.path("doctor").path("id").asText();
+        org.junit.jupiter.api.Assertions.assertFalse(doctorId.isBlank());
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", doctorId,
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.triageSessionId").value(id));
+    }
+
+    @Test
+    void unknownOrNegatedNasalSymptomDoesNotCreateBookingRecommendation() throws Exception {
+        String owner = token("nasal-negated-" + UUID.randomUUID());
+        String id = create(owner);
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, id, "我没有流鼻涕，只是想挂号").path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, id, "我要挂号").path("assessments").size());
+    }
 }
