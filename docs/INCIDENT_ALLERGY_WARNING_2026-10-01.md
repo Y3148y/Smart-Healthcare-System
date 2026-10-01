@@ -15,4 +15,6 @@
 
 JDK 17、清除 `AI_*` 后运行 `backend/mvn test`：48 项通过、0 失败。新增测试覆盖命中后 `SAFETY_RULE`、无普通医生、预约接口返回 409，以及“不是食物过敏”或“没有全身红疹”的反例。`frontend/npm run build`：通过。
 
-上述数字来自上一轮自动化改动的记录，本次提交**未独立复跑测试**；若后续 `mvn test` 出现失败，本提交是首个需要二分排查的候选。
+上述数字已于提交后独立复跑确认：`backend/mvn test` 48 项通过、0 失败（Clear `AI_*`，JDK 17+ 运行时）。
+
+补充：本机 `JAVA_HOME` 默认指向 JDK 8，直接 `mvn test` 会因 class file 版本不匹配失败；`D:\FinallShell\finalshell\jre`（JDK 17）缺少 `com.sun.net.httpserver`，会导致 `QdrantSemanticIndexTest` 发现阶段 `NoClassDefFoundError`。可用的完整 JDK 为 `D:\Elasticsearch\elasticsearch-9.3.3\jdk`。
