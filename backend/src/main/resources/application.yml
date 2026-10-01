@@ -31,6 +31,7 @@ ai:
   api-key: ${AI_API_KEY:}
   model: ${AI_MODEL:}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
+  max-tokens: ${AI_MAX_TOKENS:4096}
   embedding-model: ${AI_EMBEDDING_MODEL:}
   embedding-api-key: ${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}
   embedding-base-url: ${AI_EMBEDDING_BASE_URL:${AI_BASE_URL:}}

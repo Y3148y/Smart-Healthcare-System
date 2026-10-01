@@ -51,6 +51,7 @@ public class StructuredDecisionModel {
     private final String baseUrl;
     private final String model;
     private final int timeoutSeconds;
+    @Value("${ai.max-tokens:4096}") private int maxTokens = 4096;
 
     public StructuredDecisionModel(@Value("${ai.mode:demo}") String mode,
                                    @Value("${ai.api-key:}") String apiKey,
@@ -89,7 +90,7 @@ public class StructuredDecisionModel {
                     .apiKey(apiKey)
                     .modelName(model)
                     .temperature(0.0)
-                    .maxTokens(1024)
+                    .maxTokens(Math.max(256, maxTokens))
                     .timeout(Duration.ofSeconds(Math.max(8, timeoutSeconds)))
                     .maxRetries(0);
             if (baseUrl != null && !baseUrl.isBlank()) builder.baseUrl(baseUrl);

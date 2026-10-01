@@ -8,7 +8,7 @@
 | --- | --- |
 | `triage/infrastructure/llm/StructuredDecisionModel.java` | 构建提示词、调用模型、解析 JSON、执行护栏；`enabled()/propose()`，产出 `Proposal(status, decision)` |
 | `triage/infrastructure/demo/RuleBasedTriageEngine.java` | `triage()` 中在规则算出候选后挂钩：仅当 `!emergency && 候选>1 && enabled()` 才调用；接受则替换科室/置信度/候选理由，并记录 CallLog |
-| 配置 | 复用 `ai.mode/api-key/base-url/model/timeout-seconds`，无新增配置项 |
+| 配置 | 复用 `ai.mode/api-key/base-url/model/timeout-seconds`；输出预算可用 `AI_MAX_TOKENS` 调整，默认 4096 |
 
 ## 护栏与回退（全部有测试）
 
@@ -59,7 +59,7 @@
 - 新增引擎测试：接受替换科室与置信度并展示依据；拒绝保持规则结果；紧急路径不咨询；未配置不咨询
 - `frontend npm run build` 通过
 - 演示请求体必须以 UTF-8 字节发送（PowerShell 5.1 字符串体会损坏中文，本次实测踩坑）
-- 本轮把决策 `maxTokens` 220→1024、解释 256→1024、追问 120→512、一般信息 150→512（思考型模型会先消耗预算导致 `finish_reason=length` 且 content 为空）；44 项测试仍全绿，但 1024 对实测的强制思考型模型仍不够，预算需要继续抬高并配置化
+- 后续复验将决策、解释、追问和一般信息的输出预算统一改为 `AI_MAX_TOKENS`（默认 4096，最小 256）。这只解决预算可调问题，**尚未证明**任何云端模型在本次配置下返回 `ACCEPTED`；实际是否可用仍须以当前账号额度、响应正文和应用调用日志核验。
 
 ## 边界（未完成/待外部）
 
@@ -72,7 +72,7 @@
 
 1. **模型能推翻规则吗？** 不能。紧急分流不咨询模型；风险等级由规则计算；模型只在白名单内选科室，任何违规整体拒绝回退。护栏是纯函数，10 个单元测试逐条锁定。
 2. **回退有哪几种？** SKIPPED（未配置）、REJECTED（护栏拒绝）、ERROR（供应商异常）、以及紧急路径的永不咨询——四种状态在 CallLog 里都有记录，全部实测过。
-3. **怎么接真实模型？** 配 `AI_MODE=openai-compatible`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL` 即可，与解释文本共用一套配置；当前 key 对话额度耗尽，恢复后无需改代码。
+3. **怎么接真实模型？** 配 `AI_MODE=openai-compatible`、`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`，思考型模型可再调 `AI_MAX_TOKENS`；与解释文本共用一套配置。配置成功不等于业务验收通过，仍需核对响应正文非空、`ACCEPTED/<模型>` 和 `modelStatus=LIVE`。此前测试账号的额度/限流结论只代表当时实测，不代表当前账号状态。
 
 ## 附录：mock 复验脚本（本次验收所用）
 
