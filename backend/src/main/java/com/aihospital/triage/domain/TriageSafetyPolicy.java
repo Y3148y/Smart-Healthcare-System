@@ -21,60 +21,44 @@ public class TriageSafetyPolicy {
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
 
     /**
-     * 未经临床审核: 下面的词表同时服务第一步（逐小句规则表达式）与第二步（相邻小句组合），
-     * 抽成常量是为了两者不会各自漂移。A2 若把这些词表迁入数据文件，须保持单一来源。
-     */
-    private static final String FACE_SITE = "脸|面|脸颊|面部|牙龈|智齿";
-    private static final String AIRWAY = "无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴";
-    private static final String FACE_SWELLING = siteSymptom(FACE_SITE, 6, "肿");
-    private static final String AIRWAY_GROUPED = "(?:" + AIRWAY + ")";
-
-    /**
-     * D10 第一步的否定判定（{@link #isAsserted}）要求否定词与命中之间只隔着并列连接词，
-     * 因此 `无明显张口受限` 会被判为肯定——因为 `明显` 不是连接词。第二步的组合结论
-     * 代价更高（一个组合错误会升级或漏掉一条急诊规则），所以额外加一层「紧邻否定」保护：
-     * 否定词只允许隔着 `明显|任何` 和空白，且必须紧贴命中起点。
-     *
-     * <p>本保护目前**只用于第二步组合**。第一步的 11 条规则尚未加这层保护，属已登记缺口
-     * （给全部规则加会改变既有行为，须单独裁定并全量回归）。
+     * D11 裁定 3 的紧邻否定保护：只检查**命中起点之前**的否定短语，绝不在匹配词内部搜
+     * 「无/不」。否则 `无法吞咽`、`单侧肢体无力` 这类本身含「无」的**肯定**急症会被误杀
+     * ——`无法吞咽` 匹配起点就在「无」上，起点之前没有区域可搜，因此天然免疫。
      */
     private static final Pattern ADJACENT_NEGATION = Pattern.compile(
             "(?:没有|无|否认|不存在|不伴|并非|不是|未出现)(?:任何|明显(?:的)?)?\\s*$");
 
-    private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(FACE_SWELLING);
-    private static final Pattern AIRWAY_FINDING = Pattern.compile(AIRWAY);
-    private static final Pattern PREGNANCY_STATE_FINDING = Pattern.compile("怀孕|孕期|(?<!不)可能怀孕");
-    private static final Pattern PREGNANCY_DANGER_FINDING = Pattern.compile("大量出血|剧烈腹痛");
-    private static final Pattern POSTPARTUM_FINDING = Pattern.compile("产后大出血");
-
     /**
-     * 未经临床审核: 「明显出血」是量级不明的描述，**不是**「大量出血」。按裁定它单独出现
-     * 时不进 ER-BLEEDING-001（该规则语义是明确失血量），也不凭这四字判 URGENT，而是走
-     * 确定性的「待补充信息」闸门。升急症的只有明确条件：大量出血、出血不止、剧烈疼痛。
+     * A2：临床映射（规则认哪些词、依据什么、已知缺口）已迁入 {@code safety-rules.json}。
+     * 解析机制——否定词表、切句、紧邻否定保护、{@code isAsserted}——刻意留在本类，因为它们
+     * 不是临床映射且承载安全关键语义。迁移的正确性由
+     * {@code SafetyRuleCatalogMigrationTest} 逐条钉住渲染后的表达式。
      */
-    private static final Pattern UNCLEAR_BLEEDING_FINDING = Pattern.compile("明显出血");
+    private static final SafetyRuleCatalog CATALOG = SafetyRuleCatalog.load();
+
+    // 第二步组合所用的 finding 全部来自同一份数据，不在 Java 里另抄一份。
+    private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(CATALOG.vocabulary("faceSwelling"));
+    private static final Pattern AIRWAY_FINDING = Pattern.compile(CATALOG.vocabulary("airway"));
+    private static final Pattern PREGNANCY_STATE_FINDING = Pattern.compile(CATALOG.vocabulary("pregnancyState"));
+    private static final Pattern PREGNANCY_DANGER_FINDING = Pattern.compile(CATALOG.vocabulary("pregnancyDanger"));
+    private static final Pattern POSTPARTUM_FINDING = Pattern.compile(CATALOG.vocabulary("postpartum"));
 
     /**
-     * D10 第二步的组合规则。`symmetric` 表示语序无关——`脸肿，张口受限` 与
-     * `张口受限，脸肿` 是同一临床画面。
+     * 未经临床审核: 「明显出血」是量级不明的描述，**不是**「大量出血」。按 D11 裁定它单独
+     * 出现时既不进 ER-BLEEDING-001 也不判 URGENT，而是走确定性的「待补充信息」闸门。
+     * 升急症的只有明确条件：大量出血、出血不止、剧烈疼痛。
+     */
+    private static final Pattern UNCLEAR_BLEEDING_FINDING = Pattern.compile(CATALOG.vocabulary("unclearBleeding"));
+
+    /**
+     * D10 第二步的组合规则，来自数据文件。`symmetric` 表示语序无关——`脸肿，张口受限`
+     * 与 `张口受限，脸肿` 是同一临床画面。
      *
-     * <p>未经临床审核: 这三条**没有新增任何临床判断**。`ER-PREGNANCY-001` 与
+     * <p>未经临床审核: 这些组合**没有新增任何临床判断**。`ER-PREGNANCY-001` 与
      * `ER-FACE-SPREAD-001` 在第一步早已以同子句形式命中；这里只是把它们的判定范围
-     * 扩到相邻小句，使逗号不再是隐形屏障。第三条（产后 + 危险症状）同样是把已有词表
-     * 跨小句组合，不引入新症状词。
+     * 扩到相邻小句，使逗号不再是隐形屏障。
      */
-    private static final List<Combination> COMBINATIONS = List.of(
-            new Combination("ER-PREGNANCY-001", "孕产", "可能存在孕产期紧急风险",
-                    PREGNANCY_STATE_FINDING, PREGNANCY_DANGER_FINDING, true),
-            new Combination("ER-FACE-SPREAD-001", "口腔颌面部",
-                    "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散",
-                    FACIAL_SWELLING_FINDING, AIRWAY_FINDING, true),
-            new Combination("ER-PREGNANCY-001", "孕产", "可能存在孕产期紧急风险",
-                    POSTPARTUM_FINDING, PREGNANCY_DANGER_FINDING, true),
-            // 孕产状态 + 量级不明的出血：至少走 URGENT 并阻断普通预约，但不足以降为急症。
-            // 升急症的只有明确条件（大量出血/剧烈疼痛），由上面那条 ER 组合承担。
-            new Combination("UR-PREGNANCY-001", "孕产", "孕产状态合并出血需尽快线下评估",
-                    PREGNANCY_STATE_FINDING, UNCLEAR_BLEEDING_FINDING, true));
+    private static final List<Combination> COMBINATIONS = buildCombinations();
 
     /** acuity 由命中的规则码决定，而不是由匹配过程累积的布尔值累积而成。 */
     private static final Set<String> EMERGENCY_CODES = Set.of(
@@ -98,56 +82,44 @@ public class TriageSafetyPolicy {
             siteSymptom("全身|大面积|大片|遍身", 16, "红肿|红疹|红点|皮疹|风团|荨麻疹|起疹"));
     private static final Pattern HISTORICAL = Pattern.compile("(以前|从前|去年|多年前|小时候|曾经|既往|已经好了|现已缓解|已缓解)");
     private static final Pattern CURRENT_RESET = Pattern.compile("(现在|目前|如今|今天|此刻|再次|又出现|又开始)");
-    private static final List<Rule> RULES = List.of(
-            emergency("ER-AIRWAY-001", "气道",
-                    siteSymptom("舌头|舌体|咽喉|喉头", 5, "肿|水肿") + "|无法吞咽|吞咽不了|窒息|说不出话",
-                    "可能存在气道受影响的信号"),
-            emergency("ER-FACE-SPREAD-001", "口面间隙与气道",
-                    // A swollen face alone is not an emergency. Escalation needs a spreading or
-                    // airway feature in the same clause. Note assess() splits on commas first, so
-                    // 脸肿，张口受限 cannot be matched by one span: the clause split is the D9
-                    // structural cause, not something a rule should paper over. Both orders are
-                    // written out so either phrasing inside one clause still escalates.
-                    // 未经临床审核: see SDCEP Dental Abscess and NHS dental abscess guidance.
-                    FACE_SWELLING
-                            + gap() + AIRWAY_GROUPED
-                            + "|" + AIRWAY_GROUPED
-                            + gap() + FACE_SWELLING
-                            + "|口底肿|口底三角区",
-                    "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散"),            emergency("ER-BREATHING-001", "呼吸", "严重呼吸困难|呼吸困难|喘不上气|喘不过气|不能平卧|口唇发紫|嘴唇发紫|咯血", "可能存在严重呼吸异常"),
-            emergency("ER-CIRCULATION-001", "循环", "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼", "当前胸痛在信息不足时不能在线排除心肺急症"),
-            emergency("ER-NEURO-001", "神经", "意识不清|意识障碍|昏迷|晕厥|口角歪斜|单侧肢体无力|说话不清|言语不清|突发剧烈头痛|全身抽搐|抽搐|惊厥", "可能存在急性神经系统异常"),
-            emergency("ER-BLEEDING-001", "出血", "伤口大量出血|出血不止|呕血|大量咯血|便血不止|黑便伴头晕", "可能存在严重出血"),
-            emergency("ER-TRAUMA-001", "严重创伤", "骨头外露|骨头穿出皮肤|开放性骨折|肢体断裂", "可能存在开放性骨折或严重创伤"),
-            emergency("ER-POISON-001", "中毒与自伤", "自杀|自残|不想活|服药过量|药物过量|中毒|误服农药", "可能存在自伤、中毒或药物过量风险"),
-            emergency("ER-PREGNANCY-001", "孕产",
-                    siteSymptom("怀孕|孕期", 8, "大量出血|剧烈腹痛") + "|产后大出血",
-                    "可能存在孕产期紧急风险"),
-            // D10-C2 未经临床审核: 孕产状态「不确定」是第三种状态——既不是已确认怀孕，
-            // 也不能继续按「已排除孕产」普通推荐。按裁定走 URGENT：阻断普通预约、会话
-            // 状态为「建议尽快就医」、不挂医生（这条阻断路径由 Disposition 在 D5 建立并
-            // 已被端到端回归锁定）。不升 EMERGENCY，因为仅凭「可能」不足以判定急症。
-            //
-            // (?<!不) 是必需的：可能怀孕 是 不可能怀孕 的子串，而否定词表 NEGATION 不含
-            // 裸「不」（只有 NEGATION_TOKENS 含），isAsserted 因此挡不住。不使用变长
-            // 前向断言，因为 Java 正则不支持。
-            //
-            // 已登记的残留缺口：「并非可能怀孕」「不太可能怀孕」等否定形式挡不住，
-            // 以及给全部第一步规则加紧邻否定保护一事，均待裁定。
-            urgent("UR-PREGNANCY-001", "孕产状态待确认", "(?<!不)可能怀孕",
-                    "孕产状态不确定时不应按已排除孕产继续普通分诊或推荐号源"),
-            urgent("UR-TRAUMA-001", "创伤", "疑似骨折|骨折|摔断|骨头断|明显变形|不能活动", "外伤可能需要尽快影像检查和固定处理"),
-            // 未经临床审核: single facial swelling is not an emergency on its own. It is routed to
-            // 尽快就医 so the patient is advised to be assessed offline the same day. Emergency
-            // escalation is handled by ER-FACE-SPREAD-001 when a spreading or airway feature appears.
-            urgent("UR-FACE-SWELLING-001", "口面部肿胀",
-                    FACE_SWELLING
-                            + "|肿" + gap() + "(?:脸|面部|脸颊)"
-                            + "|(?:脸|面部|脸颊)" + gap() + "肿",
-                    "面部肿胀需线下尽快评估是否存在感染扩散；单独出现不等于急症"),
-            urgent("UR-FEVER-001", "感染", "持续高热|高烧不退|" + siteSymptom("体温", 3, "39|40"), "持续高热需要尽快线下评估"),
-            urgent("UR-PAIN-001", "疼痛", "剧烈腹痛|腹痛难忍|疼痛难忍", "剧烈疼痛需要尽快线下评估")
-    );
+    private static final List<Rule> RULES = buildRules();
+
+    /** Builds the step-1 rules from {@code safety-rules.json}; acuity comes from the data. */
+    private static List<Rule> buildRules() {
+        List<Rule> built = new ArrayList<>();
+        for (RuleSpec spec : CATALOG.rules())
+            built.add(new Rule(spec.code(), spec.category(), Pattern.compile(spec.expression()),
+                    spec.reason(), "EMERGENCY".equals(spec.acuity()) ? Acuity.EMERGENCY : Acuity.URGENT));
+        return List.copyOf(built);
+    }
+
+    /** Builds the step-2 adjacent-clause combinations from {@code safety-rules.json}. */
+    private static List<Combination> buildCombinations() {
+        List<Combination> built = new ArrayList<>();
+        for (CombinationSpec spec : CATALOG.combinations())
+            built.add(new Combination(spec.code(), spec.category(), spec.reason(),
+                    Pattern.compile(spec.left()), Pattern.compile(spec.right()), spec.symmetric()));
+        return List.copyOf(built);
+    }
+
+    /** A step-1 rule as declared in the data file. */
+    public record RuleSpec(String code, String category, String acuity, String reason, String expression) {}
+
+    /** A step-2 combination as declared in the data file. */
+    public record CombinationSpec(String code, String category, String reason,
+                                  String left, String right, boolean symmetric) {}
+
+    /** Citation status of one rule, for the migration guard in the test sources. */
+    public record CitationStatus(String code, boolean cited, boolean citationGap) {}
+
+    // 以下仅为测试可观测性的窄口，不扩大生产可见面。
+    static String vocabularyForTesting(String name) { return CATALOG.vocabulary(name); }
+
+    static List<RuleSpec> ruleSpecsForTesting() { return CATALOG.rules(); }
+
+    static List<CombinationSpec> combinationSpecsForTesting() { return CATALOG.combinations(); }
+
+    static List<CitationStatus> catalogCitationsForTesting() { return CATALOG.citations(); }
 
     /**
      * Builds a site-qualified symptom expression such as 舌头…肿.
@@ -164,7 +136,7 @@ public class TriageSafetyPolicy {
      * adding 不 cannot disable them, unlike a naive in-span negation scan which would also
      * disable 无法吞咽 and 单侧肢体无力.
      */
-    private static String siteSymptom(String siteWords, int maxGap, String symptom) {
+    static String siteSymptom(String siteWords, int maxGap, String symptom) {
         return "(?:" + siteWords + ")(?:(?!" + NEGATION_TOKENS + ")" + CLAUSE_CHARS + "){0," + maxGap
                 + "}(?:" + symptom + ")";
     }
@@ -178,7 +150,7 @@ public class TriageSafetyPolicy {
      * or the emergency combination silently never fires. The negation guard is still required,
      * otherwise 脸肿，没有吞咽困难 escalates.
      */
-    private static String gap() {
+    static String gap() {
         return "(?:(?!" + NEGATION_TOKENS + ")[^。；;！!？?]){0,10}";
     }
 

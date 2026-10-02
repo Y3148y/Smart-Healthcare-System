@@ -1,0 +1,248 @@
+{
+  "version": 1,
+  "note": "安全规则的临床映射数据源。表达式的搬迁目标是可审计——临床人员能在本文件里看到每条规则到底认哪些词、依据什么、以及已知的覆盖缺口。解析机制（否定词表、切句、紧邻否定保护、isAsserted）刻意留在 TriageSafetyPolicy 代码里，因为它们不是临床映射，且承载安全关键语义，需要以逻辑形式复核。",
+  "templateSyntax": {
+    "{site \"<部位词>\" <最大跨度> \"<症状词>\"}": "展开为 siteSymptom(...)，用于「部位…症状」的跨度匹配",
+    "{gap}": "展开为 gap()，用于同子句内的跨度填充",
+    "{ref:<名称>}": "引用本文件 vocabulary 中的条目；vocabulary 条目自身也可含上述标记，最多两级"
+  },
+  "unreviewedDefault": "本文件所有规则均未经临床审核。citations 列出的是登记过的公开出处，不代表规则本身经临床确认。",
+
+  "vocabulary": {
+    "faceSite": "脸|面|脸颊|面部|牙龈|智齿",
+    "faceSwelling": "{site @faceSite 6 \"肿\"}",
+    "airway": "无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴",
+    "airwayGrouped": "(?:{ref:airway})",
+    "faceFeatures": "(?:脸|面部|脸颊)",
+    "pregnancyState": "怀孕|孕期|(?<!不)可能怀孕",
+    "pregnancyDanger": "大量出血|剧烈腹痛",
+    "postpartum": "产后大出血",
+    "unclearBleeding": "明显出血"
+  },
+
+  "rules": [
+    {
+      "code": "ER-AIRWAY-001",
+      "category": "气道",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在气道受影响的信号",
+      "expression": "{site \"舌头|舌体|咽喉|喉头\" 5 \"肿|水肿\"}|无法吞咽|吞咽不了|窒息|说不出话",
+      "citations": [
+        {"id": "sdcep-spreading-infection", "title": "SDCEP Management of spreading or systemic infection", "note": "抓取实测 unreachable，标记 verified 与实际不符，出处待重新核实"},
+        {"id": "nhc-er-dept-guideline", "title": "国家《急诊科建设与管理指南（试行）》", "note": "URL 为占位，出处待核实"}
+      ],
+      "coverage": "肿胀类只覆盖舌/咽/喉四个部位词，不覆盖「下巴」「下颌」等；吞咽困难只认四种表述。"
+    },
+    {
+      "code": "ER-FACE-SPREAD-001",
+      "category": "口面间隙与气道",
+      "acuity": "EMERGENCY",
+      "reason": "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散",
+      "expression": "{ref:faceSwelling}{gap}{ref:airwayGrouped}|{ref:airwayGrouped}{gap}{ref:faceSwelling}|口底肿|口底三角区",
+      "citations": [
+        {"id": "sdcep-dental-abscess", "title": "SDCEP Drug Prescribing for Dentistry — Dental abscess", "note": "列出急诊转诊条件：明显张口受限、口底肿胀、呼吸或吞咽困难"},
+        {"id": "sdcep-spreading-infection", "title": "SDCEP Management of spreading or systemic infection", "note": "抓取实测 unreachable"}
+      ],
+      "coverage": "组合靠第二步实现（相邻小句），不是靠字符串相邻。部位词表不含「下巴」「下颌」，此类描述不会命中本规则。口底肿胀单独即可命中。",
+      "unreviewed": "未经临床审核。牙科范围之外的面部肿胀是否适用同一判断，未确认。"
+    },
+    {
+      "code": "ER-BREATHING-001",
+      "category": "呼吸",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在严重呼吸异常",
+      "expression": "严重呼吸困难|呼吸困难|喘不上气|喘不过气|不能平卧|口唇发紫|嘴唇发紫|咯血",
+      "citations": [],
+      "coverage": "citationGap：本条目前没有任何权威出处。词表来自经验列举，未对照任何指南逐条核实。",
+      "citationGap": true
+    },
+    {
+      "code": "ER-CIRCULATION-001",
+      "category": "循环",
+      "acuity": "EMERGENCY",
+      "reason": "当前胸痛在信息不足时不能在线排除心肺急症",
+      "expression": "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼",
+      "citations": [
+        {"id": "nhc-chest-pain", "title": "国家卫生健康委 胸痛相关科普文章", "note": "nhc.gov.cn 对程序化请求返回 412，须人工核对"},
+        {"id": "who-heart-attack", "title": "WHO Heart attack fact sheet"}
+      ],
+      "coverage": "只要出现「胸痛」二字即命中，含各种俗称。刻意从宽：宁可误报也不漏报心梗。"
+    },
+    {
+      "code": "ER-NEURO-001",
+      "category": "神经",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在急性神经系统异常",
+      "expression": "意识不清|意识障碍|昏迷|晕厥|口角歪斜|单侧肢体无力|说话不清|言语不清|突发剧烈头痛|全身抽搐|抽搐|惊厥",
+      "citations": [
+        {"id": "ndcpa-stroke", "title": "国家疾病预防控制局 脑卒中防治科普"},
+        {"id": "nice-ng253", "title": "NICE NG253 Suspected sepsis in people aged 16 or over", "note": "用于意识改变/说话含糊等脓毒症红旗；范围明确排除孕产"}
+      ],
+      "coverage": "citationGap：卒中部分有出处，意识/抽搐部分未逐条对照。不含「一侧肢体麻木」「视物模糊」等常见表述。",
+      "citationGap": true
+    },
+    {
+      "code": "ER-BLEEDING-001",
+      "category": "出血",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在严重出血",
+      "expression": "伤口大量出血|出血不止|呕血|大量咯血|便血不止|黑便伴头晕",
+      "citations": [],
+      "coverage": "citationGap：本条目前没有权威出处。语义是「明确失血量」，因此按 D11 裁定不收「明显出血」——量级不明者走待追问闸门。",
+      "citationGap": true
+    },
+    {
+      "code": "ER-TRAUMA-001",
+      "category": "严重创伤",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在开放性骨折或严重创伤",
+      "expression": "骨头外露|骨头穿出皮肤|开放性骨折|肢体断裂",
+      "citations": [
+        {"id": "nhs-broken-arm", "title": "NHS Broken arm or wrist", "note": "覆盖开放性骨折与急诊指征，但非中文临床指南"}
+      ],
+      "coverage": "出处强度弱：仅有英国公众信息页作二级对照，没有中文或专科临床指南出处，因此不标 citationGap（确有出处，只是弱）。"
+    },
+    {
+      "code": "ER-POISON-001",
+      "category": "中毒与自伤",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在自伤、中毒或药物过量风险",
+      "expression": "自杀|自残|不想活|服药过量|药物过量|中毒|误服农药",
+      "citations": [],
+      "coverage": "citationGap：无权威出处，且本条在中文语料中无法检索到依据（知识库无相关语料），只能靠词表命中。",
+      "citationGap": true
+    },
+    {
+      "code": "ER-PREGNANCY-001",
+      "category": "孕产",
+      "acuity": "EMERGENCY",
+      "reason": "可能存在孕产期紧急风险",
+      "expression": "{site \"怀孕|孕期\" 8 \"大量出血|剧烈腹痛\"}|产后大出血",
+      "citations": [
+        {"id": "cdc-maternal-warning-signs", "title": "CDC Signs and Symptoms of Emergency Conditions During Pregnancy", "url": "https://cdc.gov/hearher/maternal-warning-signs/index.html", "note": "尚未登记进 tools/knowledge-sync/sources.json，待该清单 owner 补录"},
+        {"id": "nhs-ectopic-pregnancy", "title": "NHS Ectopic pregnancy", "url": "https://www.nhs.uk/conditions/ectopic-pregnancy/", "note": "同上，待补录"},
+        {"id": "nhs-stomach-pain-pregnancy", "title": "NHS Stomach pain in pregnancy", "url": "https://www.nhs.uk/pregnancy/common-symptoms/stomach-pain/", "note": "同上，待补录"}
+      ],
+      "coverage": "本规则只是自我声明失准时的有限兜底，**不等于系统已覆盖孕产人群**。孕产排除是建会话时的一次性自我声明，send() 不复查。",
+      "gaps": [
+        "词表只含「怀孕|孕期」，不含「可能怀孕」——后者由 UR-PREGNANCY-001 单独处理，避免把不确定等同已确认。",
+        "危险症状只认「大量出血|剧烈腹痛」。文案里出现的「明显出血」按 D11 裁定不升急症，走孕产 URGENT 组合。",
+        "否定形式覆盖不全：「并非可能怀孕」「不太可能怀孕」仍会命中 UR-PREGNANCY-001，(?!不) 只覆盖紧邻的「不」。",
+        "NG253 范围明确排除孕产，孕产脓毒症应引 NG255；NG255 尚未登记进 sources.json。"
+      ],
+      "unreviewed": "未经临床审核。部位词表与症状词表均未与任何孕产指南逐条对照。"
+    },
+    {
+      "code": "UR-PREGNANCY-001",
+      "category": "孕产状态待确认",
+      "acuity": "URGENT",
+      "reason": "孕产状态不确定时不应按已排除孕产继续普通分诊或推荐号源",
+      "expression": "(?<!不)可能怀孕",
+      "citations": [
+        {"id": "nhs-ectopic-pregnancy", "title": "NHS Ectopic pregnancy", "url": "https://www.nhs.uk/conditions/ectopic-pregnancy/", "note": "即使尚无阳性妊娠测试，可能怀孕且伴相关症状也应及时求医"}
+      ],
+      "coverage": "孕产状态「不确定」是第三种状态：既不是已确认怀孕，也不能继续按已排除孕产普通推荐。URGENT 经 Disposition 阻断预约与挂医生。",
+      "gaps": ["否定形式覆盖不全，见 ER-PREGNANCY-001 的 gaps。"],
+      "unreviewed": "未经临床审核。是否需要更强的转出（而非仅阻断预约）待裁定。"
+    },
+    {
+      "code": "UR-TRAUMA-001",
+      "category": "创伤",
+      "acuity": "URGENT",
+      "reason": "外伤可能需要尽快影像检查和固定处理",
+      "expression": "疑似骨折|骨折|摔断|骨头断|明显变形|不能活动",
+      "citations": [
+        {"id": "nhs-broken-arm", "title": "NHS Broken arm or wrist"}
+      ],
+      "coverage": "出处强度弱：仅 NHS 公众信息页作二级对照，没有中文或专科临床指南，因此不标 citationGap（确有出处，只是弱）。「不能活动」一项较宽，任何「不能活动」都会命中。"
+    },
+    {
+      "code": "UR-FACE-SWELLING-001",
+      "category": "口面部肿胀",
+      "acuity": "URGENT",
+      "reason": "面部肿胀需线下尽快评估是否存在感染扩散；单独出现不等于急症",
+      "expression": "{ref:faceSwelling}|肿{gap}{ref:faceFeatures}|{ref:faceFeatures}{gap}肿",
+      "citations": [
+        {"id": "sdcep-dental-abscess", "title": "SDCEP Drug Prescribing for Dentistry — Dental abscess"},
+        {"id": "nhs-dental-abscess", "title": "NHS Dental abscess", "note": "D2 期间由用户提供的 NHS 页面，尚未登记进 sources.json"}
+      ],
+      "coverage": "按 Q5 裁定：单独脸肿不作急症，作尽快就医；升级交 ER-FACE-SPREAD-001。正反语序各写一遍。部位词表不含「下巴」「下颌」。",
+      "unreviewed": "未经临床审核。"
+    },
+    {
+      "code": "UR-FEVER-001",
+      "category": "感染",
+      "acuity": "URGENT",
+      "reason": "持续高热需要尽快线下评估",
+      "expression": "持续高热|高烧不退|{site \"体温\" 3 \"39|40\"}",
+      "citations": [
+        {"id": "nice-ng253", "title": "NICE NG253 §1.1", "note": "疑似脓毒症 may not have a high temperature——与本规则的 39℃ 门槛结构性冲突"},
+        {"id": "sdcep-dental-abscess", "title": "SDCEP Dental abscess", "note": "体温 <36℃ 或 >38℃ 提示全身受累，且 absence of pyrexia does not preclude"},
+        {"id": "nhs-sepsis", "title": "NHS Sepsis"}
+      ],
+      "coverage": "citationGap：**本条是登记在案的已知冲突**。NICE NG253 与 SDCEP 都指出未达阈值不能排除严重感染，而本规则把 ≥39℃ 当门槛。Q6=b 裁定保留门槛、登记缺口。已加 FEVER_CAVEAT 在 safetyTip 声明「未达阈值不代表可排除」，但规则本身未改。",
+      "citationGap": true
+    },
+    {
+      "code": "UR-PAIN-001",
+      "category": "疼痛",
+      "acuity": "URGENT",
+      "reason": "剧烈疼痛需要尽快线下评估",
+      "expression": "剧烈腹痛|腹痛难忍|疼痛难忍",
+      "citations": [],
+      "coverage": "citationGap：无权威出处。词表仅三种表述，不含「疼得受不了」「痛到站不住」等口语。",
+      "citationGap": true
+    }
+  ],
+
+  "derivedRules": [
+    {
+      "code": "ER-ALLERGY-001",
+      "category": "疑似严重过敏",
+      "reason": "可能出现严重全身性过敏反应，不能等待普通门诊预约",
+      "condition": "foodReaction 与 generalizedRash 同时被肯定表达",
+      "citations": [],
+      "coverage": "citationGap：无权威出处。两个组成模式都是 tempered 跨度表达，否定保护来自 D8。",
+      "citationGap": true
+    }
+  ],
+
+  "auxiliaryPatterns": [
+    {"name": "FOOD_REACTION", "expression": "食物过敏|{site \"吃(了|完)\" 16 \"过敏|起疹|红疹|红肿|风团\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
+    {"name": "GENERALIZED_RASH", "expression": "{site \"全身|大面积|大片|遍身\" 16 \"红肿|红疹|红点|皮疹|风团|荨麻疹|起疹\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
+    {"name": "UNCLEAR_BLEEDING_RULE", "expression": "{ref:unclearBleeding}", "usedBy": "requiresBleedingClarification", "note": "按 D11 裁定，量级不明不升急症也不判 URGENT，走待补充信息闸门"}
+  ],
+
+  "combinations": [
+    {
+      "code": "ER-PREGNANCY-001",
+      "category": "孕产",
+      "reason": "可能存在孕产期紧急风险",
+      "left": "{ref:pregnancyState}", "right": "{ref:pregnancyDanger}", "symmetric": true,
+      "note": "未新增临床判断，只是把已在第一步以同子句形式命中的判定扩到相邻小句。"
+    },
+    {
+      "code": "ER-FACE-SPREAD-001",
+      "category": "口面间隙与气道",
+      "reason": "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散",
+      "left": "{ref:faceSwelling}", "right": "{ref:airway}", "symmetric": true
+    },
+    {
+      "code": "ER-PREGNANCY-001",
+      "category": "孕产",
+      "reason": "可能存在孕产期紧急风险",
+      "left": "{ref:postpartum}", "right": "{ref:pregnancyDanger}", "symmetric": true
+    },
+    {
+      "code": "UR-PREGNANCY-001",
+      "category": "孕产",
+      "reason": "孕产状态合并出血需尽快线下评估",
+      "left": "{ref:pregnancyState}", "right": "{ref:unclearBleeding}", "symmetric": true,
+      "note": "量级不明的出血至少 URGENT 并阻断预约，但不足以降为急症；升急症的只有大量出血与剧烈疼痛。"
+    }
+  ],
+
+  "citationSummary": {
+    "note": "计数不在此手写——手写的数字会与内容漂移。SafetyRuleCatalogTest#citationsArePinned computes it from the entries themselves and pins the result, so adding or removing a citation is visible as a test failure."
+  }
+}
