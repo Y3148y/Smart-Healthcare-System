@@ -3,6 +3,7 @@ package com.aihospital.knowledge.infrastructure.demo;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.shared.model.Models.Evidence;
 import com.aihospital.shared.model.Models.KnowledgeDocument;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Component;
@@ -83,8 +84,48 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return document;
     }
 
+    /**
+     * Department names and routing words carry no clinical meaning but would dominate the query:
+     * {@code termScore} divides by {@code queryTerms.size()}, so a generic word such as
+     * 急诊 sitting in every document's 主题 field adds to the denominator for all eleven
+     * documents and dilutes the weight of the actual symptom. Callers append the candidate
+     * department to the query by design, so 急诊科 reached the index on every lookup.
+     *
+     * <p><b>默认关闭，不是遗忘而是不可单独启用。</b> 清洗会移除噪声，同时暴露一个问题：
+     * 全库最匹配的文档在「流鼻涕」这类真实查询下只能拿到 0.125，而检索阈值是 0.28。
+     * 换言之今天的召回部分依赖噪声把分数抬过线。清洗一旦强制启用，召回会从「勉强能命中」
+     * 变为「基本永不命中」。
+     *
+     * <p>标定问题与去噪一并待裁定——阈值与权重不能靠 11 份回归语料的经验拟合确定，
+     * 那只是在拟合当前语料的分数分布。清洗代码已就绪，等阈值确定后由配置开启。
+     */
+    private static final Set<String> ROUTING_NOISE = Set.of(
+            "急诊", "急诊科", "全科", "全科医学科", "红旗症状", "红旗", "预问诊", "分诊",
+            "模拟号源", "人工导诊", "就医", "线下", "门诊", "挂号");
+
+    @Value("${ai.retrieval.strip-routing-noise:false}")
+    private boolean stripRoutingNoise = false;
+
+    private String sanitizeQuery(String query) {
+        String cleaned = query;
+        for (String noise : ROUTING_NOISE) cleaned = cleaned.replace(noise, " ");
+        return normalize(cleaned.replaceAll("\\s+", " ")).trim();
+    }
+
+    /** Whether routing-noise removal is active. Exposed so tests can pin both settings. */
+    public boolean stripRoutingNoiseEnabled() { return stripRoutingNoise; }
+
+    /**
+     * Query handed to the semantic route. Sanitised whenever sanitising is enabled, so the
+     * embedding never sees routing words as if they were symptoms; otherwise passed through so
+     * the current behaviour is preserved while the calibration question is open.
+     */
+    public String sanitizeForSemantic(String query) {
+        return stripRoutingNoise ? sanitizeQuery(query) : normalize(query).trim();
+    }
+
     @Override public Retrieval retrieve(String query, int maxResults, double minimumScore) {
-        String normalized = normalize(query);
+        String normalized = stripRoutingNoise ? sanitizeQuery(query) : normalize(query);
         if (normalized.isBlank()) return new Retrieval(List.of(), false, "检索问题为空，已拒绝生成无依据回答");
         Set<String> queryTerms = medicalTerms(normalized);
         Map<String, Double> queryVector = ngrams(normalized);
