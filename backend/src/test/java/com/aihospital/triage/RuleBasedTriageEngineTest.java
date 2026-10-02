@@ -235,6 +235,67 @@ class RuleBasedTriageEngineTest {
         assertFalse(highFever.safetyTip().contains("并不代表可以排除严重感染"), highFever.safetyTip());
     }
 
+    /**
+     * D10 acceptance matrix. Evaluation is two-step: per-clause assertion, then adjacent-clause
+     * combination. Both directions of failure are asserted on the rule code, never on overall
+     * acuity, because an unrelated rule would otherwise mask a miss or a false positive.
+     */
+    @Test
+    void adjacentClauseCombinationEscalatesAndNegationsStillSuppress() {
+        var p = new com.aihospital.triage.domain.TriageSafetyPolicy();
+
+        // Combination across a comma now escalates.
+        for (String[] pair : new String[][]{
+                {"我怀孕八周", "突然剧烈腹痛"},
+                {"突然剧烈腹痛", "我怀孕八周"},
+                {"我怀孕八周", "突然大量出血"},
+                {"脸肿", "张口受限"},
+                {"张口受限", "脸肿"},
+                {"脸肿", "吞咽不了"}}) {
+            String text = pair[0] + "，" + pair[1];
+            var a = p.assess(text);
+            boolean escalated = a.acuity().equals("EMERGENCY") && a.signals().stream()
+                    .anyMatch(s -> "ER-PREGNANCY-001".equals(s.ruleCode())
+                            || "ER-FACE-SPREAD-001".equals(s.ruleCode()));
+            org.junit.jupiter.api.Assertions.assertTrue(escalated, "应升级为急症: " + text
+                    + " 实际 " + a.acuity() + " " + a.signals().stream().map(s -> s.ruleCode()).toList());
+        }
+
+        // Negation on either side of the comma still suppresses the combination.
+        for (String text : new String[]{
+                "脸肿，没有吞咽困难",
+                "脸肿，没有张口受限",
+                "脸肿，无明显张口受限",
+                "脸肿，没有明显呼吸困难",
+                "没有脸肿，张口受限",
+                "脸没有肿，张口受限"}) {
+            var a = p.assess(text);
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    a.signals().stream().anyMatch(s -> "ER-FACE-SPREAD-001".equals(s.ruleCode())),
+                    "否定不得触发面部组合急症: " + text + " 实际 "
+                            + a.signals().stream().map(s -> s.ruleCode()).toList());
+        }
+
+        // Historical and unrelated symptoms stay out.
+        for (String text : new String[]{
+                "以前怀孕时腹痛，现在没有怀孕",
+                "我没有怀孕，昨天开始轻微腹痛"}) {
+            var a = p.assess(text);
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    a.signals().stream().anyMatch(s -> "ER-PREGNANCY-001".equals(s.ruleCode())),
+                    "历史或否定孕产不得触发孕产急症: " + text);
+        }
+
+        // Sentence terminator: currently still combinable. GPT ruled on commas only; a period
+        // between two findings is a weak proxy for "different patient", and failing toward
+        // escalation is the safe direction. Isolating a third party is Stage 2 (ruling C), not
+        // this commit. What must hold regardless is that negation still wins across a stop.
+        var negatedAcrossStop = p.assess("脸肿。没有吞咽困难");
+        org.junit.jupiter.api.Assertions.assertFalse(
+                negatedAcrossStop.signals().stream().anyMatch(s -> "ER-FACE-SPREAD-001".equals(s.ruleCode())),
+                "否定在句号下仍必须生效");
+    }
+
     @Test
     void symptomsAcrossDepartmentsRetainCandidatesInsteadOfArbitraryFirstMatch() {
         NarrationModel narration = mock(NarrationModel.class);

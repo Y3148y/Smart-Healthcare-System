@@ -491,25 +491,22 @@ class TriageConversationTests {
     }
 
     /**
-     * DOCUMENTED GAP, NOT DESIRED BEHAVIOUR. {@code assess} splits on punctuation before any rule
-     * runs, so a site and its symptom separated by a comma land in different clauses and
-     * ER-PREGNANCY-001 cannot match. The patient is still routed to 尽快就医 by UR-PAIN-001 and
-     * is told to seek urgent care, so this downgrades acuity rather than silently reassuring the
-     * patient, but it is a real weakening of the fallback GPT ordered us to keep.
-     *
-     * <p>Pinned deliberately so that fixing it fails this test loudly. When it is fixed, delete
-     * this test and update D3 in docs/KNOWN_ISSUES_PRECLINICAL.md rather than editing the
-     * expectation here. A fix must go through clinical review and a POLICY_VERSION bump.
+     * D10. The comma used to be an invisible barrier between a site and its symptom, because
+     * {@code assess} split on punctuation before any rule ran. Evaluation is now two-step, so
+     * this phrasing escalates instead of degrading. This test was previously pinning the
+     * degraded behaviour on purpose; the pin is retired here and the matrix lives in
+     * RuleBasedTriageEngineTest.
      */
     @Test
-    void commaSeparatedPregnancyRedFlagCurrentlyDowngradesToUrgent() throws Exception {
+    void commaSeparatedPregnancyRedFlagEscalatesToEmergency() {
         var assessment = new com.aihospital.triage.domain.TriageSafetyPolicy()
                 .assess("我怀孕八周，突然剧烈腹痛");
-        org.junit.jupiter.api.Assertions.assertEquals("URGENT", assessment.acuity());
-        org.junit.jupiter.api.Assertions.assertFalse(assessment.signals().stream()
-                .anyMatch(signal -> "ER-PREGNANCY-001".equals(signal.ruleCode())));
-        org.junit.jupiter.api.Assertions.assertTrue(assessment.humanReviewRecommended(),
-                "仍必须触发人工复核并要求尽快就医");
+        org.junit.jupiter.api.Assertions.assertEquals("EMERGENCY", assessment.acuity());
+        org.junit.jupiter.api.Assertions.assertTrue(assessment.stopRoutineFlow());
+        org.junit.jupiter.api.Assertions.assertTrue(assessment.signals().stream()
+                .anyMatch(signal -> "ER-PREGNANCY-001".equals(signal.ruleCode())),
+                "必须命中孕产急症规则，实际: "
+                        + assessment.signals().stream().map(s -> s.ruleCode()).toList());
     }
 
     /**

@@ -8,16 +8,70 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P2";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P3";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
+
+    /**
+     * 未经临床审核: 下面的词表同时服务第一步（逐小句规则表达式）与第二步（相邻小句组合），
+     * 抽成常量是为了两者不会各自漂移。A2 若把这些词表迁入数据文件，须保持单一来源。
+     */
+    private static final String FACE_SITE = "脸|面|脸颊|面部|牙龈|智齿";
+    private static final String AIRWAY = "无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴";
+    private static final String FACE_SWELLING = siteSymptom(FACE_SITE, 6, "肿");
+    private static final String AIRWAY_GROUPED = "(?:" + AIRWAY + ")";
+
+    /**
+     * D10 第一步的否定判定（{@link #isAsserted}）要求否定词与命中之间只隔着并列连接词，
+     * 因此 `无明显张口受限` 会被判为肯定——因为 `明显` 不是连接词。第二步的组合结论
+     * 代价更高（一个组合错误会升级或漏掉一条急诊规则），所以额外加一层「紧邻否定」保护：
+     * 否定词只允许隔着 `明显|任何` 和空白，且必须紧贴命中起点。
+     *
+     * <p>本保护目前**只用于第二步组合**。第一步的 11 条规则尚未加这层保护，属已登记缺口
+     * （给全部规则加会改变既有行为，须单独裁定并全量回归）。
+     */
+    private static final Pattern ADJACENT_NEGATION = Pattern.compile(
+            "(?:没有|无|否认|不存在|不伴|并非|不是|未出现)(?:任何|明显(?:的)?)?\\s*$");
+
+    private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(FACE_SWELLING);
+    private static final Pattern AIRWAY_FINDING = Pattern.compile(AIRWAY);
+    private static final Pattern PREGNANCY_STATE_FINDING = Pattern.compile("怀孕|孕期");
+    private static final Pattern PREGNANCY_DANGER_FINDING = Pattern.compile("大量出血|剧烈腹痛");
+    private static final Pattern POSTPARTUM_FINDING = Pattern.compile("产后大出血");
+
+    /**
+     * D10 第二步的组合规则。`symmetric` 表示语序无关——`脸肿，张口受限` 与
+     * `张口受限，脸肿` 是同一临床画面。
+     *
+     * <p>未经临床审核: 这三条**没有新增任何临床判断**。`ER-PREGNANCY-001` 与
+     * `ER-FACE-SPREAD-001` 在第一步早已以同子句形式命中；这里只是把它们的判定范围
+     * 扩到相邻小句，使逗号不再是隐形屏障。第三条（产后 + 危险症状）同样是把已有词表
+     * 跨小句组合，不引入新症状词。
+     */
+    private static final List<Combination> COMBINATIONS = List.of(
+            new Combination("ER-PREGNANCY-001", "孕产", "可能存在孕产期紧急风险",
+                    PREGNANCY_STATE_FINDING, PREGNANCY_DANGER_FINDING, true),
+            new Combination("ER-FACE-SPREAD-001", "口腔颌面部",
+                    "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散",
+                    FACIAL_SWELLING_FINDING, AIRWAY_FINDING, true),
+            new Combination("ER-PREGNANCY-001", "孕产", "可能存在孕产期紧急风险",
+                    POSTPARTUM_FINDING, PREGNANCY_DANGER_FINDING, true));
+
+    /** acuity 由命中的规则码决定，而不是由匹配过程累积的布尔值累积而成。 */
+    private static final Set<String> EMERGENCY_CODES = Set.of(
+            "ER-AIRWAY-001", "ER-BREATHING-001", "ER-CIRCULATION-001", "ER-NEURO-001",
+            "ER-BLEEDING-001", "ER-TRAUMA-001", "ER-POISON-001", "ER-PREGNANCY-001",
+            "ER-FACE-SPREAD-001", "ER-ALLERGY-001");
+    private static final Set<String> URGENT_CODES = Set.of(
+            "UR-TRAUMA-001", "UR-PAIN-001", "UR-FEVER-001", "UR-FACE-SWELLING-001");
     private static final Pattern FOOD_REACTION = Pattern.compile(
             "食物过敏|" + siteSymptom("吃(了|完)", 16, "过敏|起疹|红疹|红肿|风团"));
     private static final Pattern GENERALIZED_RASH = Pattern.compile(
@@ -35,10 +89,10 @@ public class TriageSafetyPolicy {
                     // structural cause, not something a rule should paper over. Both orders are
                     // written out so either phrasing inside one clause still escalates.
                     // 未经临床审核: see SDCEP Dental Abscess and NHS dental abscess guidance.
-                    siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
-                            + gap() + "(?:无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴)"
-                            + "|(?:无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴)"
-                            + gap() + siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
+                    FACE_SWELLING
+                            + gap() + AIRWAY_GROUPED
+                            + "|" + AIRWAY_GROUPED
+                            + gap() + FACE_SWELLING
                             + "|口底肿|口底三角区",
                     "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散"),            emergency("ER-BREATHING-001", "呼吸", "严重呼吸困难|呼吸困难|喘不上气|喘不过气|不能平卧|口唇发紫|嘴唇发紫|咯血", "可能存在严重呼吸异常"),
             emergency("ER-CIRCULATION-001", "循环", "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼", "当前胸痛在信息不足时不能在线排除心肺急症"),
@@ -54,7 +108,7 @@ public class TriageSafetyPolicy {
             // 尽快就医 so the patient is advised to be assessed offline the same day. Emergency
             // escalation is handled by ER-FACE-SPREAD-001 when a spreading or airway feature appears.
             urgent("UR-FACE-SWELLING-001", "口面部肿胀",
-                    siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
+                    FACE_SWELLING
                             + "|肿" + gap() + "(?:脸|面部|脸颊)"
                             + "|(?:脸|面部|脸颊)" + gap() + "肿",
                     "面部肿胀需线下尽快评估是否存在感染扩散；单独出现不等于急症"),
@@ -95,22 +149,78 @@ public class TriageSafetyPolicy {
         return "(?:(?!" + NEGATION_TOKENS + ")[^。；;！!？?]){0,10}";
     }
 
-    public SafetyAssessment assess(String text) {
-        String source = text == null ? "" : text.trim();
-        Map<String, SafetySignal> signals = new LinkedHashMap<>();
-        boolean emergency = false;
-        boolean urgent = false;
-        for (String clause : source.split("[，,。；;！!？?]|但是|但|然而")) {
+    /**
+     * D10 第一步：逐小句的肯定性判定。这一步的切句与否定判定逻辑**一行未改**，
+     * D8 建立的保证（`舌头没有肿`、`全身没有红点`、`怀孕没有剧烈腹痛` 等不被误判）
+     * 在这里原样成立。
+     *
+     * <p>切句仍按 {@code [，,。；;！!？?]|但是|但|然而} 消耗式分割，因此单条规则的
+     * 部位词与症状词必须落在同一小句内才能命中——这正是跨小句组合需要第二步的原因。
+     */
+    private void assessWithinClauses(String[] clauses, Map<String, SafetySignal> signals) {
+        for (String clause : clauses) {
             for (Rule rule : RULES) {
                 Matcher matcher = rule.pattern().matcher(clause);
                 while (matcher.find()) {
                     if (!isAsserted(clause, matcher.start())) continue;
                     signals.putIfAbsent(rule.code(), new SafetySignal(rule.code(), rule.category(), matcher.group(), rule.reason()));
-                    emergency |= rule.acuity() == Acuity.EMERGENCY;
-                    urgent |= rule.acuity() == Acuity.URGENT;
                 }
             }
         }
+    }
+
+    /**
+     * D10 第二步：相邻小句的组合判定。只在**两个相邻小句各自都肯定地**表达了某个
+     * finding 时才升级——部位与症状分处不同小句并不足以判急症，但分处**不同句子**
+     * 也不行，所以只比较相邻小句，不做全文滑动窗口。
+     *
+     * <p>每个小句的肯定性判定都复用第一步的 {@link #isAsserted}，并额外要求命中不被
+     * 紧邻否定词覆盖（见 {@link #ADJACENT_NEGATION}）。因此 `脸肿，没有吞咽困难`、
+     * `脸肿，无明显张口受限` 都不会升级；而 `脸肿，张口受限` 会。
+     */
+    private void assessAdjacentCombinations(String[] clauses, Map<String, SafetySignal> signals) {
+        for (int i = 0; i + 1 < clauses.length; i++) {
+            for (Combination combination : COMBINATIONS) {
+                if (combinationHolds(clauses[i], clauses[i + 1], combination)) {
+                    signals.putIfAbsent(combination.code(), new SafetySignal(combination.code(), combination.category(),
+                            clauses[i] + " / " + clauses[i + 1], combination.reason()));
+                }
+            }
+        }
+    }
+
+    private boolean combinationHolds(String left, String right, Combination combination) {
+        boolean forward = assertsFinding(left, combination.left()) && assertsFinding(right, combination.right());
+        boolean backward = combination.symmetric() && assertsFinding(left, combination.right()) && assertsFinding(right, combination.left());
+        return forward || backward;
+    }
+
+    /** True when this clause affirmatively expresses the finding, with no adjacent negation. */
+    private boolean assertsFinding(String clause, Pattern finding) {
+        Matcher matcher = finding.matcher(clause);
+        while (matcher.find()) {
+            if (!isAsserted(clause, matcher.start())) continue;
+            if (isAdjacentlyNegated(clause, matcher.start())) continue;
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isAdjacentlyNegated(String clause, int start) {
+        // region() 限定搜索范围为「命中起点前的 12 字」，且会重置 matcher。
+        // 不能用 JDK 20 的 matcher(CharSequence, int, int) 重载：本仓库基准是 JDK 17。
+        return ADJACENT_NEGATION.matcher(clause).region(Math.max(0, start - 12), start).find();
+    }
+
+    public SafetyAssessment assess(String text) {
+        String source = text == null ? "" : text.trim();
+        Map<String, SafetySignal> signals = new LinkedHashMap<>();
+        String[] clauses = source.split("[，,。；;！!？?]|但是|但|然而");
+        assessWithinClauses(clauses, signals);
+        assessAdjacentCombinations(clauses, signals);
+
+        boolean emergency = signals.values().stream().anyMatch(signal -> EMERGENCY_CODES.contains(signal.ruleCode()));
+        boolean urgent = signals.values().stream().anyMatch(signal -> URGENT_CODES.contains(signal.ruleCode()));
         if (hasAsserted(source, FOOD_REACTION) && hasAsserted(source, GENERALIZED_RASH)) {
             signals.putIfAbsent("ER-ALLERGY-001", new SafetySignal("ER-ALLERGY-001", "疑似严重过敏",
                     "食物相关不适伴全身性皮疹或红肿", "可能出现严重全身性过敏反应，不能等待普通门诊预约"));
@@ -189,4 +299,5 @@ public class TriageSafetyPolicy {
     }
     private enum Acuity { EMERGENCY, URGENT }
     private record Rule(String code, String category, Pattern pattern, String reason, Acuity acuity) {}
+    private record Combination(String code, String category, String reason, Pattern left, Pattern right, boolean symmetric) {}
 }
