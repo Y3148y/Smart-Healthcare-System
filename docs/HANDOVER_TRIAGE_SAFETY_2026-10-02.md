@@ -57,7 +57,9 @@
 
 辅助模式：`NEGATION`(L18)、`FOOD_REACTION`(L19)、`GENERALIZED_RASH`(L20)、`HISTORICAL`(L21)、`CURRENT_RESET`(L22)。
 
-`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P2"`（L17；D8 修复时由 2026.09-P0 升 P1，D2 面部肿胀分级时升 P2）。本行早前记为 P1，已过时。
+`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P4"`（L17；D8 由 2026.09-P0 升 P1，D2 面部肿胀分级升 P2，D10 两步评估机制升 P3，D10 孕产状态待确认升 P4）。本行早前记为 P1，已过时。
+
+`assess()` 已是**两步评估**（`57e67bc`），不再是单趟循环：①`assessWithinClauses` 逐小句匹配，切句与否定判定一行未改（D8 保证原样成立）；②`assessAdjacentCombinations` 只比较**相邻**小句，两侧各自肯定才升级。acuity 由命中规则码决定（`EMERGENCY_CODES` / `URGENT_CODES`），不再由匹配过程累积布尔值。改这层前务必读 [KNOWN_ISSUES_PRECLINICAL.md](KNOWN_ISSUES_PRECLINICAL.md) 的 D10 段——里面有本次新登记的六条缺口。
 
 `isAsserted`（L106-121）以匹配点**前 14 字**为前缀窗口做否定/历史判定。这是有意的窄窗口，勿扩。
 
@@ -380,7 +382,10 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 - **D3**：✅ 已复裁定。GPT 撤回"应删除"，**选 A 保留 `ER-PREGNANCY-001`**，本次不改规则与入口；C（入口分级转出）留 Stage 2，D（收紧规则）暂不做。已落地：①患者可见边界文案三处一致（勾选处 / 会话内常驻 / 建会话 400），均不表述为"已确认排除孕产"；②孕产引用由 NG253 更正为 CDC + NHS（NG253 范围不含孕产，NG255 待该清单 owner 补录）；③补端到端正负回归——**本条规则此前完全没有端到端测试保护**。**同时实测发现新缺口：逗号会让 `ER-PREGNANCY-001` 完全漏判**（`我怀孕八周，突然剧烈腹痛` 只到 URGENT），且 GPT 指定的验收文案恰好含逗号，故该验收用例当前不通过；已用回归固定当前降级行为，修复须经临床审核并升版本
 - **D9**：`TriageConversationService:75` 把所有历史 USER 消息拼成 `combined`，第 1 轮的拒答意图会永久粘住后续轮次。属行为变更，需与 GPT 商定按轮次意图还是按会话意图
 - 可选：`AI_TIMEOUT_SECONDS` 默认 35 → 20。代价是 fallback 率上升。**默认不动**，单独提 commit 交用户定
-- 回归须全量通过（**当前基线 65/65 / 10 个测试类**，JDK 17）
+- **D10**：✅ 已完成（`57e67bc` 机制 P3 / `41d6562` 孕产状态 P4 / `e36cb25` 文案）。GPT 裁定不接受静默降级，采纳其**两步评估**设计：逗号切句曾使孕产与面部的跨逗号组合完全漏判，现已可达，同时否定仍优先（`脸肿，没有吞咽困难`、`无明显张口受限`、`没有脸肿，张口受限`、`脸没有肿，张口受限` 均不升级）。新增 `UR-PREGNANCY-001`（URGENT）把孕产状态「不确定」建成第三种状态，`可能怀孕` 不再被当作已排除孕产普通推荐，端到端验证预约被拒。**新登记六条缺口**见 KNOWN_ISSUES 的 D10 段，其中「`明显出血` 文案已出现但规则仍不识别」优先级最高，待裁定
+- 回归须全量通过（**当前基线 68/68 / 10 个测试类**，JDK 17）
+- `assess()` 已改为两步评估，改动前先读 KNOWN_ISSUES 的 D10 段；`POLICY_VERSION` 为 `2026.10-P4`
+- **`grounded` 的成色弱于字面**：`InMemoryKnowledgeCatalog.java:107` 的 `termScore` 只统计那 52 个词表内术语，查询全用词表外词时 `termScore=0`，score 只剩 bigram×0.30 + authority。故 `grounded=true` 只代表字面重合，不等于命中医学概念——引用「依据达标」时须带上这个限定
 
 ### 7.5 Stage 2｜P0 规则 + 语料（依赖 §6 Q2）
 
