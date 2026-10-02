@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P3";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P4";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -43,7 +43,7 @@ public class TriageSafetyPolicy {
 
     private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(FACE_SWELLING);
     private static final Pattern AIRWAY_FINDING = Pattern.compile(AIRWAY);
-    private static final Pattern PREGNANCY_STATE_FINDING = Pattern.compile("怀孕|孕期");
+    private static final Pattern PREGNANCY_STATE_FINDING = Pattern.compile("怀孕|孕期|(?<!不)可能怀孕");
     private static final Pattern PREGNANCY_DANGER_FINDING = Pattern.compile("大量出血|剧烈腹痛");
     private static final Pattern POSTPARTUM_FINDING = Pattern.compile("产后大出血");
 
@@ -71,7 +71,8 @@ public class TriageSafetyPolicy {
             "ER-BLEEDING-001", "ER-TRAUMA-001", "ER-POISON-001", "ER-PREGNANCY-001",
             "ER-FACE-SPREAD-001", "ER-ALLERGY-001");
     private static final Set<String> URGENT_CODES = Set.of(
-            "UR-TRAUMA-001", "UR-PAIN-001", "UR-FEVER-001", "UR-FACE-SWELLING-001");
+            "UR-TRAUMA-001", "UR-PAIN-001", "UR-FEVER-001", "UR-FACE-SWELLING-001",
+            "UR-PREGNANCY-001");
     private static final Pattern FOOD_REACTION = Pattern.compile(
             "食物过敏|" + siteSymptom("吃(了|完)", 16, "过敏|起疹|红疹|红肿|风团"));
     private static final Pattern GENERALIZED_RASH = Pattern.compile(
@@ -103,6 +104,19 @@ public class TriageSafetyPolicy {
             emergency("ER-PREGNANCY-001", "孕产",
                     siteSymptom("怀孕|孕期", 8, "大量出血|剧烈腹痛") + "|产后大出血",
                     "可能存在孕产期紧急风险"),
+            // D10-C2 未经临床审核: 孕产状态「不确定」是第三种状态——既不是已确认怀孕，
+            // 也不能继续按「已排除孕产」普通推荐。按裁定走 URGENT：阻断普通预约、会话
+            // 状态为「建议尽快就医」、不挂医生（这条阻断路径由 Disposition 在 D5 建立并
+            // 已被端到端回归锁定）。不升 EMERGENCY，因为仅凭「可能」不足以判定急症。
+            //
+            // (?<!不) 是必需的：可能怀孕 是 不可能怀孕 的子串，而否定词表 NEGATION 不含
+            // 裸「不」（只有 NEGATION_TOKENS 含），isAsserted 因此挡不住。不使用变长
+            // 前向断言，因为 Java 正则不支持。
+            //
+            // 已登记的残留缺口：「并非可能怀孕」「不太可能怀孕」等否定形式挡不住，
+            // 以及给全部第一步规则加紧邻否定保护一事，均待裁定。
+            urgent("UR-PREGNANCY-001", "孕产状态待确认", "(?<!不)可能怀孕",
+                    "孕产状态不确定时不应按已排除孕产继续普通分诊或推荐号源"),
             urgent("UR-TRAUMA-001", "创伤", "疑似骨折|骨折|摔断|骨头断|明显变形|不能活动", "外伤可能需要尽快影像检查和固定处理"),
             // 未经临床审核: single facial swelling is not an emergency on its own. It is routed to
             // 尽快就医 so the patient is advised to be assessed offline the same day. Emergency

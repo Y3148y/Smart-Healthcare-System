@@ -510,6 +510,32 @@ class TriageConversationTests {
     }
 
     /**
+     * D10-C2 end-to-end. The acceptance criterion is 「停止普通预约」, which is enforced by
+     * Disposition rather than by stopRoutineFlow, so it has to be asserted on the booking
+     * endpoint. Also asserts the rule code, never the overall risk level alone.
+     */
+    @Test
+    void uncertainPregnancyStateStopsOrdinaryBooking() throws Exception {
+        String owner = token("pregnancy-uncertain-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我可能怀孕，最近有点不舒服，想挂号");
+
+        org.junit.jupiter.api.Assertions.assertEquals("建议尽快就医",
+                conversation.path("session").path("status").asText());
+        JsonNode result = conversation.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("尽快就医", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(ruleCodes(result).contains("UR-PREGNANCY-001"),
+                "必须命中孕产状态待确认规则，实际规则码: " + ruleCodes(result));
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull(),
+                "孕产状态不确定时不得挂普通医生");
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    /**
      * D3 negative case. Asserted on the rule code rather than on acuity: a plain "not urgent"
      * assertion would be satisfied by any unrelated safety rule and would therefore pass even
      * if ER-PREGNANCY-001 had fired spuriously.

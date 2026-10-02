@@ -296,6 +296,41 @@ class RuleBasedTriageEngineTest {
                 "否定在句号下仍必须生效");
     }
 
+    /**
+     * D10-C2. 孕产状态「不确定」是第三种状态：不是已确认怀孕，也不能继续按已排除孕产
+     * 普通推荐。按裁定走 URGENT——阻断普通预约并提示尽快线下评估，不升 EMERGENCY，
+     * 因为仅凭「可能」不足以判定急症。
+     */
+    @Test
+    void uncertainPregnancyStateStopsRoutineBookingWithoutBeingEmergency() {
+        var p = new com.aihospital.triage.domain.TriageSafetyPolicy();
+
+        for (String text : new String[]{"我可能怀孕", "最近可能怀孕，想问下该怎么办"}) {
+            var a = p.assess(text);
+            org.junit.jupiter.api.Assertions.assertEquals("URGENT", a.acuity(), text);
+            org.junit.jupiter.api.Assertions.assertFalse(a.stopRoutineFlow(), text);
+            org.junit.jupiter.api.Assertions.assertTrue(a.humanReviewRecommended(), text);
+            org.junit.jupiter.api.Assertions.assertTrue(a.signals().stream()
+                    .anyMatch(s -> "UR-PREGNANCY-001".equals(s.ruleCode())), text);
+        }
+
+        // 可能怀孕 是 不可能怀孕 的子串，否定形式必须不触发。
+        for (String text : new String[]{"不可能怀孕，手指有少量出血", "我不可能怀孕"}) {
+            var a = p.assess(text);
+            org.junit.jupiter.api.Assertions.assertFalse(a.signals().stream()
+                    .anyMatch(s -> "UR-PREGNANCY-001".equals(s.ruleCode())
+                            || "ER-PREGNANCY-001".equals(s.ruleCode())),
+                    "否定孕产不得触发任何孕产规则: " + text + " 实际 "
+                            + a.signals().stream().map(s -> s.ruleCode()).toList());
+        }
+
+        // 可能怀孕 + 剧烈腹痛 必须升级为孕产急症，而不是停留在 URGENT。
+        var escalated = p.assess("可能怀孕，突然剧烈腹痛");
+        org.junit.jupiter.api.Assertions.assertEquals("EMERGENCY", escalated.acuity());
+        org.junit.jupiter.api.Assertions.assertTrue(escalated.signals().stream()
+                .anyMatch(s -> "ER-PREGNANCY-001".equals(s.ruleCode())));
+    }
+
     @Test
     void symptomsAcrossDepartmentsRetainCandidatesInsteadOfArbitraryFirstMatch() {
         NarrationModel narration = mock(NarrationModel.class);
