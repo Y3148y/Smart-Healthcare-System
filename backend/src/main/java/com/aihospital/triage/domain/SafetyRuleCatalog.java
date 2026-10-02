@@ -26,7 +26,23 @@ import java.util.regex.Pattern;
  */
 public final class SafetyRuleCatalog {
 
-    private static final Pattern SITE = Pattern.compile("\\{site (\\S+) (\\d+) (\\S+)\\}");
+    /**
+     * The three operands must stop at the closing brace, and quoted ones must stop at their
+     * own closing quote. Two bugs met here once already:
+     *
+     * <ol>
+     *   <li>A greedy {@code \S+} for the third operand swallowed {@code "}|产后大出血} and every
+     *       alternative after it — the template has no whitespace after the brace, so nothing
+     *       failed loudly and {@code ER-PREGNANCY-001} silently lost its whole tail.
+     *   <li>Matching only to {@code }} left the trailing quote in the operand, so the expansion
+     *       embedded a stray {@code "} and the pattern stopped matching.
+     * </ol>
+     *
+     * <p>So: quoted operands end at their closing quote, unquoted ({@code @name}) ones end at
+     * the brace, and neither may cross it.
+     */
+    private static final Pattern SITE = Pattern.compile(
+            "\\{site ((?:\"[^\"]*\")|@\\w+) (\\d+) ((?:\"[^\"]*\")|@\\w+)\\}");
     private static final Pattern GAP = Pattern.compile("\\{gap\\}");
     private static final Pattern REF = Pattern.compile("\\{ref:([A-Za-z0-9_]+)\\}");
     private static final String RESOURCE = "safety-rules.json";
