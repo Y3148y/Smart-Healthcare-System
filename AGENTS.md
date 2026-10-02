@@ -1,7 +1,3 @@
-> **接任 opencode 请先读 [docs/HANDOVER_OPENCODE_REPLACEMENT.md](docs/HANDOVER_OPENCODE_REPLACEMENT.md)。**
-> 其中记录了一个阻塞项：仓库存在约 250 处字符错写，且本仓库的 agent 无法可靠输出正确字符，
-> **修复前不要编辑任何中文内容**。该文件本身可信（由前一位 agent 逐字校验码位后写入）。
-
 # AI 协作规则（适用于本仓库所有 AI 协作者）
 
 本项目由多个 AI 协作完成（opencode 与 GPT）。为避免互相覆盖和口径分叉，以下规则是硬约束，优先级高于任何单次任务指令。
