@@ -87,29 +87,41 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     /**
+     * The single audit entry point for a compliance refusal.  Every refusal must
+     * reach the call log as 合规拒答 with success=true, otherwise the admin view
+     * shows it as an ordinary 预问诊引导 and the compliance trail is lost.
+     */
+    private void recordComplianceRefusal(long startedAtNanos, String user, List<ToolTrace> trace) {
+        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "合规拒答", user,
+                "POLICY_REFUSAL", 0, 0, elapsedMillis(startedAtNanos), true, List.copyOf(trace)));
+    }
+
+    /**
      * A refusal is a terminal result, not a triage assessment: no department, no
      * doctor and no grounded flag, so {@code TriageConversationService} keeps the
      * session at 待补充信息 and {@code SimulationBookingService} blocks booking.
+     *
+     * <p>Unreachable through {@code TriageConversationService} today: it consults
+     * {@code needsClarification} first, which returns true for this intent, so the
+     * service takes the {@link #clarificationPrompt} branch.  It is retained as a
+     * defence-in-depth guard so that a future change to the clarification rules
+     * cannot leak a prescription request into ordinary routing.
      */
     private TriageResult prescriptionRefusalResult(long callStarted, String sessionId, String user,
             SafetyAssessment safetyAssessment, List<ToolTrace> trace) {
         NarrationModel.Answer answer = prescriptionRefusal();
-        TriageResult result = new TriageResult(sessionId, "待补充信息", 0, null, null, PRESCRIPTION_REFUSAL,
+        recordComplianceRefusal(callStarted, user, trace);
+        return new TriageResult(sessionId, "待补充信息", 0, null, null, answer.text(),
                 "本系统不提供诊断、处方或治疗建议；本建议不构成诊断、处方或治疗意见。", List.of(),
                 List.copyOf(trace), List.of(), answer.status(), "", LocalDateTime.now(),
                 safetyAssessment, false, "问诊或处方类请求按合规策略拒绝，未生成科室与预约建议");
-        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "合规拒答", user,
-                answer.status(), 0, 0, elapsedMillis(callStarted), true, List.copyOf(trace)));
-        return result;
     }
 
     @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
         long started = System.nanoTime();
         if (hasDiagnosisOrPrescriptionIntent(text)) {
             NarrationModel.Answer answer = prescriptionRefusal();
-            long elapsed = elapsedMillis(started);
-            calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊引导", "患者",
-                    answer.status(), 0, 0, elapsed, false, List.of()));
+            recordComplianceRefusal(started, "患者", List.of());
             return new Guidance(answer.text(), answer.status(), 0, 0, 0);
         }
         List<DepartmentCandidate> candidates = candidatesFor(text);

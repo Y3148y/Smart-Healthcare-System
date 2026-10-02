@@ -293,6 +293,30 @@ class TriageConversationTests {
     }
 
     @Test
+    void complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance() throws Exception {
+        String owner = token("refusal-audit-" + UUID.randomUUID());
+        turn(owner, create(owner), "我最近老胃疼，想吃点药开点处方");
+
+        String admin = "Bearer " + jwt.issue("系统管理员", "ADMIN");
+        String body = mvc.perform(get("/api/admin/calls").header("Authorization", admin))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+
+        JsonNode compliance = null;
+        for (JsonNode entry : json.readTree(body)) {
+            if ("合规拒答".equals(entry.path("purpose").asText())) { compliance = entry; break; }
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    "预问诊引导".equals(entry.path("purpose").asText())
+                            && "POLICY_REFUSAL".equals(entry.path("model").asText()),
+                    "合规拒答不得被记成普通追问引导，否则审计链断裂：" + entry);
+        }
+        org.junit.jupiter.api.Assertions.assertNotNull(compliance, "应存在合规拒答记录");
+        org.junit.jupiter.api.Assertions.assertEquals("POLICY_REFUSAL", compliance.path("model").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(compliance.path("success").asBoolean(),
+                "合规拒答是策略成功执行，不是失败");
+        org.junit.jupiter.api.Assertions.assertEquals(0, compliance.path("tools").size());
+    }
+
+    @Test
     void diagnosisIntentPatternDoesNotSwallowOrdinaryTriageQuestions() {
         RuleBasedTriageEngine engine = new RuleBasedTriageEngine(null, null, null, null, null, null, null);
         for (String benign : new String[]{"我头痛三天，想挂号", "帮我看看化验单", "我肚子疼，拉肚子"}) {

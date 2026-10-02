@@ -3,25 +3,32 @@
 > **性质**：本文登记的是**已确认的代码缺陷与未决问题**，不是待办愿望清单。
 > **定级**：本系统为未经临床审核的原型。下列任何内容都未获得临床签署。
 > **关联**：[交接文档](HANDOVER_TRIAGE_SAFETY_2026-10-02.md) 提供规则表、缺口清单与执行计划；本文只维护缺陷本体。
-> **维护规则**：修复任一项时，删除该条并在新 commit message 中引用其编号。不要留"已修复但未删"的条目。
+> **维护规则**：修复任一项时，将该条标记为 `已修复` 并注明 commit，**不要删除、不要重编号**——编号是稳定标识符，删除会打断本文与交接文档的交叉引用。
+
+---
+
+## 零、已修复
+
+| 编号 | 摘要 | 修复 commit |
+| --- | --- | --- |
+| D1 | 合规拒答被记成普通追问引导，审计链断裂 | 见下方 D1 |
+| D2 | 两个测试对"脸肿"给出虚假信心 | 见下方 D2 |
 
 ---
 
 ## 一、已确认缺陷
 
-### D1｜`prescriptionRefusalResult` 不可达，合规审计链缺失
+### D1｜已修复｜`prescriptionRefusalResult` 曾不可达，合规审计链缺失
 
-- 位置：`backend/src/main/java/com/aihospital/triage/infrastructure/demo/RuleBasedTriageEngine.java:94-104`
-- 成因：
-  1. `needsClarification()`（L63）对诊断/处方意图返回 `true`，`TriageConversationService` 因此走 `clarificationPrompt` 分支；
-  2. `clarificationPrompt` 在 L108-114 另有一份**独立**的拒答实现；
-  3. `triage()` 的拒答分支条件是 `if (!emergency && hasDiagnosisOrPrescriptionIntent(...))`（L143）。唯一能进入 `triage()` 的情形是 `emergency == true`，此时 `!emergency` 为假，分支被跳过。
-- 后果：
-  - `calls.record(..., "合规拒答", ...)`（L101-102）**永不执行**；
-  - 患者实际路径上的拒答在管理端显示为 `"预问诊引导"` 且 `success=false`（L111-112）；
-  - 审计日志无法区分"合规拒答"与"普通追问引导"。
-- 修复方向：拒答收敛到单一实现；从实际生效的分支发出 `合规拒答` CallLog 且 `success=true`；删除死代码。
-- 注意：删除 L94-104 前需确认无测试引用（当前无）。
+- 位置：`backend/src/main/java/com/aihospital/triage/infrastructure/demo/RuleBasedTriageEngine.java`
+- 原成因：
+  1. `needsClarification()`（L63）对诊断/处方意图返回 `true`，`TriageConversationService:76` 因此走 `clarificationPrompt` 分支；
+  2. `clarificationPrompt` 另有一份**独立**的拒答实现，其 CallLog 写成 `purpose="预问诊引导"`、`success=false`；
+  3. `triage()` 的拒答分支条件是 `if (!emergency && hasDiagnosisOrPrescriptionIntent(...))`。由服务层分流可证：能进入 `triage()` 且非紧急时，`needsClarification` 必为 false，而该方法对拒答意图恒返回 true——故分支不可达。
+- 原后果：唯一正确的 `合规拒答` CallLog 永不执行；患者实际路径上的拒答在管理端显示为普通追问引导且 `success=false`。
+- 修复：抽出 `recordComplianceRefusal(...)` 作为唯一审计入口，两个分支共用；`clarificationPrompt` 改为发出 `purpose="合规拒答"`、`model="POLICY_REFUSAL"`、`success=true`、`tools=[]`。
+- 保留说明：`prescriptionRefusalResult` **不删除**。它在服务层不可达是**期望属性**，作为纵深防御保留——若将来有人改动追问规则，拒答不能因此漏进普通路由。已在代码注释中写明。
+- 回归测试：`complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance`，关键断言是"不存在 `purpose=预问诊引导` 且 `model=POLICY_REFUSAL` 的记录"，直接编码原 bug。
 
 ### D2｜两个测试对"脸肿"给出虚假信心
 
