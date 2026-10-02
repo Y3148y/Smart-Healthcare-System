@@ -108,8 +108,8 @@
       "acuity": "EMERGENCY",
       "reason": "可能存在自伤、中毒或药物过量风险",
       "expression": "自杀|自残|不想活|服药过量|药物过量|中毒|误服农药",
-      "citations": [],
-      "coverage": "citationGap：无权威出处，且本条在中文语料中无法检索到依据（知识库无相关语料），只能靠词表命中。",
+      "citations": [{"id": "nhs-poisoning", "title": "NHS Poisoning", "url": "https://www.nhs.uk/conditions/Poisoning/", "note": "仅上计列目录的身中毒性接触；未登记，待登记进 现有该清单的 owner补录"}, {"id": "who-suicide", "title": "WHO Suicide Q&A", "url": "https://www.who.int/news-room/questions-and-answers/item/suicide", "note": "仅上计列目录的身中毒性接触；待登记，待登记进 现有该清单的 owner补录"}      ],
+      "coverage": "已补出处（nhs-poisoning、who-suicide），但出处只支持相应情境，不能证明现有整个词表准确，且本条在中文语料中无法检索到依据（知识库无相关语料），只能靠词表命中。",
       "citationGap": true
     },
     {
@@ -173,7 +173,7 @@
       "code": "UR-FEVER-001",
       "category": "感染",
       "acuity": "URGENT",
-      "reason": "持续高热需要尽快线下评估",
+      "reason": "持续高热需要尽快线下评估。39℃是本演示规则的一种高热触发条件，不是感染或脑毒症的排除阈值",
       "expression": "持续高热|高烧不退|{site \"体温\" 3 \"39|40\"}",
       "citations": [
         {"id": "nice-ng253", "title": "NICE NG253 §1.1", "note": "疑似脓毒症 may not have a high temperature——与本规则的 39℃ 门槛结构性冲突"},
