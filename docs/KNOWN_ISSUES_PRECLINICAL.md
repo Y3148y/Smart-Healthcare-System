@@ -49,6 +49,37 @@
   - 新增 `ER-FACE-SPREAD-001`（EMERGENCY）：面部肿胀 + **同子句内** `无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴`，正反语序各写一遍；另含 `口底肿|口底三角区`
   - `POLICY_VERSION` → `CN-ADULT-ONLINE-TRIAGE-2026.10-P2`
   - 回归（新增，均**单独断言脸肿**）：`facialSwellingAloneIsUrgentNotEmergency`、`facialSwellingWithAirwayOrMouthOpeningFeatureEscalates`、`facialSwellingNegationsAndAdversativesDoNotEscalate`、`TriageConversationTests.dentalFacialSwellingAloneIsFlaggedUrgentAndNotBookable`
+  - **覆盖面须按代码实际交付来读**：`ER-FACE-SPREAD-001` 只在**同一子句内**同时出现部位词与呼吸道/张口词时才命中。跨逗号写法只得到 `UR-FACE-SWELLING-001`（URGENT），不会由该规则升级为 EMERGENCY。实测：
+
+    | 输入 | acuity | 命中规则码 |
+    | --- | --- | --- |
+    | `脸肿张口受限`（无逗号） | `EMERGENCY` | `ER-FACE-SPREAD-001` `UR-FACE-SWELLING-001` |
+    | `脸肿，张口受限`（有逗号） | `URGENT` | 仅 `UR-FACE-SWELLING-001` |
+    | `张口受限，脸肿`（有逗号） | `URGENT` | 仅 `UR-FACE-SWELLING-001` |
+    | `脸肿，吞咽不了`（有逗号） | `EMERGENCY` | `ER-AIRWAY-001` `UR-FACE-SWELLING-001` |
+
+  - 最后一行值得注意：逗号版本**仍然**是 EMERGENCY，但靠的是**另一条独立规则** `ER-AIRWAY-001`（"吞咽不了"本身就匹配它），**不是** `ER-FACE-SPREAD-001`。所以组合规则的语义（部位+呼吸道 = 同一临床画面）并未生效，只是被单条呼吸道规则兜住了。**兜住不等于覆盖**。
+  - 失效方向为降级而非漏放（URGENT 仍要求尽快就医且不可预约），但这确实弱于规则名暗示的覆盖。
+- **`gap()` 对其声称的用途不可达（本次核查发现，未修）**：`gap()` 的 Javadoc 写明「may cross a comma ... or the emergency combination silently never fires」，其字符类 `[^。；;！!？?]` 也**确实包含**中文逗号，意图是跨逗号。但 `assess()` 第一步就 `split("[，,。；;！!？?]|但是|但|然而")`，规则永远看不到逗号。**因此 `gap()` 跨逗号这一分支在生产路径上不可达。**
+  - 这不是笔误，而是「在错误的基底上打补丁」的实例：用一个 helper 去解决调用方架构从根上禁止的问题。
+  - **不修**：修复必须连带重做「切句 + 否定作用域」，而切句是 D8 否定保证的承重结构（去掉它，`没有舌头肿` 这类跨子句否定会重新误判急诊）。该改造等同 A1 的概念层，须经临床审核并升 `POLICY_VERSION`。
+  - 同一根因已在 D3 复现：`ER-PREGNANCY-001` 同样被逗号击穿（详见 D3 段落实测表）。**这说明逗号切句是横跨多条规则的系统性缺口，不是单条规则的偶发问题。**
+- **术语裂缝（本次核查发现，已实测，未改规则）**：患者可见文案引导患者报告「**明显出血**」「**可能怀孕**」，而规则词表实际只有 `大量出血|剧烈腹痛`、`怀孕|孕期`、`产后大出血`。实测：
+
+  | 输入 | acuity | 命中规则码 |
+  | --- | --- | --- |
+  | `怀孕，明显出血` | `ROUTINE` | **无任何信号** |
+  | `怀孕，我有点出血` | `ROUTINE` | **无任何信号** |
+  | `可能怀孕，明显出血` | `ROUTINE` | **无任何信号** |
+  | `可能怀孕，剧烈腹痛` | `URGENT` | 仅 `UR-PAIN-001` |
+  | `怀孕，大量出血`（无逗号） | `EMERGENCY` | `ER-PREGNANCY-001` |
+  | `怀孕，剧烈腹痛`（有逗号） | `URGENT` | 仅 `UR-PAIN-001` |
+
+  - **前三行是最坏情况**：`怀孕` + `明显出血` 连 `ROUTINE` 都不到，**没有任何安全信号**。文案明确引导患者报告「明显出血请立即寻求急诊帮助」，而患者真这样报告时系统完全静默。
+  - 这不是逗号问题 —— 前三行本身不含标点，是**词表缺词**（`明显出血` 不在表内）与 `可能怀孕` 不被识别（词表只有 `怀孕`/`孕期`）叠加。
+  - **需要裁定**：边界文案本身作为患者建议并无不妥（告诉患者何时线下求助是对的），问题在于**患者真按文案报告后系统静默**。因此缺陷在词表，不在文案。但文案是 GPT 复裁时逐字指定的，**不得由实现方单方面改写临床措辞** —— 故此处只登记，并把「扩词表」还是「改文案」作为待裁定项交回 GPT。
+  - **不改**：扩词表属未审核临床内容，且 `ER-PREGNANCY-001` 刚被裁定保留（D3），任何改动须经临床审核并升 `POLICY_VERSION`。
+  - 建议在 A2 概念入数据时，把「文案用词」与「规则词表」的差集作为数据校验项。
 - **实施中发现并修复的更严重缺陷（原 D2 未记录）**：检索未命中时安全信号被丢弃。`TriageConversationService` 两处会吞掉已判定信号：
   1. L77 `needsClarification` 在 URGENT 时仍返回追问，把"今天就该线下评估"推迟成"先回答几个问题"
   2. L92 未命中检索即置 `待补充信息` 并丢弃分诊版本；原先只对 EMERGENCY 放行，**URGENT 被降级隐藏**
