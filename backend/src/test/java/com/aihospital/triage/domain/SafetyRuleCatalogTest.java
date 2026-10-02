@@ -141,4 +141,15 @@ class SafetyRuleCatalogTest {
                     "组合引用了未声明的规则码: " + combination.code());
         assertEquals(4, policy.combinationSpecsForTesting().size(), "组合条数变化必须同步文档");
     }
+
+    @Test
+    void everyDeclaredAuxiliaryPatternMustBeConsumedByThePolicy() {
+        SafetyRuleCatalog catalog = SafetyRuleCatalog.load();
+        Set<String> consumers = Set.of("FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE");
+        assertEquals(consumers, TriageSafetyPolicy.auxiliaryNamesForTesting());
+        assertEquals(consumers, catalog.compileAuxiliaryPatterns(consumers).keySet());
+        assertFalse(catalog.compileAuxiliaryPatterns(consumers).values().stream()
+                .anyMatch(pattern -> pattern.pattern().contains("{site")
+                        || pattern.pattern().contains("{ref:")));
+    }
 }

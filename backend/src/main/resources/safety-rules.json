@@ -202,13 +202,13 @@
       "reason": "可能出现严重全身性过敏反应，不能等待普通门诊预约",
       "condition": "foodReaction 与 generalizedRash 同时被肯定表达",
       "citations": [],
-      "coverage": "citationGap：无权威出处。两个组成模式都是 tempered 跨度表达，否定保护来自 D8。",
+      "coverage": "citationGap：无权威出处。两个组成模式由 auxiliaryPatterns 声明，否定保护来自 D8；新增海鲜接触伴全身红点的保守拦截，未经临床审核。",
       "citationGap": true
     }
   ],
 
   "auxiliaryPatterns": [
-    {"name": "FOOD_REACTION", "expression": "食物过敏|{site \"吃(了|完)\" 16 \"过敏|起疹|红疹|红肿|风团\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
+    {"name": "FOOD_REACTION", "expression": "食物过敏|吃(了|完)海鲜|{site \"吃(了|完)\" 16 \"过敏|起疹|红疹|红点|红肿|风团\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
     {"name": "GENERALIZED_RASH", "expression": "{site \"全身|大面积|大片|遍身\" 16 \"红肿|红疹|红点|皮疹|风团|荨麻疹|起疹\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
     {"name": "UNCLEAR_BLEEDING_RULE", "expression": "{ref:unclearBleeding}", "usedBy": "requiresBleedingClarification", "note": "按 D11 裁定，量级不明不升急症也不判 URGENT，走待补充信息闸门"}
   ],

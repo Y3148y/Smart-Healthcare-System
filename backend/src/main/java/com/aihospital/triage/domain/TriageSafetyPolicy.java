@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P6";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P7";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -35,6 +35,8 @@ public class TriageSafetyPolicy {
      * {@code SafetyRuleCatalogMigrationTest} 逐条钉住渲染后的表达式。
      */
     private static final SafetyRuleCatalog CATALOG = SafetyRuleCatalog.load();
+    private static final Map<String, Pattern> AUXILIARY = CATALOG.compileAuxiliaryPatterns(Set.of(
+            "FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE"));
 
     // 第二步组合所用的 finding 全部来自同一份数据，不在 Java 里另抄一份。
     private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(CATALOG.vocabulary("faceSwelling"));
@@ -75,11 +77,9 @@ public class TriageSafetyPolicy {
      * **待追问**分支：服务据此进入「待补充信息」，按 D5 该处置不可预约，并追问部位、量、
      * 持续情况与头晕/晕厥等伴随表现。已有明确危险信号时仍由 ER 规则优先接管。
      */
-    private static final Pattern UNCLEAR_BLEEDING_RULE = Pattern.compile("明显出血");
-    private static final Pattern FOOD_REACTION = Pattern.compile(
-            "食物过敏|" + siteSymptom("吃(了|完)", 16, "过敏|起疹|红疹|红肿|风团"));
-    private static final Pattern GENERALIZED_RASH = Pattern.compile(
-            siteSymptom("全身|大面积|大片|遍身", 16, "红肿|红疹|红点|皮疹|风团|荨麻疹|起疹"));
+    private static final Pattern UNCLEAR_BLEEDING_RULE = AUXILIARY.get("UNCLEAR_BLEEDING_RULE");
+    private static final Pattern FOOD_REACTION = AUXILIARY.get("FOOD_REACTION");
+    private static final Pattern GENERALIZED_RASH = AUXILIARY.get("GENERALIZED_RASH");
     private static final Pattern HISTORICAL = Pattern.compile("(以前|从前|去年|多年前|小时候|曾经|既往|已经好了|现已缓解|已缓解)");
     private static final Pattern CURRENT_RESET = Pattern.compile("(现在|目前|如今|今天|此刻|再次|又出现|又开始)");
     private static final List<Rule> RULES = buildRules();
@@ -120,6 +120,8 @@ public class TriageSafetyPolicy {
     static List<CombinationSpec> combinationSpecsForTesting() { return CATALOG.combinations(); }
 
     static List<CitationStatus> catalogCitationsForTesting() { return CATALOG.citations(); }
+
+    static Set<String> auxiliaryNamesForTesting() { return CATALOG.auxiliaryNames(); }
 
     /**
      * Builds a site-qualified symptom expression such as 舌头…肿.

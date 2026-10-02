@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -117,9 +118,12 @@ public final class SafetyRuleCatalog {
                     combination.path("symmetric").asBoolean(true)));
 
         Map<String, String> auxiliary = new LinkedHashMap<>();
-        for (JsonNode pattern : root.path("auxiliaryPatterns"))
-            auxiliary.put(pattern.path("name").asText(),
-                    expand(pattern.path("expression").asText(), vocabulary));
+        for (JsonNode pattern : root.path("auxiliaryPatterns")) {
+            String name = pattern.path("name").asText();
+            if (name.isBlank() || auxiliary.containsKey(name))
+                throw new IllegalStateException("辅助模式名称为空或重复: " + name);
+            auxiliary.put(name, expand(pattern.path("expression").asText(), vocabulary));
+        }
 
         List<TriageSafetyPolicy.CitationStatus> citations = new ArrayList<>();
         for (JsonNode rule : rules(root))
@@ -197,7 +201,16 @@ public final class SafetyRuleCatalog {
 
     List<TriageSafetyPolicy.CombinationSpec> combinations() { return combinations; }
 
-    String auxiliary(String name) { return auxiliary.get(name); }
+    Map<String, Pattern> compileAuxiliaryPatterns(Set<String> usedNames) {
+        if (!auxiliary.keySet().equals(usedNames))
+            throw new IllegalStateException("辅助模式声明与使用不一致: declared=" + auxiliary.keySet()
+                    + ", used=" + usedNames);
+        Map<String, Pattern> compiled = new LinkedHashMap<>();
+        auxiliary.forEach((name, expression) -> compiled.put(name, Pattern.compile(expression)));
+        return Map.copyOf(compiled);
+    }
+
+    Set<String> auxiliaryNames() { return Set.copyOf(auxiliary.keySet()); }
 
     List<TriageSafetyPolicy.CitationStatus> citations() { return citations; }
 

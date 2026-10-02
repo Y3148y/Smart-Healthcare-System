@@ -10,7 +10,7 @@
 
 - 同一时间，同一批文件只能有一个写手。
 - 每个任务必须明确唯一 owner；owner 写完并验收后，任务才可交接。
-- **owner 划分与进行中任务见 [docs/AGENT_BOARD.md](docs/AGENT_BOARD.md) —— 开工前必读，改动后更新。** 注意：GPT 除 D4 外只出裁定、不写生产代码，`triage/**` 的 owner 是 opencode。
+- **owner 划分与进行中任务见 [docs/AGENT_BOARD.md](docs/AGENT_BOARD.md) —— 开工前必读，改动后更新。** 安全规则与测试已由 `caf8d69` 交接给 GPT；知识源清单仍归另一 opencode 实例，严禁交叉改动。
 - 禁止两个 AI 同时修改同一个任务的代码。若需要并行，必须按模块切分且互不交叉（接口文件、共享文档仍归单一 owner）。
 
 ## 2. Git 是唯一交接介质

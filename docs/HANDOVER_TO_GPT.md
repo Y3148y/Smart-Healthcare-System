@@ -133,3 +133,18 @@ HEAD      52765fd
 `docs/BUSINESS_KNOWLEDGE_INVENTORY.md`、`docs/RULE_SOURCE_WORKLIST.md` 属另一
 opencode 实例。若需要改动其中文件（如登记 `nhs-poisoning` / `who-suicide`），
 请交由该 owner，不要直接修改。
+
+## 7. GPT 接手后的进展（2026-10-02）
+
+- `FOOD_REACTION`、`GENERALIZED_RASH`、`UNCLEAR_BLEEDING_RULE` 均改为从同一份
+  `auxiliaryPatterns` 加载；声明名与消费名不一致时启动失败，测试钉住三项与模板展开。
+- 将「吃了海鲜」与食物接触后的「红点」纳入既有食物反应模式；与全身红点组合时沿用
+  `ER-ALLERGY-001` 的原有保守拦截，不新增严重度。此中文映射未经临床审核，不能
+  据此声称已识别过敏性休克。否定、既往、局部红点有负向回归。
+- JUnit 复验「嘴唇肿了，无法吞咽」为 `EMERGENCY / ER-AIRWAY-001`，因此此前
+  jshell 探针所称「零信号」不成立；并未据此新增气道组合规则。无皮疹的急性肿胀
+  或呼吸异常覆盖仍需独立临床审查，不能由这条测试推论为已覆盖。
+- 规则版本升至 `CN-ADULT-ONLINE-TRIAGE-2026.10-P7`。JDK 17 在隔离构建副本
+  `mvn clean test` 结果 90/90 通过；原 `backend/target` 被运行服务锁定，原路径
+  的 clean/test 无法完成。前端原路径构建受临时配置文件写入权限阻断；隔离副本
+  `npm run build` 已通过。以上验证不代表运行中的旧后端进程已加载新规则。
