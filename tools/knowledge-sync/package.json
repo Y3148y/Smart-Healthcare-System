@@ -1,0 +1,17 @@
+{
+  "name": "ai-knowledge-sync",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Provenance-only sync helper for the bundled RAG corpus. Fetches registered official sources, records hashes and diffs, and emits rewrite worksheets. It never publishes content into backend/src/main/resources/knowledge.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "sources": "node cli.mjs sources",
+    "fetch": "node cli.mjs fetch",
+    "diff": "node cli.mjs diff",
+    "proposals": "node cli.mjs proposals",
+    "verify": "node cli.mjs verify"
+  }
+}

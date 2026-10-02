@@ -14,3 +14,6 @@ backend/data/
 *.pem
 .vscode/
 .DS_Store
+tools/knowledge-sync/cache/
+tools/knowledge-sync/reports/
+tools/knowledge-sync/node_modules/

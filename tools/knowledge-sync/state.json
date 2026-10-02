@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-02T02:58:53.637Z",
+  "note": "每源抓取结果只记录 URL、时间、HTTP 状态与 sha256。raw 快照写在 cache/（已 git 忽略），原文永不进入 git。",
+  "sources": {
+    "sdcep-spreading-infection": {
+      "id": "sdcep-spreading-infection",
+      "url": "https://www.acutedentalproblems.sdcep.org.uk/guidance/overarching-principles/management-of-spreading-or-systemic-infection",
+      "fetchedAt": "2026-10-02T02:57:33.733Z",
+      "status": "unreachable",
+      "httpStatus": null,
+      "sha256": null,
+      "bytes": null,
+      "etag": null,
+      "lastModified": null,
+      "contentType": null,
+      "note": "请求失败：fetch failed"
+    },
+    "nhs-sepsis": {
+      "id": "nhs-sepsis",
+      "url": "https://www.nhs.uk/conditions/sepsis",
+      "fetchedAt": "2026-10-02T02:58:27.713Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "5499d64a2d39234c54323a1cdf22378e8b76f5deba771b8ac6ab015bc4f8fc30",
+      "bytes": 54073,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "nhs-vision-loss": {
+      "id": "nhs-vision-loss",
+      "url": "https://www.nhs.uk/conditions/vision-loss",
+      "fetchedAt": "2026-10-02T02:58:33.948Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "a5593c241b04c70b240eddf91c3c1f3b2e763d75945a3281b0634dd8b8804468",
+      "bytes": 42532,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    }
+  }
+}

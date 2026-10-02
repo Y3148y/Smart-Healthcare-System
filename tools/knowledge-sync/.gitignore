@@ -1,0 +1,4 @@
+# 抓取快照与报告都不入库：原文受版权保护，报告含原文摘录。
+cache/
+reports/
+node_modules/
