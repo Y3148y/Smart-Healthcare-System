@@ -37,7 +37,13 @@ public class TriageConversationService {
 
     public Conversation create(String patient, Eligibility eligibility) {
         if (eligibility == null || !eligibility.adultConfirmed() || !eligibility.forSelfConfirmed() || !eligibility.notPregnantConfirmed())
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "当前演示仅支持成年人本人、非孕产期的非急症预问诊");
+            // D3: 边界说明而非孕产状态的确认。孕产排除只是此处的一次性自我声明，
+            // 后续轮次不做复查，因此不能向患者表述为系统已完成孕产核验。
+            // 文案依据：GPT 对 D3 的复裁（选 A），并已用中文孕产引用替换 NG253。
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "当前演示仅支持成年人本人、非孕产期的非急症预问诊。"
+                    + "本系统不提供孕产期常规预问诊：如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员；"
+                    + "严重腹痛、明显出血等情况请立即寻求急诊帮助。");
         String id = java.util.UUID.randomUUID().toString();
         store.createSession(id, patient, LocalDateTime.now());
         return conversation(id, patient);

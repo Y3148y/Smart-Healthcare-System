@@ -38,7 +38,7 @@
 
 ### 2.1 安全规则表
 
-`backend/src/main/java/com/aihospital/triage/domain/TriageSafetyPolicy.java` 共 **11 条静态规则 + 1 条派生组合 = 12 个规则码**。
+`backend/src/main/java/com/aihospital/triage/domain/TriageSafetyPolicy.java` 共 **13 条静态规则 + 1 条派生组合 = 14 个规则码**。本行早前记为 12，已过时：D2 新增 `ER-FACE-SPREAD-001` 与 `UR-FACE-SWELLING-001` 两条。
 
 | 规则码 | 类别 | acuity | 表达式要点（行号） |
 | --- | --- | --- | --- |
@@ -57,7 +57,7 @@
 
 辅助模式：`NEGATION`(L18)、`FOOD_REACTION`(L19)、`GENERALIZED_RASH`(L20)、`HISTORICAL`(L21)、`CURRENT_RESET`(L22)。
 
-`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P1"`（L17；D8 修复时由 2026.09-P0 升级）。
+`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P2"`（L17；D8 修复时由 2026.09-P0 升 P1，D2 面部肿胀分级时升 P2）。本行早前记为 P1，已过时。
 
 `isAsserted`（L106-121）以匹配点**前 14 字**为前缀窗口做否定/历史判定。这是有意的窄窗口，勿扩。
 
@@ -377,9 +377,10 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 - **D4**：✅ 已完成（`34c6f5f`，协作者实现）。处置非 bookable 时不挂医生；会话状态与 `riskLevel` 对齐；删除四处鼻部硬编码；重写鼻部相关测试并新增 `DispositionConsistencyTest`。独立复核已完成：在任务书约定范围内，55/55 全绿，未触碰 `TriageSafetyPolicy.java`。
   - **复核附注（需 owner 确认，非缺陷）**：`0cdfd4a`「allow grounded general-medicine booking for nasal symptoms」被本次实质回退。鼻部症状 + 明确挂号意图现在得到 `待补充信息` + 无任何科室 + 预约 `409`。这与任务书一致（那项能力本身就是硬编码），但它是**能力移除**而非纯 bug 修复，且搭在"bug fix"提交里，建议由 owner 显式追认。
 - **D5**：✅ 已完成（Q1=A）。URGENT 阻断预约与扣号；新增 `Disposition` 集中定义处置词汇；`尽快就医` 会话状态为 `建议尽快就医`；`已完成分诊` 仅在可预约时出现
+- **D3**：✅ 已复裁定。GPT 撤回"应删除"，**选 A 保留 `ER-PREGNANCY-001`**，本次不改规则与入口；C（入口分级转出）留 Stage 2，D（收紧规则）暂不做。已落地：①患者可见边界文案三处一致（勾选处 / 会话内常驻 / 建会话 400），均不表述为"已确认排除孕产"；②孕产引用由 NG253 更正为 CDC + NHS（NG253 范围不含孕产，NG255 待该清单 owner 补录）；③补端到端正负回归——**本条规则此前完全没有端到端测试保护**。**同时实测发现新缺口：逗号会让 `ER-PREGNANCY-001` 完全漏判**（`我怀孕八周，突然剧烈腹痛` 只到 URGENT），且 GPT 指定的验收文案恰好含逗号，故该验收用例当前不通过；已用回归固定当前降级行为，修复须经临床审核并升版本
 - **D9**：`TriageConversationService:75` 把所有历史 USER 消息拼成 `combined`，第 1 轮的拒答意图会永久粘住后续轮次。属行为变更，需与 GPT 商定按轮次意图还是按会话意图
 - 可选：`AI_TIMEOUT_SECONDS` 默认 35 → 20。代价是 fallback 率上升。**默认不动**，单独提 commit 交用户定
-- 回归须全量通过（**当前基线 61/61 / 10 个测试类**，JDK 17）
+- 回归须全量通过（**当前基线 65/65 / 10 个测试类**，JDK 17）
 
 ### 7.5 Stage 2｜P0 规则 + 语料（依赖 §6 Q2）
 

@@ -58,7 +58,7 @@
   - 根因是 D9 的子句切分。子句切分对否定作用域是必要的安全机制，**不应在规则层绕过**
 - 未经临床审核。SDCEP Dental Abscess 与 NHS dental abscess 为相关出处，非逐条映射审核。
 
-### D3｜`ER-PREGNANCY-001` 并非不可达｜**原裁定前提被推翻，待重新裁定**
+### D3｜`ER-PREGNANCY-001` 并非不可达｜**已复裁定：选 A 保留，本次不改规则与入口（但已发现逗号漏判缺口）**
 
 - 位置：规则 `TriageSafetyPolicy.java:31`；入口校验 `TriageConversationTests.java:37`、`unsupportedPopulationCannotStartStandardTriage`（L52-57）
 - 成因：建会话硬性要求 `notPregnantConfirmed: true`，系统在进入分诊前即排除孕产。
@@ -69,8 +69,30 @@
 - **工具路径完全绕过入口校验。** `HospitalToolExecutor.java:49` 的 `symptom_tag_search` 用任意 `query` 直接调 `safety.assess()`，不经 `create()`。该工具经 MCP `tools/call` 暴露（`McpProtocolController.java:55-62`），受 `ADMIN` 角色保护，但对管理员真实可达。
 - 已实测：`assess("怀孕两个月剧烈腹痛")` → `EMERGENCY`，`signals=[ER-PREGNANCY-001]`。
 - 裁定 Q2=A 中"继续排除孕产人群"与"明确声明不覆盖孕产"仍然成立；但其依据"不可达故可删"不成立，**删除动作已暂停**，需重新裁定。
-- 待裁定方回答：孕产急症兜底是 ①**保留**（承认入口自我声明可被绕过）、②**删除**（接受该兜底损失，换取规则集与声明一致）、还是 ③**降级为工具路径专用**（患者流程不声明覆盖孕产，工具路径仍保留孕产信号）？
-- 未经临床审核。任一处置都需附出处（如 NICE NG253 范围说明）并升 `POLICY_VERSION`。
+- **已复裁定（GPT，撤回原"应删除"，选 A）：保留 `ER-PREGNANCY-001`，本次不改规则、不改入口。**
+  - 保留该规则**不等于**系统已覆盖孕产人群，它只是自我声明失准时的一道有限兜底。
+  - C（入口改造）留到 Stage 2，采用「断言识别＋分级转出」，**不**采用见孕产词就无条件转出：明确表示本人正在孕期或近期产后 → 停止普通分诊并提示转向线下；仅提及否定、既往经历、第三人或不确定 → 不算已确认，可询问确认，确认前不生成普通预约；若同时出现现有急症信号，**先执行急症提醒，不等再次确认**。
+  - D（收紧/拆分规则）**暂不做**。
+  - 若将来考虑删除，GPT 明确不接受以免责文字补偿该风险。
+- **患者可见边界（本次已实施，三处一致）**：勾选处（`TriagePage.vue` 资格声明，附"以上为一次性自我声明，系统不会再次核实"）、会话内常驻提示（同文件 `.disclaimer` 区，无条件可见）、建会话被拒路径（`TriageConversationService.create()` 的 400 文案，经前端 `catch` 透传）。
+  - 三处均**不得**表述为"系统已通过勾选确认/排除孕产风险"，只陈述边界与求助路径。
+- **孕产引用更正**：孕产相关论证**不得**再引 NG253。NG253 范围限定 16 岁以上且**非孕产/近期非孕产**（`tools/knowledge-sync/sources.json` 的 `nice-ng253` 条目已独立记录该范围）。孕产脓毒症应引 **NG255**。
+  - 现引用：[CDC 孕产危险信号](https://cdc.gov/hearher/maternal-warning-signs/index.html)、[NHS 孕期腹痛](https://www.nhs.uk/pregnancy/common-symptoms/stomach-pain/)；待补 NG255。
+  - **NG255 尚未登记进 `tools/knowledge-sync/sources.json`**，需由该清单的 owner 补录。
+- **已实测的新缺口（重要，本次发现）**：**逗号会让 `ER-PREGNANCY-001` 完全漏判**。`assess()` 先按 `[，,。；;！!？?]` 切子句，部位词与症状词被逗号隔开即分属不同子句，跨子句的跨度表达式无法匹配。
+
+  | 输入 | acuity | 命中规则码 |
+  | --- | --- | --- |
+  | `我怀孕八周突然剧烈腹痛`（无逗号） | `EMERGENCY` | `ER-PREGNANCY-001` `UR-PAIN-001` |
+  | `我怀孕八周，突然剧烈腹痛`（有逗号） | **`URGENT`** | 仅 `UR-PAIN-001` |
+  | `怀孕，剧烈腹痛`（有逗号） | **`URGENT`** | 仅 `UR-PAIN-001` |
+  | `我没有怀孕，昨天开始轻微腹痛` | `ROUTINE` | 无（否定不误报，正确） |
+
+  - **GPT 指定的验收文案「我怀孕八周，突然剧烈腹痛」恰好含逗号**，因此该验收用例在当前代码下**不通过**。本次落地的正向回归改用无逗号措辞。
+  - 失效方向为**降级而非漏放**：仍由 `UR-PAIN-001` 判 URGENT，仍要求尽快就医、仍不可预约、仍置人工复核，所以不会反向保证"没事"。但这确实削弱了 GPT 要求保留的那道兜底。
+  - 回归 `commaSeparatedPregnancyRedFlagCurrentlyDowngradesToUrgent` **故意固定当前降级行为**：修复时该用例会失败并迫使阅读注释，而不是被静默改掉。修复必须经临床审核并升 `POLICY_VERSION`，**不得**在规则层单方面绕过切句逻辑（与 D2 的 `gap()` 同源，见下）。
+- **本条 D3 之前完全没有端到端测试保护**：`TriageConversationTests` 中"孕"字仅出现在建会话 payload。任何人改动 `assess()` 的切句或 `removeNegatedRedFlags`，都不会有任何测试拦住孕产急诊退化。本次已补正负两条端到端回归，负向按 rule code 断言（不按 acuity 断言，否则其他安全规则会掩盖误报）。
+- 未经临床审核。规则表达式本次未改，故 `POLICY_VERSION` 未升；任何收紧须附出处并升 `POLICY_VERSION`。
 
 ### D4｜已修复（`34c6f5f`）｜独立复核已完成：在任务书范围内，55/55 全绿
 

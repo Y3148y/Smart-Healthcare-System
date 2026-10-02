@@ -462,4 +462,78 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 turn(owner, negated, "我食物过敏了，但没有全身红疹").path("assessments").size());
     }
+
+    /**
+     * D3, ruling Q2 recut to A. The pregnancy exclusion is a self-attestation captured once at
+     * session creation, so this positive case must go through the real conversation send path:
+     * the session was created with notPregnantConfirmed=true and only later contradicts it.
+     * An assess()-only test cannot prove this, because the interesting part is that send()
+     * performs no pregnancy recheck.
+     */
+    @Test
+    void pregnancyRedFlagInLaterTurnStillStopsRoutineBooking() throws Exception {
+        String owner = token("pregnancy-positive-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我怀孕八周突然剧烈腹痛");
+
+        org.junit.jupiter.api.Assertions.assertEquals("紧急提示", conversation.path("session").path("status").asText());
+        JsonNode result = conversation.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("SAFETY_RULE", result.path("modelStatus").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull());
+        org.junit.jupiter.api.Assertions.assertTrue(ruleCodes(result).contains("ER-PREGNANCY-001"),
+                "孕产急症信号必须命中，实际规则码: " + ruleCodes(result));
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * DOCUMENTED GAP, NOT DESIRED BEHAVIOUR. {@code assess} splits on punctuation before any rule
+     * runs, so a site and its symptom separated by a comma land in different clauses and
+     * ER-PREGNANCY-001 cannot match. The patient is still routed to 尽快就医 by UR-PAIN-001 and
+     * is told to seek urgent care, so this downgrades acuity rather than silently reassuring the
+     * patient, but it is a real weakening of the fallback GPT ordered us to keep.
+     *
+     * <p>Pinned deliberately so that fixing it fails this test loudly. When it is fixed, delete
+     * this test and update D3 in docs/KNOWN_ISSUES_PRECLINICAL.md rather than editing the
+     * expectation here. A fix must go through clinical review and a POLICY_VERSION bump.
+     */
+    @Test
+    void commaSeparatedPregnancyRedFlagCurrentlyDowngradesToUrgent() throws Exception {
+        var assessment = new com.aihospital.triage.domain.TriageSafetyPolicy()
+                .assess("我怀孕八周，突然剧烈腹痛");
+        org.junit.jupiter.api.Assertions.assertEquals("URGENT", assessment.acuity());
+        org.junit.jupiter.api.Assertions.assertFalse(assessment.signals().stream()
+                .anyMatch(signal -> "ER-PREGNANCY-001".equals(signal.ruleCode())));
+        org.junit.jupiter.api.Assertions.assertTrue(assessment.humanReviewRecommended(),
+                "仍必须触发人工复核并要求尽快就医");
+    }
+
+    /**
+     * D3 negative case. Asserted on the rule code rather than on acuity: a plain "not urgent"
+     * assertion would be satisfied by any unrelated safety rule and would therefore pass even
+     * if ER-PREGNANCY-001 had fired spuriously.
+     */
+    @Test
+    void negatedPregnancyStatementDoesNotTriggerPregnancyRule() throws Exception {
+        String owner = token("pregnancy-negative-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我没有怀孕，昨天开始轻微腹痛，今天还在痛，想咨询一下");
+
+        for (JsonNode assessment : conversation.path("assessments"))
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    ruleCodes(assessment.path("result")).contains("ER-PREGNANCY-001"),
+                    "否定孕产状态不得触发 ER-PREGNANCY-001，实际规则码: "
+                            + ruleCodes(assessment.path("result")));
+    }
+
+    private static java.util.List<String> ruleCodes(JsonNode result) {
+        java.util.List<String> codes = new java.util.ArrayList<>();
+        for (JsonNode signal : result.path("safetyAssessment").path("signals"))
+            codes.add(signal.path("ruleCode").asText());
+        return codes;
+    }
 }
