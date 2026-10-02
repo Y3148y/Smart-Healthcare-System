@@ -74,7 +74,11 @@ public class TriageConversationService {
         List<String> patientTexts = current.messages().stream().filter(message -> "USER".equals(message.role()))
                 .map(Message::content).toList();
         String combined = patientTexts.stream().collect(Collectors.joining("。"));
-        if (!triageEngine.requiresImmediateCare(combined) && triageEngine.needsClarification(combined)) {
+        // A flagged disposition must not be swallowed by a clarification question: asking a
+        // patient with suspected facial swelling to first say how long it has been delays the
+        // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
+        if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
+                && triageEngine.needsClarification(combined)) {
             TriageEngine.Guidance guidance = triageEngine.clarificationPrompt(combined, history);
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
                     guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures()));
@@ -89,7 +93,12 @@ public class TriageConversationService {
             update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
             throw ex;
         }
-        if (!result.grounded() && !Disposition.EMERGENCY.equals(result.riskLevel())) {
+        // Retrieval failure must never discard a safety signal. EMERGENCY already bypasses this
+        // branch; URGENT previously did not, so an ungrounded result silently downgraded a
+        // "see a doctor today" signal to 待补充信息 and hid it from the session. A flagged
+        // disposition is reported even when nothing could be grounded, with grounded=false so
+        // the UI still shows that the reasoning is not evidence-backed.
+        if (!result.grounded() && !result.safetyAssessment().humanReviewRecommended()) {
             store.appendAssistantMessage(id, result.summary(), provenance(result));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
             return conversation(id, patient);

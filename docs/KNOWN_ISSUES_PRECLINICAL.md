@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | D1 | 合规拒答被记成普通追问引导，审计链断裂 | `3f028aa` |
 | D4 | `待补充信息` 同时挂可预约医生，会话状态与 `riskLevel` 不一致 | `34c6f5f` |
+| D2 | 面部肿胀零覆盖，且检索未命中会丢弃 URGENT 安全信号 | 本次提交 |
 | D5 | `humanReviewRecommended` 为死字段，URGENT 仍可预约并扣号 | 本次提交 |
 | D8 | 跨度型规则对否定词失效，`舌头没有肿` 被误判急症 | `48e2b9b` |
 | — | 工具链事实：本机存在 JDK 17；JDK 25 会产生 mock 假失败 | `a13864d` |
@@ -33,7 +34,7 @@
 - 保留说明：`prescriptionRefusalResult` **不删除**。它在服务层不可达是**期望属性**，作为纵深防御保留——若将来有人改动追问规则，拒答不能因此漏进普通路由。已在代码注释中写明。
 - 回归测试：`complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance`，关键断言是"不存在 `purpose=预问诊引导` 且 `model=POLICY_REFUSAL` 的记录"，直接编码原 bug。
 
-### D2｜两个测试对"脸肿"给出虚假信心
+### D2｜两个测试对"脸肿"给出虚假信心（**已修复**）
 
 - 位置：
   - `backend/src/test/java/com/aihospital/triage/RuleBasedTriageEngineTest.java:65`（测试名 `expandedEmergencySignalsAreUrgent`）
@@ -42,6 +43,20 @@
 - 证据：用户 live 实测"智齿发炎，我的脸都肿起来了"未触发任何安全信号、无红色警示、无评估。
 - 后果：测试名暗示"面部肿胀已被覆盖"，会掩盖后续回归。
 - 修复方向：改为**单独**断言"脸肿"；如需保留原测试，另加不依赖呼吸道短语的独立用例。
+- **裁定（Q5）**：单独"脸肿"**不作 EMERGENCY**，作 `尽快就医` 信号；显著张口受限、口底肿胀、呼吸或吞咽困难等组合才升级急诊拦截。SDCEP 的急诊条件并非"任何脸肿"。
+- 已实施：
+  - 新增 `UR-FACE-SWELLING-001`（URGENT）：`脸|面|脸颊|面部|牙龈|智齿` … `肿`，含倒装写法；全部经 tempered 填充（`48e2b9b` 建立的 `siteSymptom` / `gap()`），故 `脸没有肿`、`面部没有肿胀`、`没有脸肿` 均不触发
+  - 新增 `ER-FACE-SPREAD-001`（EMERGENCY）：面部肿胀 + **同子句内** `无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴`，正反语序各写一遍；另含 `口底肿|口底三角区`
+  - `POLICY_VERSION` → `CN-ADULT-ONLINE-TRIAGE-2026.10-P2`
+  - 回归（新增，均**单独断言脸肿**）：`facialSwellingAloneIsUrgentNotEmergency`、`facialSwellingWithAirwayOrMouthOpeningFeatureEscalates`、`facialSwellingNegationsAndAdversativesDoNotEscalate`、`TriageConversationTests.dentalFacialSwellingAloneIsFlaggedUrgentAndNotBookable`
+- **实施中发现并修复的更严重缺陷（原 D2 未记录）**：检索未命中时安全信号被丢弃。`TriageConversationService` 两处会吞掉已判定信号：
+  1. L77 `needsClarification` 在 URGENT 时仍返回追问，把"今天就该线下评估"推迟成"先回答几个问题"
+  2. L92 未命中检索即置 `待补充信息` 并丢弃分诊版本；原先只对 EMERGENCY 放行，**URGENT 被降级隐藏**
+  修复：新增 `TriageEngine.requiresReview`（默认实现基于 `assessSafety`，避免破坏既有 mock），两处改为只对未触发信号追问/降级。`grounded` 仍为 false，界面照旧提示推理无证据支撑。
+- **已知残留缺口（依赖 D9，未修）**：`assess()` 先按 `，,。；;！!？?` 切子句再匹配，因此**逗号分隔**的组合（`脸肿，张口受限`）不触发 `ER-FACE-SPREAD-001`，只落到 `尽快就医`；同子句内各种语序已实测可升级。
+  - 风险方向为**降级**而非反向保证：患者仍被告知尽快线下就医，且因 D5 不可预约
+  - 根因是 D9 的子句切分。子句切分对否定作用域是必要的安全机制，**不应在规则层绕过**
+- 未经临床审核。SDCEP Dental Abscess 与 NHS dental abscess 为相关出处，非逐条映射审核。
 
 ### D3｜`ER-PREGNANCY-001` 并非不可达｜**原裁定前提被推翻，待重新裁定**
 

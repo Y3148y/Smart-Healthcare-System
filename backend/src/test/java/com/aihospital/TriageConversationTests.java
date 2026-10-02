@@ -220,6 +220,22 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertEquals(2, urgent.path("messages").size());
     }
 
+    /** D2: facial swelling on its own must produce a safety signal without any airway phrase. */
+    @Test
+    void dentalFacialSwellingAloneIsFlaggedUrgentAndNotBookable() throws Exception {
+        String owner = token("face-alone-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode first = turn(owner, id, "智齿发炎，我的脸都肿起来了");
+        org.junit.jupiter.api.Assertions.assertEquals(1, first.path("assessments").size(), first.toString());
+        JsonNode result = first.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("尽快就医", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("建议尽快就医", first.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull()
+                || result.path("doctor").path("id").asText().isBlank());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("safetyAssessment").path("humanReviewRecommended").asBoolean());
+        org.junit.jupiter.api.Assertions.assertFalse(result.path("safetyAssessment").path("stopRoutineFlow").asBoolean());
+    }
+
     @Test
     void patientCanRequestHumanReviewAndAdminCanProcessQueue() throws Exception {
         String owner = token("human-" + UUID.randomUUID());

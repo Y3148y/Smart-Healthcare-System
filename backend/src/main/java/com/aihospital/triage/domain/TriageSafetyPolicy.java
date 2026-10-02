@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P1";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P2";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -28,7 +28,19 @@ public class TriageSafetyPolicy {
             emergency("ER-AIRWAY-001", "气道",
                     siteSymptom("舌头|舌体|咽喉|喉头", 5, "肿|水肿") + "|无法吞咽|吞咽不了|窒息|说不出话",
                     "可能存在气道受影响的信号"),
-            emergency("ER-BREATHING-001", "呼吸", "严重呼吸困难|呼吸困难|喘不上气|喘不过气|不能平卧|口唇发紫|嘴唇发紫|咯血", "可能存在严重呼吸异常"),
+            emergency("ER-FACE-SPREAD-001", "口面间隙与气道",
+                    // A swollen face alone is not an emergency. Escalation needs a spreading or
+                    // airway feature in the same clause. Note assess() splits on commas first, so
+                    // 脸肿，张口受限 cannot be matched by one span: the clause split is the D9
+                    // structural cause, not something a rule should paper over. Both orders are
+                    // written out so either phrasing inside one clause still escalates.
+                    // 未经临床审核: see SDCEP Dental Abscess and NHS dental abscess guidance.
+                    siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
+                            + gap() + "(?:无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴)"
+                            + "|(?:无法吞咽|吞咽不了|呼吸困难|喘不上气|喘不过气|说不出话|张口受限|张不开嘴)"
+                            + gap() + siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
+                            + "|口底肿|口底三角区",
+                    "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散"),            emergency("ER-BREATHING-001", "呼吸", "严重呼吸困难|呼吸困难|喘不上气|喘不过气|不能平卧|口唇发紫|嘴唇发紫|咯血", "可能存在严重呼吸异常"),
             emergency("ER-CIRCULATION-001", "循环", "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼", "当前胸痛在信息不足时不能在线排除心肺急症"),
             emergency("ER-NEURO-001", "神经", "意识不清|意识障碍|昏迷|晕厥|口角歪斜|单侧肢体无力|说话不清|言语不清|突发剧烈头痛|全身抽搐|抽搐|惊厥", "可能存在急性神经系统异常"),
             emergency("ER-BLEEDING-001", "出血", "伤口大量出血|出血不止|呕血|大量咯血|便血不止|黑便伴头晕", "可能存在严重出血"),
@@ -38,6 +50,14 @@ public class TriageSafetyPolicy {
                     siteSymptom("怀孕|孕期", 8, "大量出血|剧烈腹痛") + "|产后大出血",
                     "可能存在孕产期紧急风险"),
             urgent("UR-TRAUMA-001", "创伤", "疑似骨折|骨折|摔断|骨头断|明显变形|不能活动", "外伤可能需要尽快影像检查和固定处理"),
+            // 未经临床审核: single facial swelling is not an emergency on its own. It is routed to
+            // 尽快就医 so the patient is advised to be assessed offline the same day. Emergency
+            // escalation is handled by ER-FACE-SPREAD-001 when a spreading or airway feature appears.
+            urgent("UR-FACE-SWELLING-001", "口面部肿胀",
+                    siteSymptom("脸|面|脸颊|面部|牙龈|智齿", 6, "肿")
+                            + "|肿" + gap() + "(?:脸|面部|脸颊)"
+                            + "|(?:脸|面部|脸颊)" + gap() + "肿",
+                    "面部肿胀需线下尽快评估是否存在感染扩散；单独出现不等于急症"),
             urgent("UR-FEVER-001", "感染", "持续高热|高烧不退|" + siteSymptom("体温", 3, "39|40"), "持续高热需要尽快线下评估"),
             urgent("UR-PAIN-001", "疼痛", "剧烈腹痛|腹痛难忍|疼痛难忍", "剧烈疼痛需要尽快线下评估")
     );
@@ -60,6 +80,19 @@ public class TriageSafetyPolicy {
     private static String siteSymptom(String siteWords, int maxGap, String symptom) {
         return "(?:" + siteWords + ")(?:(?!" + NEGATION_TOKENS + ")" + CLAUSE_CHARS + "){0," + maxGap
                 + "}(?:" + symptom + ")";
+    }
+
+    /**
+     * A negation-guarded filler that may cross a comma, but never a sentence terminator.
+     *
+     * <p>{@link #siteSymptom} deliberately stops at a comma because a site and its symptom
+     * separated by a comma are usually two separate complaints. Facial swelling escalation is
+     * the exception: 脸肿，张口受限 is one clinical picture, so the filler must span the comma
+     * or the emergency combination silently never fires. The negation guard is still required,
+     * otherwise 脸肿，没有吞咽困难 escalates.
+     */
+    private static String gap() {
+        return "(?:(?!" + NEGATION_TOKENS + ")[^。；;！!？?]){0,10}";
     }
 
     public SafetyAssessment assess(String text) {

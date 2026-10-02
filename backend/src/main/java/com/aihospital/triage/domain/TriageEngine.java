@@ -9,6 +9,12 @@ public interface TriageEngine {
     record Guidance(String text, String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {}
     SafetyAssessment assessSafety(String symptoms);
     boolean requiresImmediateCare(String symptoms);
+    /**
+     * True when the text carries an emergency or urgent signal. Such a text must not be turned
+     * into a clarification question, and must still be reported when retrieval finds nothing:
+     * an ungrounded result must never downgrade a flagged disposition to 待补充信息.
+     */
+    default boolean requiresReview(String symptoms) { return assessSafety(symptoms).humanReviewRecommended(); }
     /** True when the dialogue needs a material fact before creating a booking recommendation. */
     boolean needsClarification(String symptoms);
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */

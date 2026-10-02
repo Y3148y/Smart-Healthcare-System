@@ -117,9 +117,43 @@ class RuleBasedTriageEngineTest {
         assertFalse(safety.assess("手摔断了").stopRoutineFlow());
     }
 
+    /**
+     * D2. Facial swelling on its own is NOT an emergency: it must be asserted on its own,
+     * without relying on an airway phrase that would make the test pass for the wrong reason.
+     */
     @Test
-    void urgentIsNotBookableButRoutineAndMultiDepartmentRemainBookable() {
-        assertFalse(Disposition.isBookable(Disposition.EMERGENCY));
+    void facialSwellingAloneIsUrgentNotEmergency() {
+        for (String symptom : java.util.List.of("智齿发炎，我的脸都肿起来了", "脸肿", "脸颊肿了两天",
+                "脸有点肿", "牙龈肿")) {
+            var assessment = safety.assess(symptom);
+            assertFalse(assessment.stopRoutineFlow(), symptom);
+            assertTrue(assessment.humanReviewRecommended(), symptom);
+            assertTrue(assessment.signals().stream()
+                    .anyMatch(signal -> signal.ruleCode().equals("UR-FACE-SWELLING-001")), symptom);
+            assertTrue(assessment.signals().stream().noneMatch(signal -> signal.ruleCode().startsWith("ER-")), symptom);
+        }
+    }
+
+    @Test
+    void facialSwellingWithAirwayOrMouthOpeningFeatureEscalates() {
+        for (String symptom : java.util.List.of("脸肿张口受限", "脸肿 张口受限", "张口受限脸肿",
+                "脸肿呼吸困难", "脸肿而且吞咽不了", "我突然脸肿、吞咽不了，感觉喘不上气", "口底肿")) {
+            var assessment = safety.assess(symptom);
+            assertTrue(assessment.stopRoutineFlow(), symptom);
+            assertTrue(assessment.signals().stream()
+                    .anyMatch(signal -> signal.ruleCode().equals("ER-FACE-SPREAD-001")), symptom);
+        }
+    }
+
+    @Test
+    void facialSwellingNegationsAndAdversativesDoNotEscalate() {
+        for (String symptom : java.util.List.of("脸没有肿", "面部没有肿胀", "没有脸肿", "脸肿但张口不受限",
+                "脸肿但没有吞咽困难"))
+            assertFalse(safety.assess(symptom).stopRoutineFlow(), symptom);
+    }
+
+    @Test
+    void urgentIsNotBookableButRoutineAndMultiDepartmentRemainBookable() {        assertFalse(Disposition.isBookable(Disposition.EMERGENCY));
         assertFalse(Disposition.isBookable(Disposition.URGENT));
         assertFalse(Disposition.isBookable(Disposition.PENDING));
         assertTrue(Disposition.isBookable(Disposition.ROUTINE));
