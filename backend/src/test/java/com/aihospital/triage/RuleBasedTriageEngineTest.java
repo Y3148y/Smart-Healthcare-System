@@ -72,6 +72,31 @@ class RuleBasedTriageEngineTest {
     }
 
     @Test
+    void negationInsideSiteQualifiedSpanIsNotAsserted() {
+        for (String symptom : java.util.List.of("舌头没有肿", "咽喉没有肿", "舌头不肿了", "舌头不是肿的",
+                "舌头不水肿", "全身没有红疹", "全身没有红点", "体温没有39度", "怀孕没有剧烈腹痛",
+                "吃了海鲜没有起疹", "吃了海鲜但没有全身红疹", "但没有全身红疹")) {
+            assertFalse(safety.requiresImmediateCare(symptom), symptom);
+            assertFalse(safety.assess(symptom).stopRoutineFlow(), symptom);
+            assertFalse(safety.assess(symptom).humanReviewRecommended(), symptom);
+        }
+    }
+
+    @Test
+    void temperedFillerKeepsAffirmedSiteQualifiedSymptomsAndWuTerms() {
+        for (String symptom : java.util.List.of("舌头有点肿", "舌头肿了", "舌头水肿", "咽喉稍微肿了一点",
+                "怀孕两个月剧烈腹痛", "无法吞咽", "吞咽不了", "单侧肢体无力"))
+            assertTrue(safety.requiresImmediateCare(symptom), symptom);
+        var allergy = safety.assess("我食物过敏了，现在全身好多红肿");
+        assertTrue(allergy.stopRoutineFlow());
+        assertTrue(allergy.signals().stream().anyMatch(signal -> signal.ruleCode().equals("ER-ALLERGY-001")));
+        var fever = safety.assess("体温39度");
+        assertTrue(fever.humanReviewRecommended());
+        assertFalse(fever.stopRoutineFlow());
+        assertTrue(fever.signals().stream().anyMatch(signal -> signal.ruleCode().equals("UR-FEVER-001")));
+    }
+
+    @Test
     void safetyMatrixPreservesCriticalSignalsAndSeparatesNegationAndHistory() {
         for (String symptom : java.util.List.of("胸痛，头晕", "突然胸口疼", "我爸胸痛并且冒冷汗",
                 "喘不过气，嘴唇发紫", "突然说话不清", "骨头外露", "服药过量", "伤口大量出血")) {

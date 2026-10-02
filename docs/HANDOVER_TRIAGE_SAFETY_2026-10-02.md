@@ -1,4 +1,4 @@
-# 交接文档：预问诊安全层加固（2026-10-02）
+﻿# 交接文档：预问诊安全层加固（2026-10-02）
 
 > **本文读者**：接手的 GPT 会话。
 > **写作者**：opencode（big-pickle）。
@@ -57,7 +57,7 @@
 
 辅助模式：`NEGATION`(L18)、`FOOD_REACTION`(L19)、`GENERALIZED_RASH`(L20)、`HISTORICAL`(L21)、`CURRENT_RESET`(L22)。
 
-`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.09-P0"`（L17）。
+`POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P1"`（L17；D8 修复时由 2026.09-P0 升级）。
 
 `isAsserted`（L106-121）以匹配点**前 14 字**为前缀窗口做否定/历史判定。这是有意的窄窗口，勿扩。
 
@@ -148,7 +148,7 @@ ai.timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
 
 ### 3.2 对既有文档的更正
 
-`docs/HANDOVER_2026-10-01.md:23` 记载"百炼 chat 额度耗尽（`AllocationQuota.FreeTierOnly`）"。**该结论已过时**：`glm-5.3` live 调用已成功并通过端到端验证。该文档同行的"44 项测试"基线也已被 50 项取代。接手方若读到旧结论，请以本文为准，并在合适时机更新旧文档。
+`docs/HANDOVER_2026-10-01.md:23` 记载"百炼 chat 额度耗尽（`AllocationQuota.FreeTierOnly`）"。**该结论已过时**：`glm-5.3` live 调用已成功并通过端到端验证。该文档同行的"44 项测试"基线也已被 53 项取代。接手方若读到旧结论，请以本文为准，并在合适时机更新旧文档。
 
 ---
 
@@ -209,23 +209,28 @@ assertTrue(safety.requiresImmediateCare("脸肿而且吞咽不了"));
 
 要求 `持续高热|高烧不退|体温39+`。NICE `NG253` §1.1 明确脓毒症 *"may not have a high temperature"*。现有规则在结构上与该指南相反。无临床团队无法仲裁，但至少应在文档中登记为已知缺口。
 
-### D8｜跨度型规则对否定词失效，**现网已有急症误报**（建议优先于 D2）
+### D8｜跨度型规则对否定词失效，**现网已有急症误报**（**已修复**）
 
 `isAsserted` 只检查匹配起点**之前** 14 字。凡写成 `A.{0,N}B` 的规则，若否定词落在 A 与 B **之间**，它位于匹配区间内部，否定检查永远看不到。
 
-已用 jshell 独立复现：
+修复前的实测证据：
 
-| 规则 | 输入 | 匹配起点 | 否定所见前缀 | 结果 |
+| 规则 | 输入 | 匹配起点 | 否定所见前缀 | 修复前结果 |
 | --- | --- | --- | --- | --- |
 | `ER-AIRWAY-001` | `舌头没有肿` | 0 | 空 | **asserted=true → 误判急症** |
 | `ER-AIRWAY-001` | `没有舌头肿` | 2 | `没有` | asserted=false（正确） |
 | `ER-CIRCULATION-001` | `没有胸痛` | 2 | `没有` | asserted=false（正确） |
 | `ER-CIRCULATION-001` | `胸痛没有缓解` | 0 | 空 | asserted=true（正确） |
 
-- **现网缺陷**：`舌头没有肿` / `咽喉没有肿` 这类**明确否认肿胀**的描述被判 `EMERGENCY` 并输出 120 指引。影响面为现表中唯一使用跨度表达式的 `ER-AIRWAY-001`，其余为单词元规则。
-- **阻塞 D2**：新增 `ER-INFECTION-SPREAD-001` 必然写成 `脸.{0,N}肿`，已实测 `脸没有肿` → `asserted=true`。**D2 不可先于 D8 修复**，否则以"修好面部肿胀"之名新增一条急症误报。撰写者已因此撤回该未提交改动。
-- **禁止的修法**：不可在匹配区间内搜否定词。`NEGATION` 含单词 `无`，而 `无法吞咽`（`ER-AIRWAY-001`）、`单侧肢体无力`（`ER-NEURO-001`）本身含 `无`；朴素修法会让这两条急症规则整体失效，方向与"不得放宽现有规则"相反。
-- 建议修法与复现脚本见 [KNOWN_ISSUES_PRECLINICAL.md](KNOWN_ISSUES_PRECLINICAL.md) D8 条目。
+- **现网缺陷已消除**：`舌头没有肿` / `咽喉没有肿` 这类**明确否认肿胀**的描述不再被判 `EMERGENCY`、不再输出 120 指引。
+- **采用 tempered 填充**：新增 `siteSymptom(siteWords, maxGap, symptom)`，跨度表达式统一为
+  `(?s)(?:部位)(?:(?!否定词)[^，,。；;！!？?]){0,N}(?:症状)`，填充字符不得跨过否定词。覆盖 `ER-AIRWAY-001`、`ER-PREGNANCY-001`、`UR-FEVER-001`、`FOOD_REACTION`、`GENERALIZED_RASH`。
+- **`POLICY_VERSION` 升为 `CN-ADULT-ONLINE-TRIAGE-2026.10-P1`**。
+- **未采用有界后行断言**：`(?<=...)` 会把匹配起点从部位词移到症状词，令既有语料 `但没有全身红疹` 的前缀变成 `但没有全身`，被判 asserted=true 并输出 `ER-ALLERGY-001`——即制造同类的新误报，方向相反。
+- **禁止的修法仍然成立**：不可在匹配区间内搜否定词。`NEGATION` 含单词 `无`，而 `无法吞咽`（`ER-AIRWAY-001`）、`单侧肢体无力`（`ER-NEURO-001`）本身含 `无`；朴素修法会让这两条急症规则整体失效。tempered 填充只防护**填充字符**，两个独立分支不经防护，故实测仍正常触发。
+- 回归：`RuleBasedTriageEngineTest.negationInsideSiteQualifiedSpanIsNotAsserted`、`temperedFillerKeepsAffirmedSiteQualifiedSymptomsAndWuTerms`；既有 `但没有全身红疹` 过敏配对用例未破。
+- **相邻缺口（非本次范围）**：`FOOD_REACTION` 要求 `起疹` / `红疹` 紧邻，`吃了海鲜全身起了很多红点` 不匹配，配对不触发。需与 D2 的 `ER-INFECTION-SPREAD-001` 一并设计，勿只放宽填充长度。
+- **D2 已解禁**，可在 D8 之后处理。详细修法与实测矩阵见 [KNOWN_ISSUES_PRECLINICAL.md](KNOWN_ISSUES_PRECLINICAL.md) D8 条目。
 
 ---
 
@@ -362,19 +367,19 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 4. ✅ 新建 `docs/KNOWN_ISSUES_PRECLINICAL.md`（**缺陷本体登记表**）
 5. ✅ 修正 `AGENTS.md` 的 JDK 要求：本机无 JDK 17，原文"（JDK 17…）"无法满足，已改为 JDK 25 及实际路径
 
-回归：**50 项 / 9 个测试类全绿**。统计陷阱见 `KNOWN_ISSUES_PRECLINICAL.md` 第四节——`target/surefire-reports/` 残留两份已删除测试类的旧报告，直接汇总会多算 2 项得到 52。
+回归：**53 项 / 9 个测试类全绿**。统计陷阱见 `KNOWN_ISSUES_PRECLINICAL.md` 第四节——`target/surefire-reports/` 残留两份已删除测试类的旧报告，直接汇总会多算 2 项得到 52。
 
 ### 7.4 Stage 1｜纯 bug 修复（不新增临床内容）
 
 - **D1**：✅ 已完成（`3f028aa`）
-- **D8**：**下一项**。让跨度型规则的匹配起点落在症状词（建议有界后行断言），并让 `assess()` 优先取命名组 `evidence` 以保留可读证据；补 `舌头没有肿` / `咽喉没有肿` 否定回归。**禁止**在匹配区间内搜否定词（会让 `无法吞咽`、`单侧肢体无力` 失效）
-- **D2**：在 D8 之后。重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语。需与 Stage 2 的 `ER-INFECTION-SPREAD-001` 同批落地
-- **D4**：处置非 bookable 时不挂医生；会话状态与 `riskLevel` 对齐；删除四处鼻部硬编码；重写 `TriageConversationTests.java:308-328`
+- **D8**：✅ 已完成。跨度型规则改为 tempered 填充，否定词不再落入匹配区间内部；`POLICY_VERSION` → `2026.10-P1`；新增两条否定/肯定回归
+- **D2**：**下一项**。重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语。需与 Stage 2 的 `ER-INFECTION-SPREAD-001` 同批落地；同时处理 D8 条目登记的 `起了很多红点` 紧邻缺口
+- **D4**：处置非 bookable 时不挂医生；会话状态与 `riskLevel` 对齐；删除四处鼻部硬编码；重写 `TriageConversationTests.java:308-328`。**注**：工作区已有未提交的 D4 改动（4 个文件），`mvn test` 全绿，尚未 commit，需与 D8 分开提交
 - **D5**：让 `humanReviewRecommended` 真正闸住预约 — **需先有 `§6 Q1` 裁定**，否则跳过
 - **D9（新增，见下）**：`TriageConversationService:75` 把所有历史 USER 消息拼成 `combined`，第 1 轮的拒答意图会永久粘住后续轮次。属行为变更，需与 GPT 商定按轮次意图还是按会话意图
 - 可选：`AI_TIMEOUT_SECONDS` 默认 35 → 20。代价是 fallback 率上升。**默认不动**，单独提 commit 交用户定
 - 预期需同步改写的既有测试：`TriageConversationTests.java:152-179`（骨折期望）、`:308-328`（鼻部预约）
-- 回归须全量通过（**当前基线 51/51**，D1 修复后新增 `complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance`）
+- 回归须全量通过（**当前基线 53/53**：51 + D1 的 `complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance` + D8 的 2 条）
 
 ### 7.5 Stage 2｜P0 规则 + 语料（依赖 §6 Q2）
 
@@ -397,7 +402,7 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 
 每个 Stage 必须满足：
 
-- JDK 25 下 `mvn test` 全量通过（基线 50/50，Stage 2 后按新增用例数递增）
+- JDK 25 下 `mvn test` 全量通过（基线 53/53，Stage 2 后按新增用例数递增）
 - 每次 commit 只做一件事，message 含变更原因
 - 文档先于或同 commit 更新
 - 无真实密钥、无个人数据
