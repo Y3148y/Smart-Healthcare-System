@@ -6,12 +6,14 @@
 
 - 同一时间，同一批文件只能有一个写手。
 - 每个任务必须明确唯一 owner；owner 写完并验收后，任务才可交接。
+- **owner 划分与进行中任务见 [docs/AGENT_BOARD.md](docs/AGENT_BOARD.md) —— 开工前必读，改动后更新。** 注意：GPT 除 D4 外只出裁定、不写生产代码，`triage/**` 的 owner 是 opencode。
 - 禁止两个 AI 同时修改同一个任务的代码。若需要并行，必须按模块切分且互不交叉（接口文件、共享文档仍归单一 owner）。
 
 ## 2. Git 是唯一交接介质
 
 - 每个验收通过的任务 = 一个 commit，message 写清做了什么（`feat/fix/docs: ...`）。
 - 接手任何任务前，先 `git log --oneline -10` + `git status` + `git diff` 恢复上下文，不依赖聊天记忆。
+- `git add` 只用具体路径，禁止 `-A` / `add .`：本仓库常有多方未提交改动，`-A` 会把别人的在制品扫进自己的 commit。
 - 禁止提交：密钥、`*.env`、`data/`、`target/`、`node_modules/`、`dist/`。
 - API 密钥只允许进程环境变量注入，禁止写入任何被 git 跟踪的文件。
 
