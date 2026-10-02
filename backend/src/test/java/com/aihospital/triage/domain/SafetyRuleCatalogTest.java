@@ -124,7 +124,7 @@ class SafetyRuleCatalogTest {
         long gaps = citations.stream().filter(TriageSafetyPolicy.CitationStatus::citationGap).count();
 
         assertEquals(15, citations.size(), "规则条目数变化（14 条静态 + 1 条派生）必须同步文档与本断言");
-        assertEquals(11, cited, "有出处的条目数变化，请同步更新本断言并复核该出处是否真的支撑该规则");
+        assertEquals(12, cited, "有出处的条目数变化，请同步更新本断言并复核该出处是否真的支撑该规则");
         assertEquals(7, gaps, "citationGap 条目数变化。这些是登记在案的缺口——减少是改进，增加需要说明原因。");
     }
 
@@ -145,7 +145,8 @@ class SafetyRuleCatalogTest {
     @Test
     void everyDeclaredAuxiliaryPatternMustBeConsumedByThePolicy() {
         SafetyRuleCatalog catalog = SafetyRuleCatalog.load();
-        Set<String> consumers = Set.of("FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE");
+        Set<String> consumers = Set.of("FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE",
+                "LIP_SWELLING", "RAPID_BREATHING");
         assertEquals(consumers, TriageSafetyPolicy.auxiliaryNamesForTesting());
         assertEquals(consumers, catalog.compileAuxiliaryPatterns(consumers).keySet());
         assertFalse(catalog.compileAuxiliaryPatterns(consumers).values().stream()

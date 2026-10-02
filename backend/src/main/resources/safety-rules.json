@@ -200,9 +200,9 @@
       "code": "ER-ALLERGY-001",
       "category": "疑似严重过敏",
       "reason": "可能出现严重全身性过敏反应，不能等待普通门诊预约",
-      "condition": "foodReaction 与 generalizedRash 同时被肯定表达",
-      "citations": [],
-      "coverage": "citationGap：无权威出处。两个组成模式由 auxiliaryPatterns 声明，否定保护来自 D8；新增海鲜接触伴全身红点的保守拦截，未经临床审核。",
+      "condition": "foodReaction 与 generalizedRash 同时被肯定表达；或食物接触、唇部肿胀与呼吸变急三者均被肯定表达且未见明确第三人主语",
+      "citations": [{"id": "nhs-anaphylaxis", "title": "NHS Anaphylaxis", "url": "https://www.nhs.uk/conditions/anaphylaxis/", "note": "公开信息列出唇口咽舌突然肿胀、呼吸很快或吞咽困难等紧急信号；不要求皮疹。本中文短语组合未经临床审核，待知识源 owner 登记。"}],
+      "coverage": "citationGap：NHS 出处支持气道紧急信号，不证明海鲜+全身红点或「呼吸有点急」的中文映射必然达到急症阈值。两个组成模式由 auxiliaryPatterns 声明，否定保护来自 D8；本条保守拦截未经临床审核，第三人识别仅为有限词表，非主体归属解决方案。",
       "citationGap": true
     }
   ],
@@ -210,6 +210,8 @@
   "auxiliaryPatterns": [
     {"name": "FOOD_REACTION", "expression": "食物过敏|吃(了|完)海鲜|{site \"吃(了|完)\" 16 \"过敏|起疹|红疹|红点|红肿|风团\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
     {"name": "GENERALIZED_RASH", "expression": "{site \"全身|大面积|大片|遍身\" 16 \"红肿|红疹|红点|皮疹|风团|荨麻疹|起疹\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
+    {"name": "LIP_SWELLING", "expression": "{site \"嘴唇|口唇|唇部\" 5 \"肿|肿胀\"}", "usedBy": "ER-ALLERGY-001", "citationGap": true},
+    {"name": "RAPID_BREATHING", "expression": "呼吸有点急|呼吸很急|呼吸急促|呼吸变快", "usedBy": "ER-ALLERGY-001", "citationGap": true},
     {"name": "UNCLEAR_BLEEDING_RULE", "expression": "{ref:unclearBleeding}", "usedBy": "requiresBleedingClarification", "note": "按 D11 裁定，量级不明不升急症也不判 URGENT，走待补充信息闸门"}
   ],
 

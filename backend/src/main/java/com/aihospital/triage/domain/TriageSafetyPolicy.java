@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P7";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P8";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -36,7 +36,8 @@ public class TriageSafetyPolicy {
      */
     private static final SafetyRuleCatalog CATALOG = SafetyRuleCatalog.load();
     private static final Map<String, Pattern> AUXILIARY = CATALOG.compileAuxiliaryPatterns(Set.of(
-            "FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE"));
+            "FOOD_REACTION", "GENERALIZED_RASH", "UNCLEAR_BLEEDING_RULE",
+            "LIP_SWELLING", "RAPID_BREATHING"));
 
     // 第二步组合所用的 finding 全部来自同一份数据，不在 Java 里另抄一份。
     private static final Pattern FACIAL_SWELLING_FINDING = Pattern.compile(CATALOG.vocabulary("faceSwelling"));
@@ -80,6 +81,11 @@ public class TriageSafetyPolicy {
     private static final Pattern UNCLEAR_BLEEDING_RULE = AUXILIARY.get("UNCLEAR_BLEEDING_RULE");
     private static final Pattern FOOD_REACTION = AUXILIARY.get("FOOD_REACTION");
     private static final Pattern GENERALIZED_RASH = AUXILIARY.get("GENERALIZED_RASH");
+    private static final Pattern LIP_SWELLING = AUXILIARY.get("LIP_SWELLING");
+    private static final Pattern RAPID_BREATHING = AUXILIARY.get("RAPID_BREATHING");
+    /** Only a narrow subject guard for this derived rule; full event attribution remains open. */
+    private static final Pattern OTHER_PERSON = Pattern.compile(
+            "我朋友|我的朋友|我的孩子|(?:^|[，,。；;！!？?\\s])(?:他|她|朋友|孩子|宝宝|父亲|母亲|丈夫|妻子)");
     private static final Pattern HISTORICAL = Pattern.compile("(以前|从前|去年|多年前|小时候|曾经|既往|已经好了|现已缓解|已缓解)");
     private static final Pattern CURRENT_RESET = Pattern.compile("(现在|目前|如今|今天|此刻|再次|又出现|又开始)");
     private static final List<Rule> RULES = buildRules();
@@ -236,9 +242,14 @@ public class TriageSafetyPolicy {
 
         boolean emergency = signals.values().stream().anyMatch(signal -> EMERGENCY_CODES.contains(signal.ruleCode()));
         boolean urgent = signals.values().stream().anyMatch(signal -> URGENT_CODES.contains(signal.ruleCode()));
-        if (hasAsserted(source, FOOD_REACTION) && hasAsserted(source, GENERALIZED_RASH)) {
+        boolean foodReaction = hasAsserted(source, FOOD_REACTION);
+        boolean generalizedRash = hasAsserted(source, GENERALIZED_RASH);
+        boolean foodRelatedAirway = foodReaction && !OTHER_PERSON.matcher(source).find()
+                && hasAsserted(source, LIP_SWELLING) && hasAsserted(source, RAPID_BREATHING);
+        if ((foodReaction && generalizedRash) || foodRelatedAirway) {
             signals.putIfAbsent("ER-ALLERGY-001", new SafetySignal("ER-ALLERGY-001", "疑似严重过敏",
-                    "食物相关不适伴全身性皮疹或红肿", "可能出现严重全身性过敏反应，不能等待普通门诊预约"));
+                    foodRelatedAirway ? "食物接触后唇部肿胀伴呼吸变急" : "食物相关不适伴全身性皮疹或红肿",
+                    "可能出现严重全身性过敏反应，不能等待普通门诊预约"));
             emergency = true;
         }
         String acuity = emergency ? "EMERGENCY" : urgent ? "URGENT" : "ROUTINE";
