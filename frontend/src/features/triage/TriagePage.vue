@@ -30,6 +30,10 @@ function assessmentsForMessage(messageId:string):Assessment[]{
 }
 function answerMethod(meta:ResponseProvenance):string{
   if(meta.modelStatus==='SAFETY_RULE')return '危险信号由安全规则直接处理，未等待模型判断'
+  // A compliance refusal is a deliberate terminal answer, not a failure to answer. It must not
+  // fall through to the fallback text, which tells the patient to supplement information — but
+  // supplementing never changes a refusal, so that advice is simply wrong here.
+  if(meta.modelStatus==='POLICY_REFUSAL')return '合规拒答：系统不提供诊断或处方。该答复由确定性策略直接给出，不经过模型，也不随您补充的信息而改变；如需就医方向，请改问就医相关问题或申请人工导诊'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
   if(meta.modelStatus==='LIVE_UNGROUNDED')return 'AI 模型回答一般问题；本次无可引用知识资料'
   if(meta.modelStatus.startsWith('DEMO'))return '演示规则回答，未调用外部 AI 模型'
