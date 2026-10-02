@@ -1,6 +1,7 @@
 package com.aihospital;
 
 import com.aihospital.shared.security.JwtService;
+import com.aihospital.triage.infrastructure.demo.RuleBasedTriageEngine;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -254,6 +255,55 @@ class TriageConversationTests {
         mvc.perform(get("/api/admin/knowledge/search").header("Authorization", admin)
                         .param("q", "膝关节骨折"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$[*].title", hasItem(title)));
+    }
+
+    /**
+     * Pins the user-facing refusal verbatim.  The expected text is intentionally
+     * duplicated here instead of referencing {@code RuleBasedTriageEngine.PRESCRIPTION_REFUSAL}:
+     * a shared constant would make the assertion tautological, so any change to the
+     * refusal wording would silently pass.  A compliance refusal is a guarantee, not
+     * narration, so its text and status must not drift.
+     */
+    private static final String EXPECTED_PRESCRIPTION_REFUSAL =
+            "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。"
+            + "你希望判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；"
+            + "如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
+
+    @Test
+    void prescriptionRequestIsRefusedVerbatimAndOffersNoDepartmentOrBooking() throws Exception {
+        String owner = token("prescription-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我最近老胃疼，想吃点药开点处方");
+        JsonNode reply = conversation.path("messages").path(conversation.path("messages").size() - 1);
+
+        org.junit.jupiter.api.Assertions.assertEquals(EXPECTED_PRESCRIPTION_REFUSAL,
+                reply.path("content").asText(), "拒答文案必须逐字一致，不得由模型改写");
+        org.junit.jupiter.api.Assertions.assertEquals("POLICY_REFUSAL",
+                reply.path("provenance").path("modelStatus").asText(), "拒答必须来自确定性策略而非模型");
+        org.junit.jupiter.api.Assertions.assertEquals(0, reply.path("provenance").path("localToolCalls").asInt(),
+                "拒答不得触发任何本地工具调用");
+        org.junit.jupiter.api.Assertions.assertEquals(0, conversation.path("assessments").size());
+        org.junit.jupiter.api.Assertions.assertEquals("待补充信息", conversation.path("session").path("status").asText());
+
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of(
+                                "doctorId", "d1", "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void diagnosisIntentPatternDoesNotSwallowOrdinaryTriageQuestions() {
+        RuleBasedTriageEngine engine = new RuleBasedTriageEngine(null, null, null, null, null, null, null);
+        for (String benign : new String[]{"我头痛三天，想挂号", "帮我看看化验单", "我肚子疼，拉肚子"}) {
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    engine.requiresHumanHandover(benign), "不应误判为问诊诉求：" + benign);
+        }
+        for (String asking : new String[]{"开点处方", "帮我看看是不是胃癌", "这个能治吗", "用什么药",
+                "这是不是慢性胃炎"}) {
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    engine.requiresHumanHandover(asking), "应识别为问诊诉求：" + asking);
+        }
     }
 
     @Test

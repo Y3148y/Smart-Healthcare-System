@@ -46,7 +46,11 @@ public class RuleBasedTriageEngine implements TriageEngine {
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
     @Override public boolean requiresImmediateCare(String symptoms) { return safety.requiresImmediateCare(symptoms); }
 
-    private static final Pattern DIAGNOSIS_OR_PRESCRIPTION_INTENT = Pattern.compile("(?s).*(开药|处方|开方|买药|确诊|是不是.*病|帮我看看|诊断一下|能治吗|怎么治疗|要用什么药).*");
+    private static final Pattern DIAGNOSIS_OR_PRESCRIPTION_INTENT = Pattern.compile(
+            "(开药|开处方|处方|开方|买药|确诊|诊断一下|能治吗|怎么治疗|用什么药|是不是.{0,10}(病|炎|感染)|(?:胃|肠|肺|肝|肾|胆|胰|心|脑|血|甲|乳)[^，。？！,.?!]{0,6}(病|炎|感染|癌|结石|息肉))");
+    private static final String PRESCRIPTION_REFUSAL = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。"
+            + "你希望判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；"
+            + "如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
 
     /**
      * A known symptom alone is useful for a conversation, but normally is not enough
@@ -64,18 +68,48 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     private boolean hasDiagnosisOrPrescriptionIntent(String text) {
-        return text != null && DIAGNOSIS_OR_PRESCRIPTION_INTENT.matcher(text).matches();
+        if (text == null || text.isBlank()) return false;
+        return DIAGNOSIS_OR_PRESCRIPTION_INTENT.matcher(text).find();
+    }
+
+    /**
+     * A prescription or diagnosis request is a compliance refusal, not a triage
+     * outcome, so it is returned verbatim and never handed to the model.  Per
+     * 国卫办医发〔2022〕2号 第二十一条 an AI system may not substitute for a
+     * clinician, and a refusal that the model is allowed to reword is not a
+     * guarantee.
+     */
+    /** Exposed so tests can pin the intent pattern without an API key or a running model. */
+    public boolean requiresHumanHandover(String text) { return hasDiagnosisOrPrescriptionIntent(text); }
+
+    private NarrationModel.Answer prescriptionRefusal() {
+        return new NarrationModel.Answer(PRESCRIPTION_REFUSAL, "POLICY_REFUSAL", "");
+    }
+
+    /**
+     * A refusal is a terminal result, not a triage assessment: no department, no
+     * doctor and no grounded flag, so {@code TriageConversationService} keeps the
+     * session at 待补充信息 and {@code SimulationBookingService} blocks booking.
+     */
+    private TriageResult prescriptionRefusalResult(long callStarted, String sessionId, String user,
+            SafetyAssessment safetyAssessment, List<ToolTrace> trace) {
+        NarrationModel.Answer answer = prescriptionRefusal();
+        TriageResult result = new TriageResult(sessionId, "待补充信息", 0, null, null, PRESCRIPTION_REFUSAL,
+                "本系统不提供诊断、处方或治疗建议；本建议不构成诊断、处方或治疗意见。", List.of(),
+                List.copyOf(trace), List.of(), answer.status(), "", LocalDateTime.now(),
+                safetyAssessment, false, "问诊或处方类请求按合规策略拒绝，未生成科室与预约建议");
+        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "合规拒答", user,
+                answer.status(), 0, 0, elapsedMillis(callStarted), true, List.copyOf(trace)));
+        return result;
     }
 
     @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
         long started = System.nanoTime();
         if (hasDiagnosisOrPrescriptionIntent(text)) {
-            String fallback = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。你希望判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
-            NarrationModel.Answer answer = narration.guideGeneral(text, fallback, history);
+            NarrationModel.Answer answer = prescriptionRefusal();
             long elapsed = elapsedMillis(started);
             calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊引导", "患者",
-                    answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
-                    0, 0, elapsed, false, List.of()));
+                    answer.status(), 0, 0, elapsed, false, List.of()));
             return new Guidance(answer.text(), answer.status(), 0, 0, 0);
         }
         List<DepartmentCandidate> candidates = candidatesFor(text);
@@ -105,9 +139,11 @@ public class RuleBasedTriageEngine implements TriageEngine {
         SafetyAssessment safetyAssessment = symptomExecution.data() instanceof SafetyAssessment found
                 ? found : safety.assess(text);
         boolean emergency = safetyAssessment.stopRoutineFlow();
+        trace.add(symptomExecution.trace());
+        if (!emergency && hasDiagnosisOrPrescriptionIntent(text))
+            return prescriptionRefusalResult(callStarted, sessionId, user, safetyAssessment, trace);
         List<DepartmentCandidate> candidates = emergency ? List.of() : candidatesFor(text);
         if (!emergency && candidates.isEmpty()) candidates = bookingFallbackCandidates(text);
-        trace.add(symptomExecution.trace());
         String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
                 ? "全科医学科" : candidates.get(0).department();
         int structuredConfidence = -1;
@@ -153,10 +189,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 : "本建议仅用于辅助分诊和挂号参考，不构成诊断、处方或治疗意见。";
         String fallback = fallbackAnswer(department, emergency, candidates);
         boolean grounded = emergency || retrieval.grounded();
-        if (!emergency && hasDiagnosisOrPrescriptionIntent(text)) {
-            fallback = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。若需要判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
-            grounded = false;
-        }
         NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
                 : !grounded ? narration.guideGeneral(text,
                         "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或在会话页申请人工导诊。", history)
