@@ -536,6 +536,77 @@ class TriageConversationTests {
     }
 
     /**
+     * D11 ruling 1. 「明显出血」量级不明，单独出现时走确定性的「待补充信息」闸门：
+     * 暂停普通预约、追问部位/量/持续/伴随表现，而**不是**升级急症。
+     */
+    @Test
+    void unclearBleedingAloneAsksForDetailAndBlocksBooking() throws Exception {
+        String owner = token("unclear-bleeding-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我手上明显出血");
+
+        org.junit.jupiter.api.Assertions.assertEquals("待补充信息",
+                conversation.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(0, conversation.path("assessments").size(),
+                "待追问期间不得保存分诊结果");
+        String reply = conversation.path("messages").path(conversation.path("messages").size() - 1)
+                .path("content").asText();
+        org.junit.jupiter.api.Assertions.assertTrue(reply.contains("哪个部位"), reply);
+        org.junit.jupiter.api.Assertions.assertTrue(reply.contains("持续不止"), reply);
+        org.junit.jupiter.api.Assertions.assertTrue(reply.contains("晕厥"), reply);
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * D11 ruling 1, GPT positive case: 可能怀孕 + 明显出血 → 孕产 URGENT 并阻断普通预约。
+     * 「可能」遇紧急信号时按紧急处理，这一对方向是裁定明确要求锁住的。
+     */
+    @Test
+    void uncertainPregnancyWithUnclearBleedingBlocksBooking() throws Exception {
+        String owner = token("pregnancy-bleeding-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我可能怀孕，并且明显出血");
+
+        org.junit.jupiter.api.Assertions.assertEquals("建议尽快就医",
+                conversation.path("session").path("status").asText());
+        JsonNode result = conversation.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("尽快就医", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(ruleCodes(result).contains("UR-PREGNANCY-001"),
+                "必须命中孕产 URGENT，实际规则码: " + ruleCodes(result));
+        org.junit.jupiter.api.Assertions.assertFalse(ruleCodes(result).contains("ER-BLEEDING-001"),
+                "量级不明不得升级为明确失血急症");
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    /**
+     * D11 ruling 1, GPT negative case. 「明显」不得被解释成「大量」：手指少量出血已止住
+     * 不命中孕产规则，也不命中大量出血急症。
+     */
+    @Test
+    void smallFingerBleedingHitsNeitherPregnancyNorMajorHaemorrhage() throws Exception {
+        String owner = token("finger-bleeding-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "手指有明显出血，不多，已经止住了");
+
+        JsonNode last = conversation.path("messages").path(conversation.path("messages").size() - 1);
+        org.junit.jupiter.api.Assertions.assertEquals("CLARIFICATION", last.path("provenance").path("modelStatus").asText());
+        for (JsonNode assessment : conversation.path("assessments"))
+            org.junit.jupiter.api.Assertions.assertFalse(
+                    ruleCodes(assessment.path("result")).contains("ER-BLEEDING-001")
+                            || ruleCodes(assessment.path("result")).contains("UR-PREGNANCY-001"),
+                    "手指少量出血不得命中孕产或大量出血规则，实际: "
+                            + ruleCodes(assessment.path("result")));
+    }
+
+    /**
      * D3 negative case. Asserted on the rule code rather than on acuity: a plain "not urgent"
      * assertion would be satisfied by any unrelated safety rule and would therefore pass even
      * if ER-PREGNANCY-001 had fired spuriously.

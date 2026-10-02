@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P4";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P5";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -48,6 +48,13 @@ public class TriageSafetyPolicy {
     private static final Pattern POSTPARTUM_FINDING = Pattern.compile("产后大出血");
 
     /**
+     * 未经临床审核: 「明显出血」是量级不明的描述，**不是**「大量出血」。按裁定它单独出现
+     * 时不进 ER-BLEEDING-001（该规则语义是明确失血量），也不凭这四字判 URGENT，而是走
+     * 确定性的「待补充信息」闸门。升急症的只有明确条件：大量出血、出血不止、剧烈疼痛。
+     */
+    private static final Pattern UNCLEAR_BLEEDING_FINDING = Pattern.compile("明显出血");
+
+    /**
      * D10 第二步的组合规则。`symmetric` 表示语序无关——`脸肿，张口受限` 与
      * `张口受限，脸肿` 是同一临床画面。
      *
@@ -63,7 +70,11 @@ public class TriageSafetyPolicy {
                     "面部肿胀同时出现吞咽、呼吸或张口受限表现，可能存在口面间隙感染扩散",
                     FACIAL_SWELLING_FINDING, AIRWAY_FINDING, true),
             new Combination("ER-PREGNANCY-001", "孕产", "可能存在孕产期紧急风险",
-                    POSTPARTUM_FINDING, PREGNANCY_DANGER_FINDING, true));
+                    POSTPARTUM_FINDING, PREGNANCY_DANGER_FINDING, true),
+            // 孕产状态 + 量级不明的出血：至少走 URGENT 并阻断普通预约，但不足以降为急症。
+            // 升急症的只有明确条件（大量出血/剧烈疼痛），由上面那条 ER 组合承担。
+            new Combination("UR-PREGNANCY-001", "孕产", "孕产状态合并出血需尽快线下评估",
+                    PREGNANCY_STATE_FINDING, UNCLEAR_BLEEDING_FINDING, true));
 
     /** acuity 由命中的规则码决定，而不是由匹配过程累积的布尔值累积而成。 */
     private static final Set<String> EMERGENCY_CODES = Set.of(
@@ -72,7 +83,15 @@ public class TriageSafetyPolicy {
             "ER-FACE-SPREAD-001", "ER-ALLERGY-001");
     private static final Set<String> URGENT_CODES = Set.of(
             "UR-TRAUMA-001", "UR-PAIN-001", "UR-FEVER-001", "UR-FACE-SWELLING-001",
-            "UR-PREGNANCY-001");
+            "UR-PREGNANCY-001", "UR-BLEEDING-UNCLEAR-001");
+
+    /**
+     * 未经临床审核: 「明显出血」不带部位与量级，无法判断是否失血性急症，也不宜凭这四字
+     * 判 URGENT——那会让「手指有明显出血，不多，已止住」也被升级。因此它走 URGENT 的
+     * **待追问**分支：服务据此进入「待补充信息」，按 D5 该处置不可预约，并追问部位、量、
+     * 持续情况与头晕/晕厥等伴随表现。已有明确危险信号时仍由 ER 规则优先接管。
+     */
+    private static final Pattern UNCLEAR_BLEEDING_RULE = Pattern.compile("明显出血");
     private static final Pattern FOOD_REACTION = Pattern.compile(
             "食物过敏|" + siteSymptom("吃(了|完)", 16, "过敏|起疹|红疹|红肿|风团"));
     private static final Pattern GENERALIZED_RASH = Pattern.compile(
@@ -250,6 +269,17 @@ public class TriageSafetyPolicy {
     }
 
     public boolean requiresImmediateCare(String text) { return assess(text).stopRoutineFlow(); }
+
+    /**
+     * 未经临床审核: 「明显出血」需要追问而不是分诊成某个科室或给出号源。返回 true 会让
+     * 服务进入「待补充信息」，而该处置按 D5 不可预约——这正是裁定要求的「暂停普通预约
+     * 并追问」。与 {@link #requiresImmediateCare} 不同，本方法**不**升级急症。
+     */
+    public boolean requiresBleedingClarification(String text) {
+        if (text == null || text.isBlank()) return false;
+        if (requiresImmediateCare(text)) return false;
+        return UNCLEAR_BLEEDING_RULE.matcher(text).find();
+    }
 
     /** Removes negated and historical safety phrases before routing and retrieval. */
     public String removeNegatedRedFlags(String text) {

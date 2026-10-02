@@ -34,6 +34,7 @@ function answerMethod(meta:ResponseProvenance):string{
   // fall through to the fallback text, which tells the patient to supplement information — but
   // supplementing never changes a refusal, so that advice is simply wrong here.
   if(meta.modelStatus==='POLICY_REFUSAL')return '合规拒答：系统不提供诊断或处方。该答复由确定性策略直接给出，不经过模型，也不随您补充的信息而改变；如需就医方向，请改问就医相关问题或申请人工导诊'
+  if(meta.modelStatus==='CLARIFICATION')return '系统在等你补充关键信息，暂不给出科室推荐或号源。该追问由确定性策略直接给出，不经过模型'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
   if(meta.modelStatus==='LIVE_UNGROUNDED')return 'AI 模型回答一般问题；本次无可引用知识资料'
   if(meta.modelStatus.startsWith('DEMO'))return '演示规则回答，未调用外部 AI 模型'
@@ -109,7 +110,7 @@ async function requestHumanReview(sessionId:string,reason:string){
       <div v-if="triageRunning" class="bubble ai loading" role="status">{{ triageStatus }}</div>
     </div>
     <div class="disclaimer">预问诊会先回答一般健康问题、识别危险信号并按需追问；信息足够后才生成挂号建议。它不构成诊断或处方。</div>
-    <div class="disclaimer">本系统不提供孕产期常规预问诊。如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员；突然剧烈腹痛、明显出血、晕厥等情况请立即寻求急诊帮助。勾选上方选项只是您的一次性自我声明，不是系统对孕产状态的确认或排除——若您在后续描述中提到可能怀孕，系统会按「孕产状态待确认」处理并暂不提供普通号源。</div>
+    <div class="disclaimer">本系统不提供孕产期常规预问诊。如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员。孕期或可能怀孕时如有出血：出血量大、持续不止，或伴剧烈腹痛、头晕晕厥，请立即寻求急诊帮助；少量出血也请尽快联系线下医疗人员，不要自行处理。勾选上方选项只是您的一次性自我声明，不是系统对孕产状态的确认或排除——若您在后续描述中提到可能怀孕，系统会按「孕产状态待确认」处理并暂不提供普通号源。</div>
     <div v-if="activeConversation?.session.status==='待补充信息'" class="triage-stage-note">当前处于预问诊阶段：请回答助手刚提出的关键问题。补充信息会保留在本会话中，后续分诊结果将作为新版本保存。</div>
     <div v-if="activeConversation?.session.status==='建议尽快就医'" class="triage-stage-note">本次结果建议尽快到线下医疗机构评估，因此不提供模拟号源预约。若症状加重或出现胸痛、呼吸困难、意识改变等情况，请立即前往急诊或拨打 120。</div>
     <div v-if="activeConversation?.humanReview" class="human-review-status">人工导诊申请已提交 · {{ activeConversation.humanReview.status==='PENDING'?'等待处理':activeConversation.humanReview.status }}</div>

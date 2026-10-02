@@ -60,6 +60,9 @@ public class RuleBasedTriageEngine implements TriageEngine {
     @Override public boolean needsClarification(String symptoms) {
         if (requiresImmediateCare(symptoms)) return false;
         if (hasDiagnosisOrPrescriptionIntent(symptoms)) return true;
+        // 「明显出血」量级不明，既不该升级急症，也不该落到普通分诊或预约。走确定性追问，
+        // 服务据此置「待补充信息」，而该处置按 D5 不可预约。
+        if (safety.requiresBleedingClarification(symptoms)) return true;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
         if (candidates.isEmpty()) return true;
         if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
@@ -118,6 +121,17 @@ public class RuleBasedTriageEngine implements TriageEngine {
 
     @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
         long started = System.nanoTime();
+        // 未经临床审核: 追问内容按裁定列出部位、量、持续情况与伴随表现。固定文案而非模型
+        // 生成，因为这是安全分流的一部分，不该由模型改写措辞。
+        if (safety.requiresBleedingClarification(text)) {
+            String prompt = "请先补充出血的具体情况：是哪个部位出血、出了多少（少量还是较多）、"
+                    + "是否持续不止，以及有没有出现头晕、眼前发黑、心慌、气短或晕厥。"
+                    + "在补充这些信息之前，系统不会提供普通号源，也不会给出科室推荐。"
+                    + "如果出血量大、持续不止，或伴剧烈腹痛、头晕晕厥，请立即线下就医或拨打 120。";
+            calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊追问", "出血待追问",
+                    "UR-BLEEDING-UNCLEAR-001", 0, 0, elapsedMillis(started), true, List.of()));
+            return new Guidance(prompt, "CLARIFICATION", 0, 0, 0);
+        }
         if (hasDiagnosisOrPrescriptionIntent(text)) {
             NarrationModel.Answer answer = prescriptionRefusal();
             recordComplianceRefusal(started, "患者", List.of());

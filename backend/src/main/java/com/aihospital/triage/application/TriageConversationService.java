@@ -42,8 +42,9 @@ public class TriageConversationService {
             // 文案依据：GPT 对 D3 的复裁（选 A），并已用中文孕产引用替换 NG253。
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "当前演示仅支持成年人本人、非孕产期的非急症预问诊。"
-                    + "本系统不提供孕产期常规预问诊：如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员；"
-                    + "突然剧烈腹痛、明显出血、晕厥等情况请立即寻求急诊帮助。"
+                    + "本系统不提供孕产期常规预问诊：如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员。"
+                    + "孕期或可能怀孕时如有出血：出血量大、持续不止，或伴剧烈腹痛、头晕晕厥，请立即寻求急诊帮助；"
+                    + "少量出血也请尽快联系线下医疗人员，不要自行处理。"
                     + "此处填写的是一次性自我声明，不是系统对孕产状态的确认或排除。");
         String id = java.util.UUID.randomUUID().toString();
         store.createSession(id, patient, LocalDateTime.now());
