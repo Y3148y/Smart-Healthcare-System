@@ -1,20 +1,20 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-02T02:58:53.637Z",
+  "updatedAt": "2026-10-02T06:00:28.243Z",
   "note": "每源抓取结果只记录 URL、时间、HTTP 状态与 sha256。raw 快照写在 cache/（已 git 忽略），原文永不进入 git。",
   "sources": {
     "sdcep-spreading-infection": {
       "id": "sdcep-spreading-infection",
       "url": "https://www.acutedentalproblems.sdcep.org.uk/guidance/overarching-principles/management-of-spreading-or-systemic-infection",
-      "fetchedAt": "2026-10-02T02:57:33.733Z",
-      "status": "unreachable",
-      "httpStatus": null,
-      "sha256": null,
-      "bytes": null,
+      "fetchedAt": "2026-10-02T06:00:26.141Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "c0e25cb81f93c9b2cd90ecee18fe18490a208bc0c70a974b29ea9f342388afe0",
+      "bytes": 30479,
       "etag": null,
       "lastModified": null,
-      "contentType": null,
-      "note": "请求失败：fetch failed"
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
     },
     "nhs-sepsis": {
       "id": "nhs-sepsis",

@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { CACHE_DIR, REPORTS_DIR, ROOT, TOOL_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
-import { checkCitations, collectCitations, loadRules, rulesFileExists } from './lib/citations.mjs';
+import { checkCitations, checkRuleInvariants, collectCitations, loadRules, rulesFileExists } from './lib/citations.mjs';
 import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
 import { writeWorksheets } from './lib/proposal.mjs';
@@ -299,23 +299,35 @@ function commandCitations() {
   const registry = loadRegistry();
   const rows = collectCitations(rules);
   const findings = checkCitations(rules, registry);
+  const invariants = checkRuleInvariants(rules);
   const ruleCount = (rules.rules ?? []).length;
   const comboCount = (rules.combinations ?? []).length;
-  console.log(`规则文件：${ruleCount} 条规则 + ${comboCount} 条组合 = ${ruleCount + comboCount} 个声明；引用 ${rows.length} 条，去重后 ${new Set(rows.map((row) => row.code + '::' + row.id)).size} 条`);
-  const codes = new Set((rules.rules ?? []).map((rule) => rule.code));
-  for (const combination of rules.combinations ?? []) codes.add(combination.code);
-  console.log(`涉及规则码 ${codes.size} 个`);
+  const derivedCount = (rules.derivedRules ?? []).length;
+  console.log(`规则文件：${ruleCount} 规则 + ${comboCount} 组合 + ${derivedCount} 派生 = ${invariants.codes.length} 个规则码`);
+  console.log(`引用 ${rows.length} 条，去重后 ${new Set(rows.map((row) => row.code + '::' + row.id)).size} 条`);
+  console.log(`显式声明为 citationGap 的规则：${(rules.rules ?? []).concat(rules.combinations ?? []).concat(rules.derivedRules ?? []).filter((entry) => entry.citationGap === true).map((entry) => entry.code).join('、') || '无'}`);
   console.log('');
+  console.log('── 引用完整性（id 能否在登记表找到）──');
   if (findings.length === 0) {
     console.log('全部引用的 id 都能在 sources.json 找到，且无占位条目。');
-    return;
+  } else {
+    for (const finding of findings) {
+      console.log(`${finding.level === 'error' ? 'ERROR' : 'WARN '} ${finding.code.padEnd(22)} ${finding.id.padEnd(34)} ${finding.why}`);
+    }
   }
-  let errors = 0;
-  for (const finding of findings) {
-    if (finding.level === 'error') errors += 1;
-    console.log(`${finding.level === 'error' ? 'ERROR' : 'WARN '} ${finding.code.padEnd(22)} ${finding.id.padEnd(34)} ${finding.why}`);
+  console.log('');
+  console.log('── 结构不变量（语义校验，不依赖行号）──');
+  console.log(`词表键 ${Object.keys(rules.vocabulary ?? {}).length} 个；{ref:…} 引用 ${invariants.refsUsed.length} 个不同名称`);
+  if (invariants.problems.length === 0) {
+    console.log('结构自洽：每条规则要么有引用、要么显式声明为缺口；{ref:…} 全部可解析；规则码唯一。');
+  } else {
+    for (const problem of invariants.problems) {
+      console.log(`${problem.level.toUpperCase()} ${String(problem.code).padEnd(22)} ${problem.why}`);
+    }
   }
-  console.log(`\n${errors === 0 ? '无断链，但有需人工确认的引用。' : `${errors} 条断链或不可用引用——出处不可追溯等于没有出处。`}`);
+  const errors = findings.filter((item) => item.level === 'error').length
+    + invariants.problems.filter((item) => item.level === 'error').length;
+  console.log(`\n${errors === 0 ? '检查通过。' : `${errors} 项需处理。`}`);
   console.log('提示：本检查只读，不修改规则文件。修正 id 或补登记由规则文件 owner 决定。');
   process.exitCode = errors > 0 ? 1 : 0;
 }

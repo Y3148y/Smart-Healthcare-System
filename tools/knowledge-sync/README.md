@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | `npm run sources` | 否 | 打印登记表摘要（优先级、抓取方式、核实状态） |
 | `npm run refs -- <commit>` | 否 | 校验两份文档引用的代码位置是否仍成立（`doc-refs.json` 里 28 条"该行必须包含的内容串"） |
-| `npm run citations` | 否 | 校验规则数据文件里每个 citation id 都能在 `sources.json` 找到，并盯住未核实 / `manual` / 自述占位的来源。**只读，不改规则文件** |
+| `npm run citations` | 否 | 校验规则数据文件：① 每个 citation id 都能在 `sources.json` 找到，并盯住未核实 / `manual` / 自述占位的来源；② 五条结构不变量（零引用必须显式标 `citationGap`、`combinations` 的码必须存在、`{ref:…}` 必须可解析、规则码唯一、派生规则须声明 `condition`）。**只读，不改规则文件** |
 | `npm run verify` | 否 | 离线复算生产检索算法，预测语料改动的召回影响 |
 | `npm run fetch -- --dry-run` | 是 | 抓取并打印结果，不写 `state.json` |
 | `npm run fetch` | 是 | 抓取到期来源，写快照到 `cache/`、哈希到 `state.json` |
@@ -47,6 +47,8 @@
 - `www.nhc.gov.cn` 对程序化请求返回 **HTTP 412**（WAF）。相关来源标 `manual`，只能人工打开阅读。
 - 零依赖抽取器只处理 HTML。PDF（NHS England 易读版）与 .docx（国卫医发〔2018〕25号 附件、NMPA 通告附件）只能人工阅读。
 - HTML → 文本是粗筛：导航残留可能混进抽取正文。工作单里已标注「未经核校」，必须人工确认。
+- **抓取失败先看 httpStatus 再下结论**：`403`/`412` 是站点侧拦截（WAF），`unreachable`（connect timeout）是网络侧。`sdcep-spreading-infection` 曾连续两次 `UND_ERR_CONNECT_TIMEOUT`，单次重试即成功——**不可达不等于被墙**。
+- **行号断言不适合 JSON 数据文件**。在真实 `safety-rules.json` 上实测：`citations` 一词出现 17 次，按惯例选中的第 9 行其实是 `unreviewedDefault` 的说明文字，一条「第 9 行含 citations」的断言**当场假通过**；顶层插入任何字段后它又变成指向 `},` 的噪声 FAIL，而 JSON 语义毫无变化。该文件因此走 `citations` 的语义校验，不进 `doc-refs.json`。
 
 ## 依赖
 

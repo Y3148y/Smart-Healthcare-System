@@ -270,7 +270,8 @@
       "fetchMode": "auto",
       "status": "verified",
       "reviewCycleDays": 180,
-      "priority": "P0"
+      "priority": "P0",
+      "notes": "抓取可达性已实测：2026-10-02 首次尝试连续两次 UND_ERR_CONNECT_TIMEOUT（connect timeout，跨境线路），加单次重试后成功（HTTP 200，30479 字节，抽取正文 2656 字符，含 trismus / Ludwig's angina / 18 hours）。结论：unreachable 属瞬时网络故障，不代表被墙或 robots 禁止，因此保持 fetchMode=auto。判读规则——连续失败时先看 httpStatus：403/412 才是站点侧拦截，unreachable 是网络侧。"
     },
     {
       "id": "sdcep-dental-abscess",
@@ -378,6 +379,23 @@
       "status": "verified",
       "reviewCycleDays": 90,
       "priority": "P0"
+    },
+    {
+      "id": "nhs-ectopic-pregnancy",
+      "name": "NHS Ectopic pregnancy — Symptoms",
+      "publisher": "NHS England",
+      "jurisdiction": "英国",
+      "url": "https://www.nhs.uk/conditions/ectopic-pregnancy/symptoms",
+      "type": "公众信息",
+      "licenseNote": "Crown copyright / OGL v3；改写后署名来源。",
+      "covers": "宫外孕症状通常出现在孕 4–12 周。阴道出血（多为稀薄、深褐色、断续，常被误认为月经）；下腹单侧疼痛（可骤发或渐进、可持续或间歇）；肩尖痛（internal bleeding 的征象，应立即就医）；破裂征象＝突发剧烈腹痛 + 明显头晕或晕厥 + 恶心 → Call 999 立即。对应 ER-PREGNANCY-001 与 UR-PREGNANCY-001 的出处。注意本系统入口以自我声明排除孕产，故这些内容仅作规则出处，不进患者对话。",
+      "targetDoc": "",
+      "fetchMode": "auto",
+      "status": "verified",
+      "reviewCycleDays": 90,
+      "priority": "P0",
+      "notes": "2026-10-02 核实：经搜索引擎提取的实时页面正文。页面自述「最后复核 2022-08-23 / 下次复核 2025-08-23」——该复核到期日已过约 13 个月，引用时必须同时标注此事实，不得当作刚复核过的内容。",
+      "targetRag": false
     },
     {
       "id": "nhs-anaphylaxis",

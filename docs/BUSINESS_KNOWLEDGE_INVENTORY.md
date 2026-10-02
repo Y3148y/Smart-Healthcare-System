@@ -205,6 +205,22 @@ knowledge.documents().size(), calls.calls().size() * 4);
 
 ---
 
+## 6.1 安全规则的出处不在本文
+
+本文是**业务规则**台账（科室、号源、状态、门禁、免责声明口径）。**临床安全规则的出处与缺口不在这里**，避免两份台账各记一半：
+
+| 内容 | 唯一登记处 |
+| --- | --- |
+| 15 个安全规则码逐条匹配公开来源、覆盖度判定、建议动作 | [`docs/RULE_SOURCE_WORKLIST.md`](RULE_SOURCE_WORKLIST.md) |
+| 收录标准、许可边界、源清单与覆盖映射 | [`docs/KNOWLEDGE_SOURCES.md`](KNOWLEDGE_SOURCES.md) |
+| 规则文件与来源登记表的 id 一致性 + 结构不变量 | `cd tools/knowledge-sync && npm run citations` |
+
+当前状态：**7 条规则显式声明出处不完整或缺失**（`ER-BREATHING-001`、`ER-NEURO-001`、`ER-BLEEDING-001`、`ER-POISON-001`、`UR-FEVER-001`、`UR-PAIN-001`、派生的 `ER-ALLERGY-001`）。其中 `UR-FEVER-001` 的缺口性质与其他六条不同——它**有 3 条出处，但阈值高于指南**，属需临床审核的修订项，不是缺出处。
+
+> 之所以只放指针不放内容：出处结论会随规则改动与来源核实而变，写两份必然分叉。需要看结论的人应该只看到一个地方。
+
+---
+
 ## 7. 建议的处理顺序（供 owner 排期，本轮不执行）
 
 > **在途状态**：基线 `c3e24ad` 时，以下第 1–5 项涉及的文件**仍在 opencode 单写范围内、本轮未完成**。本文只登记，不催促。

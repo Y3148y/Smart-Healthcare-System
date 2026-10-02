@@ -178,39 +178,76 @@ cd tools/knowledge-sync && npm run citations
 
 它把规则文件里的每个 citation id 拿去比对 `sources.json`，并额外盯两类目测容易漏的情况：来源状态非 `verified`、来源是 `manual`（没人会发现内容漂移）、来源自述为占位条目。
 
-### 7.1 首次运行的结果（对工作树未提交状态，2026-10-02）
+### 7.1 当前状态与检查结果
 
-规则文件当时为 14 条规则 + 4 条组合、19 条引用，涉及 14 个规则码。**6 条断链或不可用引用**：
+规则文件当前为 **14 规则 + 4 组合 + 1 派生 = 15 个规则码**，19 条引用。`npm run citations` 分两段检查，都已实测通过/失败如下。
 
-| 规则码 | 引用 id | 问题 | 建议 |
+**显式声明 `citationGap` 的 7 条（即"出处不完整或缺失"的规则）**：
+
+| 规则码 | 缺口性质 | 本文 §2 的对应结论 |
+| --- | --- | --- |
+| `ER-BREATHING-001` | 完全无出处 | 部分覆盖（「不能平卧」「口唇发紫」无支撑） |
+| `ER-NEURO-001` | 部分：有卒中出处，「晕厥」出处不匹配、「突发剧烈头痛」无出处 | 部分覆盖 |
+| `ER-BLEEDING-001` | 完全无出处 | **无出处** |
+| `ER-POISON-001` | 完全无出处 | **无出处** |
+| `UR-FEVER-001` | 有出处但**与指南冲突**（门槛 39℃ 高于两个来源） | 与指南冲突 |
+| `UR-PAIN-001` | 孕期有出处，非孕产成人无 | 部分覆盖 |
+| `ER-ALLERGY-001` | 派生规则，完全无出处，且**比来源更窄**（§3.1） | 规则比来源窄 |
+
+> `citationGap` 与「有引用」并存**不是矛盾**，它表示"部分覆盖"。检查器因此不做反向断言，只强制"零引用必须显式标gap"——否则一个零出处的规则会读起来像有出处。
+
+**剩余 4 条引用问题**（其中 3 条是 id 改名，1 条是占位来源）：
+
+| 规则码 | 现引用 id | 应改为 | 性质 |
 | --- | --- | --- | --- |
-| `ER-PREGNANCY-001` | `cdc-maternal-warning-signs` | 登记表里是 `cdc-hearher-maternal-warning-signs` | 改 id 为已登记项；且该源仍是 `toVerify` + 403，人工核实后再当正式引用 |
-| `ER-PREGNANCY-001` | `nhs-stomach-pain-pregnancy` | 登记表里是 `nhs-pregnancy-stomach-pain` | 改 id 为已登记项 |
-| `ER-PREGNANCY-001` | `nhs-ectopic-pregnancy` | **未登记** | 宫外孕页确实值得登记，但须先核实 URL |
-| `UR-PREGNANCY-001` | `nhs-ectopic-pregnancy` | 同上 | 同上 |
-| `UR-FACE-SWELLING-001` | `nhs-dental-abscess` | 登记表里是 `sdcep-dental-abscess`（同一 NHS Scotland 站点，id 不同） | 改 id 为已登记项 |
-| `ER-AIRWAY-001` | `nhc-er-dept-guideline` | **占位条目**：URL 是 `nhc.gov.cn` 首页、状态 `toVerify`、`manual` | 按收录政策（`KNOWLEDGE_SOURCES.md §7`「定位不到稳定官方链接就删除，不允许长期保留占位」）**不应作为正式引用**。改用 `nhs-anaphylaxis`（见下） |
+| `ER-PREGNANCY-001` | `cdc-maternal-warning-signs` | `cdc-hearher-maternal-warning-signs` | 改名（同一来源） |
+| `ER-PREGNANCY-001` | `nhs-stomach-pain-pregnancy` | `nhs-pregnancy-stomach-pain` | 改名（同一来源） |
+| `UR-FACE-SWELLING-001` | `nhs-dental-abscess` | `sdcep-dental-abscess` | 改名（同一 NHS Scotland 站点） |
+| `ER-AIRWAY-001` | `nhc-er-dept-guideline` | `nhs-anaphylaxis` + `sdcep-dental-abscess` | **换来源**，非改名 |
 
-**特别注意最后一条**：这不是 id 拼错，是**把一个明确标注为占位的条目当成了正式出处**。占位条目一旦被引用，"这条规则有出处"就成了假陈述——比没有出处更糟。
+**改名类问题为何不在我这边补登记**：同一个来源挂两个 id，等于把"单一事实源"重新制造一遍——`npm run citations` 会显示绿，但登记表里躺着两条指向同一页面的记录。改 id 的成本远低于维护两份。
 
-### 7.2 `ER-AIRWAY-001` 的推荐替换出处
+**`ER-AIRWAY-001` 的换来源理由**：`nhc-er-dept-guideline` 是**占位条目**（URL 是 `nhc.gov.cn` 首页、状态 `toVerify`、`manual`），而本仓政策明写「定位不到稳定官方链接就删除，不允许长期保留占位」（`KNOWLEDGE_SOURCES.md §7`）。把占位条目当正式出处，等于让"这条规则有出处"成为假陈述——比没有出处更糟。替换项：
 
 | 来源 id | 覆盖的 999 判据（原文要点） |
 | --- | --- |
 | `nhs-anaphylaxis` | 嘴唇、口腔、咽喉或舌突然肿；咽喉发紧或吞咽困难；呼吸急促或呼吸困难 |
 | `sdcep-dental-abscess` | floor-of-mouth swelling、difficulty breathing/swallowing → 作为急症立即转诊 |
 
-顺带暴露一个**规则侧的出处不匹配**（不是断链，但同样削弱可追溯性）：
+**已登记但当前无规则引用**：`nhs-ectopic-pregnancy`（`https://www.nhs.uk/conditions/ectopic-pregnancy/symptoms`，含孕 4–12 周阴道出血、下腹单侧痛、肩尖痛、破裂三联征）。若最终不引用，按政策应删除或写明保留理由——**不允许长期躺着**。注意该页自述「下次复核 2025-08-23」已过期约 13 个月，引用时必须同时标注。
 
-| 规则码 | 现引用 | 问题 |
-| --- | --- | --- |
-| `ER-NEURO-001` | `nice-ng253` | NG253 适用（16 岁以上非孕产），但它**不是「晕厥」的出处**。建议补 `nhs-fainting`（已登记，含 999 判据：1 分钟内无法唤醒、伴胸痛或心悸、运动中晕厥、因抽搐抖动等），并为「突发剧烈头痛」另补来源（§4.1 已登记为无出处） |
+### 7.2 为什么 `safety-rules.json` 不进 `doc-refs.json`
 
-### 7.3 派生规则 `ER-ALLERGY-001` 不在数据文件里
+`doc-refs.json` 用的是「行号 + 该行必须包含的内容串」，这对 Java/Vue 有效，对 JSON 数据文件无效。实测（在真实文件上做的，未修改该文件）：
 
-规则文件只有 14 条声明，**不含 `ER-ALLERGY-001`**。核对代码后确认这是**有意的**且安全：该规则的 `FOOD_REACTION` ∧ `GENERALIZED_RASH` 合成逻辑仍在 `TriageSafetyPolicy` 里以硬编码存在，测试也锁定它。
+- `citations` 一词在该文件中出现 **17 次**
+- 按惯例选中的第 9 行实际是 `"unreviewedDefault": "本文件所有规则均未经临床审核。citations 列出的是…"`
+- 即：**一条"第 9 行含 citations"的断言当场 PASS，但它指的不是任何 citations 字段**，而是那句免责声明
+- 在顶层插入任何字段（哪怕是语义等价的 `schemaRef`）后，行号整体 +1，该断言立刻变成指向 `},` 的纯噪声 FAIL——**JSON 语义毫无变化**
 
-但这带来一个一致性后果：**派生规则在数据文件里没有 `citations` 字段可写**。要么在代码注释里保留出处（现状），要么在数据文件里加一个 `derivedRules` 段落。这是一个需要 owner 明确决定的结构问题，本文不代劳。
+（诚实交代：我预设的更恶劣情形——"插入一行同样含该词的文字导致继续假通过"——在这个文件上没有复现。真正的假通过不需要构造，它本来就在。）
+
+所以改为给 `citations` 补**结构不变量**，全部语义级、与行位置无关：
+
+1. **零引用必须显式标 `citationGap`**——否则一个无出处的规则读起来像有出处
+2. `combinations` 的每个规则码必须存在于 `rules`/`derivedRules`——抓拼写错误（如 `ER-PREGNANCE-001`）
+3. 每个 `{ref:name}` 必须能解析到已声明的词表键——悬空 ref 会展开成**永不匹配的字面量**，静默废掉一个模式
+4. 规则码在 `rules` + `derivedRules` 内唯一（与 `combinations` 同码是设计如此，不算重复）
+5. 派生规则必须声明 `condition`
+
+> 这套不变量是我写完第一版后**自己跑出假阳性才发现要修的**：初版把"`citationGap` 与有引用并存"判为矛盾、把"组合与规则同码"判为重复声明。前者在"部分覆盖"语义下完全合法，后者是设计意图。**假阳性的校验比没有校验更糟**——它会诱导人去改正确的代码。
+
+### 7.3 派生规则 `ER-ALLERGY-001` 已纳入数据文件
+
+规则文件现有 `derivedRules` 段落承载 `ER-ALLERGY-001`，并带 `citationGap: true` 与 `condition`（"foodReaction 与 generalizedRash 同时被肯定表达"）。这解决了本文早期版本提出的结构问题：派生规则不再只能靠代码注释留出处。
+
+### 7.4 未决：一处口径需要 owner 明确
+
+`UR-FEVER-001` 同时具备"有出处"（NICE NG253、NHS sepsis、SDCEP 三条）与"citationGap"。二者都成立——但**具体是什么缺口，现有 `coverage` 文本未说清**。我的建议措辞是：
+
+> 已有 3 条出处，但均不支持当前阈值：`UR-FEVER-001` 要求体温 39–40℃，而 NICE NG253 明写脓毒症「may not have a high temperature」，SDCEP 更给出 <36℃ 或 >38℃ 即提示全身受累。属**阈值高于指南**，不是出处缺失。修订需临床审核。
+
+请 rule owner 确认这个措辞，避免读者误以为这条规则没有出处。
 
 ---
 

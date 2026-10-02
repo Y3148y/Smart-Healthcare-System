@@ -64,6 +64,83 @@ export function checkCitations(rulesJson, registry) {
     .map((entry) => ({ level: entry.level, code: entry.code, id: entry.id, why: entry.reasons.join('；') }));
 }
 
+/**
+ * Structural invariants of the rule data file.
+ *
+ * These are deliberately semantic rather than positional. Line-number assertions do not fit a
+ * JSON data file: any added key shifts every later line, and a `mustContain` probe can be
+ * satisfied by an unrelated line that merely mentions the same word (measured on the real file —
+ * the word "citations" occurs 17 times, and the first occurrence is inside `unreviewedDefault`,
+ * not inside any citations field).
+ *
+ * Only invariants that cannot fire spuriously are asserted:
+ *   1. a declaration with ZERO citations must set `citationGap` — otherwise it reads as sourced
+ *      while having no source at all. (The converse is NOT an error: `citationGap` legitimately
+ *      coexists with citations, meaning "partially covered".)
+ *   2. a combination's code must exist among the rule codes — catches typos like ER-PREGNANCE-001.
+ *   3. every `{ref:name}` resolves to a declared vocabulary key; a dangling ref expands to a
+ *      literal that never matches, silently disabling a pattern.
+ *   4. rule codes are unique within rules + derivedRules. Sharing a code with a combination is
+ *      by design (one code, both a direct expression and a cross-clause variant).
+ *   5. every derived rule states its `condition`, otherwise the derivation is invisible.
+ */
+export function checkRuleInvariants(rulesJson) {
+  const problems = [];
+  const directCodes = new Set();
+  for (const entry of [...(rulesJson.rules ?? []), ...(rulesJson.derivedRules ?? [])]) {
+    directCodes.add(entry.code);
+  }
+
+  const seen = new Map();
+  for (const [group, entries] of [
+    ['rules', rulesJson.rules ?? []],
+    ['derivedRules', rulesJson.derivedRules ?? []],
+  ]) {
+    for (const entry of entries) {
+      const citations = entry.citations ?? [];
+      if (citations.length === 0 && entry.citationGap !== true) {
+        problems.push({
+          level: 'error',
+          code: entry.code,
+          why: `既无引用也没标 citationGap——读起来像有出处，实际没有（${group}）`,
+        });
+      }
+      if (seen.has(entry.code)) {
+        problems.push({ level: 'error', code: entry.code, why: `规则码重复：${seen.get(entry.code)} 与 ${group} 各声明一次` });
+      } else {
+        seen.set(entry.code, group);
+      }
+      if (group === 'derivedRules' && !entry.condition) {
+        problems.push({ level: 'error', code: entry.code, why: '派生规则缺 condition，派生逻辑不可见' });
+      }
+    }
+  }
+
+  for (const combination of rulesJson.combinations ?? []) {
+    if (!directCodes.has(combination.code)) {
+      problems.push({
+        level: 'error',
+        code: combination.code,
+        why: 'combinations 引用了一个不存在于 rules/derivedRules 的规则码（拼写错误或规则已删）',
+      });
+    }
+  }
+
+  const vocabulary = Object.keys(rulesJson.vocabulary ?? {});
+  const raw = JSON.stringify(rulesJson);
+  const refs = [...raw.matchAll(/\{ref:([a-zA-Z0-9_]+)\}/g)].map((match) => match[1]);
+  for (const name of new Set(refs)) {
+    if (!vocabulary.includes(name)) {
+      problems.push({
+        level: 'error',
+        code: '(vocabulary)',
+        why: `{ref:${name}} 指向不存在的词表键；展开后会变成永不匹配的字面量`,
+      });
+    }
+  }
+  return { problems, codes: [...seen.keys()], refsUsed: [...new Set(refs)], vocabularyKeys: vocabulary };
+}
+
 export function rulesFileExists() {
   return existsSync(RULES_PATH);
 }
