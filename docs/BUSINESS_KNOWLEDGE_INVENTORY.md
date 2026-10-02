@@ -1,7 +1,7 @@
 # 业务知识清单：当前散落在代码里的业务规则
 
 > **性质**：本文**只登记，不修复**。每条给出位置、是否单源、能否成为知识库内容、修复会触碰哪些文件。
-> **基线**：核对于提交 `193c6fc`。行号会随代码变动失效，引用前请复核。
+> **基线**：行号已按提交 `c3e24ad` 全量重核。`193c6fc` 之后的 `895cf7a`（D3 复裁定，新增孕产边界逻辑）与 `c3e24ad` 使 `TriageConversationService.java` 整体下移约 6 行、`TriagePage.vue` 因新增免责声明下移 1 行，相关引用已全部修正；`RuleBasedTriageEngine.java`、`AssessmentCard.vue` 及其余被引用文件未被这两次提交触及，引用保持不变。行号会随代码继续变动，引用前请复核。
 > **定级**：本系统为未经临床审核的原型，无医生执业资质审核、无医院系统对接、无患者数据留痕基础设施。本文不构成合规意见，也不构成临床认可。
 > **配套**：[`docs/KNOWLEDGE_PIPELINE.md`](KNOWLEDGE_PIPELINE.md)（临床知识侧）、[`docs/KNOWLEDGE_SOURCES.md`](KNOWLEDGE_SOURCES.md)（来源与许可）
 
@@ -84,13 +84,13 @@
 
 | 字面量 | 产生位置 | 消费位置 |
 | --- | --- | --- |
-| `紧急提示` | `Disposition.java:43` | `TriageConversationService.java:60`（终态，拒绝继续）、`SimulationBookingService.java:56` |
-| `建议尽快就医` | `Disposition.java:44` | 仅前端 `TriagePage.vue:109` |
-| `待补充信息` | `Disposition.java:45`、另见 `RuleBasedTriageEngine.java:113` 直接写字面量绕过常量 | `SimulationBookingService.java:56`、`TriagePage.vue:108` |
+| `紧急提示` | `Disposition.java:43` | `TriageConversationService.java:66`（终态，拒绝继续）、`SimulationBookingService.java:56` |
+| `建议尽快就医` | `Disposition.java:44` | 仅前端 `TriagePage.vue:110` |
+| `待补充信息` | `Disposition.java:45`、另见 `RuleBasedTriageEngine.java:113` 直接写字面量绕过常量 | `SimulationBookingService.java:56`、`TriagePage.vue:109` |
 | `已完成分诊` | `Disposition.java:46` | **`OverviewMapper.java:10` 写死在 SQL 里**、前端 `TriagePage.vue:96` |
 | `进行中` | `MybatisTriageStore.java:33` | 无任何判定，仅前端显示 |
-| `处理中` | `TriageConversationService.java:68` | 无任何判定 |
-| `待重试` | `TriageConversationService.java:93` | 无任何判定 |
+| `处理中` | `TriageConversationService.java:74` | 无任何判定 |
+| `待重试` | `TriageConversationService.java:99` | 无任何判定 |
 
 **最脆的一处**：`OverviewMapper.java:10` 把 `已完成分诊` 写进 `@Select` 注解——
 
@@ -114,10 +114,14 @@
 | `RuleBasedTriageEngine.java:198` | 多科室候选场景 |
 | `RuleBasedTriageEngine.java:199` | 普通场景：仅辅助分诊和挂号参考 |
 | `TriagePage.vue:107` | 前端预问诊说明 |
+| **`TriagePage.vue:108`** | **孕产边界（新增于 `895cf7a`）**：不提供孕产期常规预问诊；要求孕产/近期分娩者停止普通分诊；严重腹痛、明显出血立即急诊。并明写「勾选上方选项只是您的一次性自我声明，不是系统对孕产风险的确认或排除」 |
+| **`TriagePage.vue:113`** | **资格勾选标签的二次声明（新增于 `895cf7a`）**：以上为一次性自我声明，系统不会再次核实；声明与后续描述不一致时以线下医疗人员判断为准 |
 | `BookingPage.vue:8` | 号源为演示数据、不产生真实就诊凭证 |
 | `VisitsPage.vue:8,11` | 症状时间线非正式病历 |
 | `AdminPage.vue:19,22` | 演示版声明 + 尚未连接医院排班 |
 | `backend/src/main/resources/knowledge/08-fracture-triage.md:5` | 骨折语料自带免责 |
+
+**口径一致性进展**：`895cf7a` 之后，孕产边界已在勾选处（`TriagePage.vue:113`）、会话内常驻声明（`:108`）与建会话 400（`TriageConversationService.java:39-45`）三处一致表述，**均不表述为"已确认排除孕产"**——这一点已修好。但它同时新增了两处文案（常驻声明 + 标签内二次声明），使"免责声明无单源"从本文表格内的 8 处（后端 3 + 前端 4 + 语料 1）增至 9 处（后端 3 + 前端 5 + 语料 1），另加勾选标签内嵌 1 处，**合计 10 处仍无单源**。
 
 ### 5.2 一个被凭空编造的指标
 
@@ -131,7 +135,7 @@ knowledge.documents().size(), calls.calls().size() * 4);
 ### 5.3 资格声明被丢弃
 
 - 门禁只在建会话时校验一次：`TriageConversationService.java:39`（`adultConfirmed` / `forSelfConfirmed` / `notPregnantConfirmed` 三者全为真才放行）。后续轮次不再校验。
-- `18` 岁只存在于界面文案（`TriagePage.vue:112`），后端 `Eligibility.adultConfirmed` 是裸 `boolean`（`triage/domain/TriageRecords.java:22`）→ **年龄从未被采集**。
+- `18` 岁只存在于界面文案（`TriagePage.vue:113`），后端 `Eligibility.adultConfirmed` 是裸 `boolean`（`triage/domain/TriageRecords.java:22`）→ **年龄从未被采集**。
 - 一个复选框同时充当三项声明：`TriagePage.vue:48` 把同一个 `eligible` 值填进三个布尔。
 - 落库只存时间不存内容：`TriageMapper.java:23` 的 `INSERT INTO triage_eligibility(session_id,confirmed_at)`，三个布尔被**丢弃**；全库无任何 `SELECT` 读该表（`schema.sql:43` 是唯一另一处出现）。
 
@@ -157,9 +161,9 @@ knowledge.documents().size(), calls.calls().size() * 4);
 
 | 值 | 位置 |
 | --- | --- |
-| 症状描述 1–2000 字 | `TriageConversationService.java:63-64` |
-| 标题 24 字 / 预览 120 字 | `TriageConversationService.java:67-68` |
-| 人工导诊理由 500 字 | `TriageConversationService.java:126` |
+| 症状描述 1–2000 字 | `TriageConversationService.java:69-70` |
+| 标题 24 字 / 预览 120 字 | `TriageConversationService.java:73-74` |
+| 人工导诊理由 500 字 | `TriageConversationService.java:132` |
 | 工具入参 2200 字 | `tools/application/HospitalToolExecutor.java:81` |
 | 幂等键 ≤64 字符 | `SimulationBookingService.java:43` |
 | 置信度阈值 35 / 55 / 60 / 72 / 100 | `RuleBasedTriageEngine.java:210-214` |
@@ -178,18 +182,28 @@ knowledge.documents().size(), calls.calls().size() * 4);
 
 **结论：当前没有一条业务知识适合做成患者可读的知识语料。** 业务规则的正确归宿是**数据文件 + 单一判定函数**，不是检索库。把它塞进 RAG 只会制造第 9 份副本。
 
+**另一条与业务规则直接相关的检索事实**（完整版见 [`docs/KNOWLEDGE_PIPELINE.md §6.1`](KNOWLEDGE_PIPELINE.md)）：`grounded` 只表示"有片段过了阈值"，**不表示命中了医学概念**。
+
+- 词法路径：`termScore` 的分母只取 52 词表筛出的 `queryTerms.size()`（`InMemoryKnowledgeCatalog.java:89,107`），全词表外的查询只剩 bigram 权重与权威加分
+- 语义路径：启用 embedding 后 `grounded` 可由向量余弦单独产生（`HybridKnowledgeCatalog.java:43`），词表全程不参与
+
+因此 `RuleBasedTriageEngine.java:215`（`bookable`）与 `TriageConversationService.java:138`（号源可用性）**都不构成"知识依据充分"的证据**——Q4「依据达标才附医生」的支点比表面看起来弱。`npm run verify` 的词表外守卫用于盯住词法路径，语义路径无法离线验证。
+
 ---
 
 ## 7. 建议的处理顺序（供 owner 排期，本轮不执行）
 
+> **在途状态**：基线 `c3e24ad` 时，以下第 1–5 项涉及的文件**仍在 opencode 单写范围内、本轮未完成**。本文只登记，不催促。
+
 1. **先删编造指标**：`AdminOverviewService.java:28` 的 `* 4`。
 2. **补 `POLICY_REFUSAL` 显示**：两个前端组件的模型状态映射（`AssessmentCard.vue:35`、`TriagePage.vue:31-39`）——这是**事实性错误**，合规拒答被说成"未生成模型回答"，优先级高于一切重构。
+   - 已知不变量：拒答路径**不保存任何 assessment**（现有测试断言 `assessments.size()==0`），故 `AssessmentCard.vue:35` 的兜底当前**不可达**。处理时应补分支并把该不变量写进注释，避免下一个人把它误判成活 bug 的同等紧急项；`TriagePage.vue:38` 的兜底可达，属活 bug。
 3. **把 `已完成分诊` 从 SQL 里拿出来**：改为按 `Disposition` 常量传入或用状态枚举列。
 4. **加 `GET /api/departments`**，前端 `depts` 改为从接口取；顺带补上 `全科医学科`。
 5. **把 `isBookable` 改为白名单**，并让前端从后端字段派生而非硬编码数组。
 6. 以上都完成后再考虑：路由词表数据化、资格声明落库、多日排班。
 
-> 第 1–5 项都会改动 GPT 当前单写手范围内的文件（`RuleBasedTriageEngine` 及其测试、`AssessmentCard.vue`、`TriagePage.vue`）。**必须串行交接，不得并行。**
+> 第 1–5 项都会改动 opencode 当前单写手范围内的文件（`RuleBasedTriageEngine` 及其测试、`AssessmentCard.vue`、`TriagePage.vue`）。**必须串行交接，不得并行。** GPT 除 D4 外只出裁定、不写生产代码，不构成并行写入方。
 
 ---
 

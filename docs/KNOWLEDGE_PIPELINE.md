@@ -79,6 +79,7 @@ owner 批准 → 独立 commit
 - 段落是否超 420 字（会切片并产生重叠片段）
 - 主题里有多少词落在 52 词表之外
 - top1/top2 是否分数并列
+- **词表外守卫**：14 条纯词表外查询是否仍全部 `grounded=false`（见 §6.1）
 
 ## 6. 已知的检索缺陷（读码所得，未修）
 
@@ -90,10 +91,34 @@ owner 批准 → 独立 commit
 | 管理员新增文档不持久 | 无知识相关数据表（`schema.sql` 只有 `sim_*` 与 `triage_*`） | 重启即丢；`KnowledgeDocument`（`Models.java:27`）也没有来源 URL、版本、许可、审核状态字段 |
 | 索引在请求路径上同步执行 | `HybridKnowledgeCatalog.java:37` 每次检索都调 `ensureIndexed` | 冷启动首个查询会同步做全部 embedding，超时 15 秒（`QdrantSemanticIndex.java:119`）；语料变大后这段会变成分钟级阻塞 |
 | 文档正文截断到 4000 字 | `OptionalNarrationModel.java` / `RuleBasedTriageEngine` 的证据拼接 | 片段变多后，送进模型的证据会被截断，需要排序策略 |
+| **`grounded` 的语义弱于"命中医学概念"** | 词法：`InMemoryKnowledgeCatalog.java:89,107`；语义：`HybridKnowledgeCatalog.java:43` | 依赖 `grounded` 的门禁不构成"知识依据充分"的证据。详见 §6.1 |
+
+### 6.1 `grounded` 到底保证了什么
+
+`grounded` 只表示"有片段过了阈值"，**不表示命中了医学概念**。两条路径要分开说：
+
+**词法路径**（`InMemoryKnowledgeCatalog.java:89,98,107`）
+
+`queryTerms` 只从 `:34-40` 的 52 个词里取；`termScore = hits / queryTerms.size()`。因此查询全用词表外术语时 `termScore = 0`，score 只剩：
+
+    score = 0.30 × bigram余弦 + 0.08   （https 来源；非 https 为 0.02）
+
+反解阈值：过 `0.28` 需要 bigram 余弦 **≥ 0.667**。实测当前 12 片段语料下，`脓毒症`/`发热`/`张口受限`/`意识模糊`/`伤口流脓`/`怕冷寒战发抖` 等 14 条真实患者表述**全部 ungrounded**；20 字逐字引用对 150 字块的余弦上限约 0.36，够不到 0.667。
+
+→ **词法路径当前不发作，属潜伏陷阱**：分块变小、语料新增短文档、或阈值下调，都会让这个门槛显著变容易。
+
+**语义路径**（`HybridKnowledgeCatalog.java:38,43`）
+
+启用 embedding 后 `grounded = !selected.isEmpty()`，而 `selected` 是 `semanticHits ∪ lexical.evidence()`。也就是说 **`grounded` 可以完全由向量余弦 ≥ 0.45 产生，52 词表全程不参与**。此时"grounded"只等于"文本语义相近"。
+
+→ **这才是活的风险**：任何依赖 `grounded` 的判定都不构成医学依据保证，包括 `TriageConversationService.java:138`（号源可用性）与 `RuleBasedTriageEngine.java:215`（`bookable`）。Q4「依据达标才附医生」的支点比表面看起来弱。
+
+`verify` 的词表外守卫只覆盖词法路径，**不验证语义路径**——它无法模拟 embedding。
 
 ## 7. 复核清单（提交语料前）
 
 - [ ] `npm run verify` 通过，且三条被锁定断言仍 PASS
+- [ ] `npm run verify` 的**词表外守卫全部未命中**；若有命中，不得当作噪声忽略——先确认阈值/语料/词表谁变了，并显式裁定（见 §6.1）
 - [ ] 新文件 `来源：` 是 `https://` 开头
 - [ ] 每段落 ≤ 400 字，危险信号段落在最后
 - [ ] 正文写明「未经临床审核」
