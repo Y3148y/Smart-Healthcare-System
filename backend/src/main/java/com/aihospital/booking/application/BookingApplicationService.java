@@ -24,7 +24,8 @@ public class BookingApplicationService {
             boolean primary = result != null && result.doctor() != null && result.doctor().id().equals(doctorId);
             boolean candidate = result != null && result.candidates() != null && result.candidates().stream()
                     .anyMatch(option -> option.doctor() != null && option.doctor().id().equals(doctorId));
-            if (result == null || "紧急".equals(result.riskLevel()) || (!primary && !candidate))
+            if (result == null || "紧急".equals(result.riskLevel())
+                    || "待补充信息".equals(result.riskLevel()) || (!primary && !candidate))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该分诊结果不能预约此模拟号源");
         }
         return booking.book(doctorId, effectiveSession, patient, idempotencyKey);

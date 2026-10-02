@@ -96,7 +96,8 @@ public class TriageConversationService {
         int version = current.assessments().size() + 1;
         store.saveAssessmentAndAnswer(id, version, result);
         update(id, title, content.substring(0, Math.min(120, content.length())),
-                "紧急".equals(result.riskLevel()) ? "紧急提示" : "已完成分诊");
+                "紧急".equals(result.riskLevel()) ? "紧急提示"
+                        : "待补充信息".equals(result.riskLevel()) ? "待补充信息" : "已完成分诊");
         return conversation(id, patient);
     }
 
@@ -120,7 +121,8 @@ public class TriageConversationService {
 
     private TriageResult withCurrentAvailability(TriageResult result) {
         if ("紧急".equals(result.riskLevel())) return result;
-        boolean schedulingAvailable = result.grounded() && result.tools().stream()
+        boolean schedulingAvailable = result.grounded() && !"待补充信息".equals(result.riskLevel())
+                && result.tools().stream()
                 .anyMatch(trace -> "doctor_schedule_search".equals(trace.tool()) && trace.success());
         Doctor available = !schedulingAvailable ? null : catalog.doctors(result.department()).stream()
                 .filter(doctor -> doctor.remaining() > 0).findFirst().orElse(null);

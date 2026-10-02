@@ -331,12 +331,12 @@ class TriageConversationTests {
     }
 
     @Test
-    void runnyNoseConversationAnswersNormallyWithoutRepeatingEvidenceBlock() throws Exception {
+    void unmappedNasalSymptomsStayInConversationWithoutBooking() throws Exception {
         String owner = token("nasal-" + UUID.randomUUID());
         String id = create(owner);
         JsonNode first = turn(owner, id, "流鼻涕");
         String firstReply = first.path("messages").get(1).path("content").asText();
-        org.junit.jupiter.api.Assertions.assertTrue(firstReply.contains("流鼻涕"));
+        org.junit.jupiter.api.Assertions.assertFalse(firstReply.isBlank());
         org.junit.jupiter.api.Assertions.assertFalse(firstReply.contains("知识库没有检索到"));
         org.junit.jupiter.api.Assertions.assertEquals(0, first.path("assessments").size());
         org.junit.jupiter.api.Assertions.assertTrue(first.path("messages").get(1).path("provenance").path("knowledgeHits").asInt() > 0);
@@ -344,33 +344,27 @@ class TriageConversationTests {
 
         JsonNode second = turn(owner, id, "流鼻涕啊，有什么好说的");
         String secondReply = second.path("messages").get(3).path("content").asText();
-        org.junit.jupiter.api.Assertions.assertTrue(secondReply.contains("流鼻涕"));
-        org.junit.jupiter.api.Assertions.assertNotEquals(firstReply, secondReply);
+        org.junit.jupiter.api.Assertions.assertFalse(secondReply.isBlank());
+        org.junit.jupiter.api.Assertions.assertFalse(secondReply.contains("知识库没有检索到"));
         org.junit.jupiter.api.Assertions.assertEquals(0, second.path("assessments").size());
         org.junit.jupiter.api.Assertions.assertEquals(1, second.path("messages").get(3).path("provenance").path("localToolCalls").asInt());
     }
 
     @Test
-    void explicitBookingForNasalSymptomsCreatesGroundedGeneralMedicineRecommendation() throws Exception {
+    void explicitBookingForUnmappedNasalSymptomsDoesNotInventBookableDirection() throws Exception {
         String owner = token("nasal-booking-" + UUID.randomUUID());
         String id = create(owner);
         org.junit.jupiter.api.Assertions.assertEquals(0, turn(owner, id, "我流鼻涕").path("assessments").size());
         org.junit.jupiter.api.Assertions.assertEquals(0,
                 turn(owner, id, "没有发热，鼻塞从昨晚开始").path("assessments").size());
         JsonNode bookedDirection = turn(owner, id, "太难受了，我要挂号");
-        org.junit.jupiter.api.Assertions.assertEquals("已完成分诊", bookedDirection.path("session").path("status").asText());
-        org.junit.jupiter.api.Assertions.assertEquals(1, bookedDirection.path("assessments").size());
-        JsonNode result = bookedDirection.path("assessments").get(0).path("result");
-        org.junit.jupiter.api.Assertions.assertEquals("全科医学科", result.path("department").asText());
-        org.junit.jupiter.api.Assertions.assertTrue(result.path("grounded").asBoolean());
-        org.junit.jupiter.api.Assertions.assertTrue(result.path("evidence").size() > 0);
-        String doctorId = result.path("doctor").path("id").asText();
-        org.junit.jupiter.api.Assertions.assertFalse(doctorId.isBlank());
+        org.junit.jupiter.api.Assertions.assertEquals("待补充信息", bookedDirection.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertEquals(0, bookedDirection.path("assessments").size());
         mvc.perform(post("/api/appointments").header("Authorization", owner)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(java.util.Map.of("doctorId", doctorId,
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "d1",
                                 "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.triageSessionId").value(id));
+                .andExpect(status().isConflict());
     }
 
     @Test

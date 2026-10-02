@@ -16,13 +16,11 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /** Demo routing policy. The LLM may explain the result but cannot replace safety decisions. */
 @Component
 public class RuleBasedTriageEngine implements TriageEngine {
-    private static final Pattern NASAL_SYMPTOM = Pattern.compile("流鼻涕|鼻塞|打喷嚏|鼻涕多");
     private final TriageSafetyPolicy safety;
     private final DoctorDirectory doctors;
     private final KnowledgeCatalog knowledge;
@@ -62,7 +60,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if (requiresImmediateCare(symptoms)) return false;
         if (hasDiagnosisOrPrescriptionIntent(symptoms)) return true;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
-        if (candidates.isEmpty()) return bookingFallbackCandidates(symptoms).isEmpty();
+        if (candidates.isEmpty()) return true;
         if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
@@ -155,7 +153,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if (!emergency && hasDiagnosisOrPrescriptionIntent(text))
             return prescriptionRefusalResult(callStarted, sessionId, user, safetyAssessment, trace);
         List<DepartmentCandidate> candidates = emergency ? List.of() : candidatesFor(text);
-        if (!emergency && candidates.isEmpty()) candidates = bookingFallbackCandidates(text);
         String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
                 ? "全科医学科" : candidates.get(0).department();
         int structuredConfidence = -1;
@@ -212,7 +209,8 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 : "全科医学科".equals(department) ? 55 : 72;
         String risk = emergency ? "紧急" : possibleFracture || "URGENT".equals(safetyAssessment.acuity()) ? "尽快就医" : candidates.size() > 1
                 ? "多科室参考" : confidence < 60 ? "待补充信息" : "普通";
-        TriageResult result = new TriageResult(sessionId, risk, confidence, department, doctor, answer.text(),
+        boolean bookable = grounded && !"待补充信息".equals(risk) && !"紧急".equals(risk);
+        TriageResult result = new TriageResult(sessionId, risk, confidence, department, bookable ? doctor : null, answer.text(),
                 safetyTip, evidence, List.copyOf(trace), candidates, answer.status(), answer.modelName(), LocalDateTime.now(),
                 safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核");
         long totalElapsed = elapsedMillis(callStarted);
@@ -242,23 +240,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
         return text.matches("(?s).*(挂什么科|看什么科|哪个科|挂号|预约|就诊方向).*" );
     }
 
-    /** A booking request for supported nasal symptoms may use general medicine; unknown text may not. */
-    private List<DepartmentCandidate> bookingFallbackCandidates(String text) {
-        if (!hasBookingIntent(text) || !hasAffirmedNasalSymptom(text)) return List.of();
-        return List.of(new DepartmentCandidate("全科医学科", "鼻部症状未映射到演示专科；患者明确要求挂号，可先由全科评估", null));
-    }
-
-    private boolean hasAffirmedNasalSymptom(String text) {
-        for (String clause : text.split("[，,。；;！!？?]|但是|但|然而")) {
-            Matcher match = NASAL_SYMPTOM.matcher(clause);
-            while (match.find()) {
-                String prefix = clause.substring(Math.max(0, match.start() - 10), match.start());
-                if (!prefix.matches("(?s).*(没有|并无|否认|不伴|无).{0,6}")) return true;
-            }
-        }
-        return false;
-    }
-
     private boolean hasTimeCourse(String text) {
         return text.matches("(?s).*(今天|昨天|前天|刚刚|近日|最近|反复|持续|加重|缓解|突然|[0-9一二两三四五六七八九十半]+\\s*(小时|天|周|个月|年)).*");
     }
@@ -273,13 +254,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
 
     private String guidedFallback(String text, List<DepartmentCandidate> candidates, List<Evidence> evidence,
                                   List<NarrationModel.Turn> history) {
-        if (text.matches("(?s).*(流鼻涕|鼻塞|打喷嚏|鼻涕多).*") && candidates.isEmpty()) {
-            boolean alreadyAsked = history != null && history.stream().anyMatch(turn -> "ASSISTANT".equals(turn.role())
-                    && turn.content().contains("持续多久"));
-            return alreadyAsked
-                    ? "简单说，流鼻涕是常见的鼻部症状，单凭这一点不能判断原因，也不必为了了解一般信息先完成挂号分诊。可先注意休息、补充水分；如果症状持续、明显加重或伴发热，建议线下咨询。若你希望我帮你选就医方向，再告诉我持续时间和其他不适。"
-                    : "流鼻涕是常见鼻部症状，单凭这一点不能判断原因。一般可先注意休息、补充水分；若持续不缓解、明显加重或伴发热，建议线下咨询。目前不需要马上生成预约；如果想进一步判断就医方向，可以说说持续多久、是否鼻塞或发热。";
-        }
         if (candidates.isEmpty())
             return "我还不能据此判断合适的就医方向，也不会直接生成预约建议。请先说说最不舒服的部位、从什么时候开始，以及有没有明显加重或伴随不适。";
         if (candidates.size() > 1)
