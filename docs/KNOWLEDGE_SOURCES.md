@@ -4,6 +4,7 @@
 > **性质**：本项目全部临床内容**未经临床审核**，没有任何一条经过执业医师签署。
 > **机器可读版本**：[`tools/knowledge-sync/sources.json`](../tools/knowledge-sync/sources.json)（权威登记处，含每条 URL、抓取方式、复核周期）。本文只讲策略与覆盖映射，避免两份清单各改一半。
 > **打印当前清单**：`cd tools/knowledge-sync && npm run sources`
+> **配套**：[`docs/KNOWLEDGE_PIPELINE.md`](KNOWLEDGE_PIPELINE.md)（管线与检索缺陷）、[`docs/RULE_SOURCE_WORKLIST.md`](RULE_SOURCE_WORKLIST.md)（安全规则逐条出处与缺口）
 
 ---
 
@@ -49,8 +50,10 @@
 | §5.3 体温异常（低体温、寒战、皮肤冰冷；不应以 ≥39℃ 为门槛） | `nice-ng253`、`sdcep-dental-abscess`、`nhs-sepsis` | NHS：`a high or low temperature`。NHS Scotland 牙科：`temperatures <36°C or >38°C indicative of systemic involvement`，且「absence of pyrexia does not preclude」 |
 | §5.4 P1 常见急症 | `nhs-vision-loss`、`nhs-dvt-blood-clots`、`nhs-hypoglycaemia`、`nhs-kidney-stones` | 四条均为 P1，URL 待执行时逐一校验，校验不过删除 |
 | D7 发热门槛与指南冲突 | `nice-ng253` + `sdcep-dental-abscess` | 两个独立权威出处都比 39℃ 门槛宽 |
-| 现有 15+ 条安全规则逐条出处 | 全部 A 组来源 | 逐条匹配结果见 `docs/RULE_SOURCE_WORKLIST.md`（尚未生成） |
+| 现有 15+ 条安全规则逐条出处 | 全部 A 组来源 | **逐条匹配结果见 [`docs/RULE_SOURCE_WORKLIST.md`](RULE_SOURCE_WORKLIST.md)**——15 个规则码中 11 条当前无任何出处注释，`ER-BLEEDING-001`、`ER-POISON-001` 整条无来源 |
 | 业务/合规知识（不得首诊、AI 不得替代医师、AI 不得自动生成处方、辅助决策属 III 类器械） | `guobanfa-2022-2`、`guoweiyifa-2018-25`、`ai-health-2025`、`nmpa-ai-software-2021-47`（见第 5 节） | **只进业务清单文档，不进 RAG 语料** |
+| 严重过敏反应（气道/呼吸/循环三系统，皮疹非必要条件） | `nhs-anaphylaxis`、`nhsinform-anaphylaxis` | `ER-ALLERGY-001` / `ER-AIRWAY-001` / `ER-BREATHING-001` 的出处；**来源比现有规则更宽**，差异见工作单 §3.1 |
+| 晕厥的立即处置判据 | `nhs-fainting` | `ER-NEURO-001` 中「晕厥」的出处（**「突发剧烈头痛」仍无来源**） |
 
 ## 5. 监管与合规来源（只用于文档，不进 RAG）
 

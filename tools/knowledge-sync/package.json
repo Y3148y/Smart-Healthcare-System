@@ -13,6 +13,7 @@
     "diff": "node cli.mjs diff",
     "proposals": "node cli.mjs proposals",
     "verify": "node cli.mjs verify",
-    "refs": "node cli.mjs refs"
+    "refs": "node cli.mjs refs",
+    "citations": "node cli.mjs citations"
   }
 }

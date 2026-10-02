@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | `npm run sources` | 否 | 打印登记表摘要（优先级、抓取方式、核实状态） |
 | `npm run refs -- <commit>` | 否 | 校验两份文档引用的代码位置是否仍成立（`doc-refs.json` 里 28 条"该行必须包含的内容串"） |
+| `npm run citations` | 否 | 校验规则数据文件里每个 citation id 都能在 `sources.json` 找到，并盯住未核实 / `manual` / 自述占位的来源。**只读，不改规则文件** |
 | `npm run verify` | 否 | 离线复算生产检索算法，预测语料改动的召回影响 |
 | `npm run fetch -- --dry-run` | 是 | 抓取并打印结果，不写 `state.json` |
 | `npm run fetch` | 是 | 抓取到期来源，写快照到 `cache/`、哈希到 `state.json` |

@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { CACHE_DIR, REPORTS_DIR, ROOT, TOOL_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
+import { checkCitations, collectCitations, loadRules, rulesFileExists } from './lib/citations.mjs';
 import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
 import { writeWorksheets } from './lib/proposal.mjs';
@@ -289,6 +290,36 @@ async function commandRefs() {
   process.exitCode = failed > 0 ? 1 : 0;
 }
 
+function commandCitations() {
+  if (!rulesFileExists()) {
+    console.log('backend/src/main/resources/safety-rules.json 不存在——规则尚未数据化，本检查不适用。');
+    return;
+  }
+  const rules = loadRules();
+  const registry = loadRegistry();
+  const rows = collectCitations(rules);
+  const findings = checkCitations(rules, registry);
+  const ruleCount = (rules.rules ?? []).length;
+  const comboCount = (rules.combinations ?? []).length;
+  console.log(`规则文件：${ruleCount} 条规则 + ${comboCount} 条组合 = ${ruleCount + comboCount} 个声明；引用 ${rows.length} 条，去重后 ${new Set(rows.map((row) => row.code + '::' + row.id)).size} 条`);
+  const codes = new Set((rules.rules ?? []).map((rule) => rule.code));
+  for (const combination of rules.combinations ?? []) codes.add(combination.code);
+  console.log(`涉及规则码 ${codes.size} 个`);
+  console.log('');
+  if (findings.length === 0) {
+    console.log('全部引用的 id 都能在 sources.json 找到，且无占位条目。');
+    return;
+  }
+  let errors = 0;
+  for (const finding of findings) {
+    if (finding.level === 'error') errors += 1;
+    console.log(`${finding.level === 'error' ? 'ERROR' : 'WARN '} ${finding.code.padEnd(22)} ${finding.id.padEnd(34)} ${finding.why}`);
+  }
+  console.log(`\n${errors === 0 ? '无断链，但有需人工确认的引用。' : `${errors} 条断链或不可用引用——出处不可追溯等于没有出处。`}`);
+  console.log('提示：本检查只读，不修改规则文件。修正 id 或补登记由规则文件 owner 决定。');
+  process.exitCode = errors > 0 ? 1 : 0;
+}
+
 const commands = {
   sources: commandSources,
   fetch: commandFetch,
@@ -296,12 +327,13 @@ const commands = {
   proposals: commandProposals,
   verify: commandVerify,
   refs: commandRefs,
+  citations: commandCitations,
 };
 
 const selected = commands[command];
 if (!selected) {
   console.error(`未知命令：${command}`);
-  console.error('可用：sources | fetch | diff | proposals | verify | refs');
+  console.error('可用：sources | fetch | diff | proposals | verify | refs | citations');
   process.exit(2);
 }
 await selected();
