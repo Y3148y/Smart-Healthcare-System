@@ -43,13 +43,19 @@
 - 后果：测试名暗示"面部肿胀已被覆盖"，会掩盖后续回归。
 - 修复方向：改为**单独**断言"脸肿"；如需保留原测试，另加不依赖呼吸道短语的独立用例。
 
-### D3｜`ER-PREGNANCY-001` 永不可达
+### D3｜`ER-PREGNANCY-001` 并非不可达｜**原裁定前提被推翻，待重新裁定**
 
 - 位置：规则 `TriageSafetyPolicy.java:31`；入口校验 `TriageConversationTests.java:37`、`unsupportedPopulationCannotStartStandardTriage`（L52-57）
 - 成因：建会话硬性要求 `notPregnantConfirmed: true`，系统在进入分诊前即排除孕产。
 - 矛盾：排除孕产的同时携带孕期急诊规则，等于两条互斥策略并存。回答"确实怀孕"的患者在分诊前被拒；回答"未怀孕"的孕产患者才会触发该规则。
 - 现实场景影响：患者会直接陈述"我怀孕了"，此时系统无孕周采集、无产科目录、无产科分诊逻辑。
-- 修复方向：**待裁定**（见第三节 Q2）。不得单方面删除规则——那会移除一类高危表现的兜底。
+- **原记载已作废**：早前记为"永不可达"，并据此判断删除无害。**该判断错误**，理由如下。
+- **患者路径的拦截靠自我声明，不是系统强制。** `create()` 要求 `notPregnantConfirmed: true`，但该值来自前端一个复选框（`TriagePage.vue:111`「我已年满 18 岁、为本人提问，且不处于孕产期」）。勾选后，`send()` 中**不再复查**孕产状态（`TriageConversationService:77/86` 直接以 `combined` 调 `requiresImmediateCare` / `triage`）。因此：勾选后陈述"怀孕八周突然剧烈腹痛"的患者，`ER-PREGNANCY-001` **今天就会触发**并输出急诊指引。删除该规则会移除这条窄但真实的兜底。
+- **工具路径完全绕过入口校验。** `HospitalToolExecutor.java:49` 的 `symptom_tag_search` 用任意 `query` 直接调 `safety.assess()`，不经 `create()`。该工具经 MCP `tools/call` 暴露（`McpProtocolController.java:55-62`），受 `ADMIN` 角色保护，但对管理员真实可达。
+- 已实测：`assess("怀孕两个月剧烈腹痛")` → `EMERGENCY`，`signals=[ER-PREGNANCY-001]`。
+- 裁定 Q2=A 中"继续排除孕产人群"与"明确声明不覆盖孕产"仍然成立；但其依据"不可达故可删"不成立，**删除动作已暂停**，需重新裁定。
+- 待裁定方回答：孕产急症兜底是 ①**保留**（承认入口自我声明可被绕过）、②**删除**（接受该兜底损失，换取规则集与声明一致）、还是 ③**降级为工具路径专用**（患者流程不声明覆盖孕产，工具路径仍保留孕产信号）？
+- 未经临床审核。任一处置都需附出处（如 NICE NG253 范围说明）并升 `POLICY_VERSION`。
 
 ### D4｜已修复（`34c6f5f`）｜独立复核已完成：在任务书范围内，55/55 全绿
 
