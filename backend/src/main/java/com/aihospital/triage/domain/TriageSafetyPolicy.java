@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 /** High-recall, auditable safety gate which model prose cannot override. */
 @Component
 public class TriageSafetyPolicy {
-    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P5";
+    public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P6";
     private static final Pattern NEGATION = Pattern.compile("(没有|无|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是)");
     private static final String NEGATION_TOKENS = "没有|否认|未出现|并无|不伴|不存在|没出现|不觉得|不是|不";
     private static final String CLAUSE_CHARS = "[^，,。；;！!？?]";
@@ -195,7 +195,7 @@ public class TriageSafetyPolicy {
             for (Rule rule : RULES) {
                 Matcher matcher = rule.pattern().matcher(clause);
                 while (matcher.find()) {
-                    if (!isAsserted(clause, matcher.start())) continue;
+                    if (!assertedInClause(clause, matcher.start())) continue;
                     signals.putIfAbsent(rule.code(), new SafetySignal(rule.code(), rule.category(), matcher.group(), rule.reason()));
                 }
             }
@@ -228,12 +228,20 @@ public class TriageSafetyPolicy {
         return forward || backward;
     }
 
-    /** True when this clause affirmatively expresses the finding, with no adjacent negation. */
+    /**
+     * D11 裁定 3 的核心约束：紧邻否定保护只检查**命中起点之前**的否定短语，绝不在匹配词
+     * 内部搜「无/不」。否则 `无法吞咽`、`单侧肢体无力` 这类本身含「无」的**肯定**急症会
+     * 被误杀——`无法吞咽` 匹配起点就在「无」上，起点之前没有区域可搜，因此天然免疫。
+     *
+     * <p>现已同时用于第一步与第二步（此前只有第二步有）。
+     */
+    private boolean assertedInClause(String clause, int start) {
+        return isAsserted(clause, start) && !isAdjacentlyNegated(clause, start);
+    }
     private boolean assertsFinding(String clause, Pattern finding) {
         Matcher matcher = finding.matcher(clause);
         while (matcher.find()) {
-            if (!isAsserted(clause, matcher.start())) continue;
-            if (isAdjacentlyNegated(clause, matcher.start())) continue;
+            if (!assertedInClause(clause, matcher.start())) continue;
             return true;
         }
         return false;
@@ -313,7 +321,7 @@ public class TriageSafetyPolicy {
     private boolean hasAsserted(String text, Pattern pattern) {
         for (String clause : text.split("[，,。；;！!？?]|但是|但|然而")) {
             Matcher matcher = pattern.matcher(clause);
-            while (matcher.find()) if (isAsserted(clause, matcher.start())) return true;
+            while (matcher.find()) if (assertedInClause(clause, matcher.start())) return true;
         }
         return false;
     }
