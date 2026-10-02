@@ -163,13 +163,9 @@ ai.timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
 ### 更正 3："给你一个召回率数字"是错误承诺
 规则与测试由同一作者写，构造上必然 100%，无信息量。**禁止把它命名或呈现为召回率/敏感度/安全指标。** 语料集的真实价值只有三条：固定意图、防否定与口语变体回归、供未来临床人员复核的工件。
 
-### D1｜`prescriptionRefusalResult` 不可达（死代码）
+### D1｜✅ 已修复（`3f028aa`）｜曾不可达，合规审计链缺失
 
-`RuleBasedTriageEngine.java:94-104`。
-
-`needsClarification`（L63）对拒答意图返回 `true`，`TriageConversationService` 因此走 `clarificationPrompt`，后者在 L108-114 有**独立**拒答实现。而 `triage()` 的 L143 条件是 `if (!emergency && hasDiagnosisOrPrescriptionIntent(...))`——唯一能进 `triage()` 的情况是 `emergency == true`，此时 `!emergency` 为假，分支被跳过。
-
-**后果**：唯一的 `"合规拒答"` CallLog 永不写入；用户拒答在管理端显示为 `"预问诊引导"` 且 `success=false`（L112）。**合规审计链在患者实际路径上缺失。**
+唯一生效路径是 `TriageConversationService:76` → `clarificationPrompt`（因 `needsClarification` 对拒答意图返回 `true`）；而该分支原先记为 `purpose="预问诊引导"`、`success=false`，使 `prescriptionRefusalResult` 中正确的 `合规拒答` 永不执行。已抽出 `recordComplianceRefusal(...)` 统一审计入口。`prescriptionRefusalResult` 保留作纵深防御（服务层不可达是期望属性）。回归见 `complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance`。
 
 ### D2｜两个测试对"脸肿"给出虚假信心
 
@@ -212,6 +208,24 @@ assertTrue(safety.requiresImmediateCare("脸肿而且吞咽不了"));
 ### D7｜`UR-FEVER-001` 门槛与指南冲突
 
 要求 `持续高热|高烧不退|体温39+`。NICE `NG253` §1.1 明确脓毒症 *"may not have a high temperature"*。现有规则在结构上与该指南相反。无临床团队无法仲裁，但至少应在文档中登记为已知缺口。
+
+### D8｜跨度型规则对否定词失效，**现网已有急症误报**（建议优先于 D2）
+
+`isAsserted` 只检查匹配起点**之前** 14 字。凡写成 `A.{0,N}B` 的规则，若否定词落在 A 与 B **之间**，它位于匹配区间内部，否定检查永远看不到。
+
+已用 jshell 独立复现：
+
+| 规则 | 输入 | 匹配起点 | 否定所见前缀 | 结果 |
+| --- | --- | --- | --- | --- |
+| `ER-AIRWAY-001` | `舌头没有肿` | 0 | 空 | **asserted=true → 误判急症** |
+| `ER-AIRWAY-001` | `没有舌头肿` | 2 | `没有` | asserted=false（正确） |
+| `ER-CIRCULATION-001` | `没有胸痛` | 2 | `没有` | asserted=false（正确） |
+| `ER-CIRCULATION-001` | `胸痛没有缓解` | 0 | 空 | asserted=true（正确） |
+
+- **现网缺陷**：`舌头没有肿` / `咽喉没有肿` 这类**明确否认肿胀**的描述被判 `EMERGENCY` 并输出 120 指引。影响面为现表中唯一使用跨度表达式的 `ER-AIRWAY-001`，其余为单词元规则。
+- **阻塞 D2**：新增 `ER-INFECTION-SPREAD-001` 必然写成 `脸.{0,N}肿`，已实测 `脸没有肿` → `asserted=true`。**D2 不可先于 D8 修复**，否则以"修好面部肿胀"之名新增一条急症误报。撰写者已因此撤回该未提交改动。
+- **禁止的修法**：不可在匹配区间内搜否定词。`NEGATION` 含单词 `无`，而 `无法吞咽`（`ER-AIRWAY-001`）、`单侧肢体无力`（`ER-NEURO-001`）本身含 `无`；朴素修法会让这两条急症规则整体失效，方向与"不得放宽现有规则"相反。
+- 建议修法与复现脚本见 [KNOWN_ISSUES_PRECLINICAL.md](KNOWN_ISSUES_PRECLINICAL.md) D8 条目。
 
 ---
 
@@ -352,13 +366,15 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 
 ### 7.4 Stage 1｜纯 bug 修复（不新增临床内容）
 
-- **D1**：拒答收敛到单一路径；从 `clarificationPrompt` 分支发出 `合规拒答` CallLog（`success=true`）；删除不可达的 `prescriptionRefusalResult`（L94-104）
-- **D2**：重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语
+- **D1**：✅ 已完成（`3f028aa`）
+- **D8**：**下一项**。让跨度型规则的匹配起点落在症状词（建议有界后行断言），并让 `assess()` 优先取命名组 `evidence` 以保留可读证据；补 `舌头没有肿` / `咽喉没有肿` 否定回归。**禁止**在匹配区间内搜否定词（会让 `无法吞咽`、`单侧肢体无力` 失效）
+- **D2**：在 D8 之后。重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语。需与 Stage 2 的 `ER-INFECTION-SPREAD-001` 同批落地
 - **D4**：处置非 bookable 时不挂医生；会话状态与 `riskLevel` 对齐；删除四处鼻部硬编码；重写 `TriageConversationTests.java:308-328`
 - **D5**：让 `humanReviewRecommended` 真正闸住预约 — **需先有 `§6 Q1` 裁定**，否则跳过
+- **D9（新增，见下）**：`TriageConversationService:75` 把所有历史 USER 消息拼成 `combined`，第 1 轮的拒答意图会永久粘住后续轮次。属行为变更，需与 GPT 商定按轮次意图还是按会话意图
 - 可选：`AI_TIMEOUT_SECONDS` 默认 35 → 20。代价是 fallback 率上升。**默认不动**，单独提 commit 交用户定
 - 预期需同步改写的既有测试：`TriageConversationTests.java:152-179`（骨折期望）、`:308-328`（鼻部预约）
-- 回归须全量通过（基线 50/50）
+- 回归须全量通过（**当前基线 51/51**，D1 修复后新增 `complianceRefusalIsAuditedAsComplianceAndNeverAsOrdinaryGuidance`）
 
 ### 7.5 Stage 2｜P0 规则 + 语料（依赖 §6 Q2）
 

@@ -11,8 +11,7 @@
 
 | 编号 | 摘要 | 修复 commit |
 | --- | --- | --- |
-| D1 | 合规拒答被记成普通追问引导，审计链断裂 | 见下方 D1 |
-| D2 | 两个测试对"脸肿"给出虚假信心 | 见下方 D2 |
+| D1 | 合规拒答被记成普通追问引导，审计链断裂 | `3f028aa` |
 
 ---
 
@@ -76,11 +75,58 @@
 
 ### D7｜`UR-FEVER-001` 门槛与 NICE 指南冲突
 
-- 位置：`TriageSafetyPolicy.java:33`，表达式 `持续高热|高烧不退|体温.{0,3}(39|40)`
+- 位置：`TriageSafetyPolicy.java:33`，表达式 `持续高热|高烧不退|体温.{0,3}(39\|40)`
 - 冲突：NICE `NG253` §1.1 指出脓毒症 *"may not have a high temperature"*。现有规则把 ≥39℃ 当作门槛，结构上与该指南相反。
 - 附加缺口：未覆盖低体温、寒战、皮肤冰冷。老年感染者低体温常见。
 - 修复方向：补低体温/寒战表达，去掉"必须 ≥39℃"这一门槛。
 - 约束：无临床团队无法仲裁阈值取舍。修改时必须附出处 + `未经临床审核` 标记，并升 `POLICY_VERSION`。
+
+### D8｜跨度型规则对否定词失效，现网已有急症误报（**建议优先于 D2**）
+
+- 位置：`TriageSafetyPolicy.java:24`（`ER-AIRWAY-001`）、`isAsserted`（L106-121）
+- 成因：`isAsserted` 只检查匹配起点**之前** 14 字。任何写成 `A.{0,N}B` 的规则，若否定词落在 A 与 B **之间**，该否定词位于匹配区间内部，否定检查永远看不到它。
+- 已用 jshell 独立复现（复现脚本见下）：
+
+  | 规则 | 输入 | 匹配起点 | 否定检查所见前缀 | 结果 |
+  | --- | --- | --- | --- | --- |
+  | `ER-AIRWAY-001` | `舌头没有肿` | 0 | 空 | **asserted=true → 误判急症** |
+  | `ER-AIRWAY-001` | `舌头肿了` | 0 | 空 | asserted=true（正确） |
+  | `ER-AIRWAY-001` | `没有舌头肿` | 2 | `没有` | asserted=false（正确） |
+  | `ER-CIRCULATION-001` | `没有胸痛` | 2 | `没有` | asserted=false（正确） |
+  | `ER-CIRCULATION-001` | `胸痛没有缓解` | 0 | 空 | asserted=true（**正确**：胸痛未缓解确属急症） |
+
+- 后果：`舌头没有肿`、`咽喉没有肿` 等**明确否认肿胀**的描述会被判为 `EMERGENCY`，向患者输出 120 指引。这是现网生产规则的误报，非新增代码引入。
+- 影响面：现表中仅 `ER-AIRWAY-001` 使用跨度型表达式，其余为单词元规则（否定词前置，设计上成立）。
+- **阻塞 D2**：按 `§5.1` 新增 `ER-INFECTION-SPREAD-001` 必然使用 `脸.{0,N}肿` 形式，会引入第二条同类不安全规则。已实测 `脸没有肿` → `asserted=true`。因此 D2 不能在 D8 之前修复，否则以"修好面部肿胀"之名新增一个急症误报。
+- 修复方向（建议，未实施）：
+  1. 让跨度型规则的匹配**起点落在症状词**而非部位词，使否定词落入前缀窗口。可用有界后行断言，如 `(?<=(脸|面部|口底)[^，。？！,.?!]{0,6})肿`。Java 支持有界变长后行断言（`{0,6}` 为有界，合法）。
+  2. 后行断言会使 `matcher.group()` 只返回 `肿`，丢失证据可读性。需在 `assess()` 中优先取命名组：`matcher.group("evidence")`，为命名组则用命名组，否则回退 `group()`。
+  3. **不要**采用"在匹配区间内搜索否定词"的朴素修法：`NEGATION` 含单词 `无`，而 `无法吞咽`（`ER-AIRWAY-001`）、`单侧肢体无力`（`ER-NEURO-001`）本身含 `无`。朴素修法会把这两条急症规则整体失效，方向与"不得放宽现有规则"相反。
+  4. 若采用方案 1，必须补齐 `舌头没有肿`、`咽喉没有肿`、`脸没有肿`、`没有脸肿` 四类否定回归，并复跑既有安全矩阵。
+- 复现方式（PowerShell）：
+  ```
+  $env:JAVA_HOME="D:\Elasticsearch\elasticsearch-9.3.3\jdk"
+  & "$env:JAVA_HOME\bin\jshell.exe" --execution local probe.jsh
+  ```
+  脚本内容：对目标表达式跑 `matcher.find()`，打印 `matcher.start()`、前缀切片、以及前缀上 `NEGATION` 是否命中。
+
+### D9｜历史消息拼接导致意图与结论跨轮粘滞
+
+- 位置：`backend/src/main/java/com/aihospital/triage/application/TriageConversationService.java:73-75`
+  ```java
+  List<String> patientTexts = current.messages().stream().filter(m -> "USER".equals(m.role()))
+          .map(Message::content).toList();
+  String combined = patientTexts.stream().collect(Collectors.joining("。"));
+  ```
+  随后 `requiresImmediateCare(combined)`、`needsClarification(combined)`、`triage(..., combined, ...)` 全部以 `combined` 为输入。
+- 成因：安全判定、意图拒答、候选科室、处置与检索 query 全部基于**全会话**拼接文本，而非当前轮。
+- 可证明的后果：
+  1. **拒答粘滞**：第 1 轮问"开点处方"被拒后，第 2 轮即使只说"我头痛三天"，`combined` 仍含拒答意图，`needsClarification` 继续返回 `true`，患者在同一会话内**永远无法进入分诊**，也拿不到科室。
+  2. **科室粘滞**：第 1 轮的部位关键词持续参与 `candidatesFor`，患者换话题后旧症状仍会产出候选科室。
+  3. **急症粘滞**：历史急症信号使 `requiresImmediateCare(combined)` 长期为真。
+  4. **否定语境污染**：`removeNegatedRedFlags(combined)` 作用在拼接文本上，跨轮的否定/历史判断互相干扰。
+- 实证状态：**未实测确认**。用户曾在同一会话混合"化验单/血压/头痛"并最终得到神经内科，但该结果与粘滞行为一致，不足以单独证明。建议补一个两轮测试：先拒答、再报普通症状，断言第 2 轮能正常分诊。
+- 修复方向：区分"当前轮意图"与"会话事实"。合规拒答应只看当前轮；急症与否定处理应保留跨轮（避免患者第 2 轮否认时抹掉第 1 轮的真实红旗）。具体切分方式需与 §三 Q1/Q2 一并裁定，**不要单方面改动**。
 
 ---
 
