@@ -17,7 +17,8 @@ import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
 import { writeWorksheets } from './lib/proposal.mjs';
 import {
-  DEFAULT_MIN_SCORE, MEDICAL_TERMS, PINNED_CHECKS, loadCorpus, retrieve, vocabularyCoverage,
+  DEFAULT_MIN_SCORE, MEDICAL_TERMS, OOV_GUARD_QUERIES, PINNED_CHECKS, guardOutOfVocabulary,
+  loadCorpus, retrieve, vocabularyCoverage,
 } from './lib/verify.mjs';
 
 const [, , command = 'verify', ...rest] = process.argv;
@@ -221,6 +222,28 @@ function commandVerify() {
       problems.push(`${check.id}：top1/top2 分数并列（${result.evidence[0].score}），生产环境 top-1 可能翻转。`);
     }
   }
+
+  console.log('');
+  const guard = guardOutOfVocabulary(documents);
+  const void_ = guard.filter((item) => !item.outsideVocabulary);
+  const grounded = guard.filter((item) => item.outsideVocabulary && item.grounded);
+  console.log(`词表外守卫：${guard.length} 条查询，词表外 ${guard.length - void_.length} 条，命中 ${grounded.length} 条`);
+  console.log('  机制：termScore=0 时 score = 0.30×bigram余弦 + 0.08（https 来源），过 0.28 需余弦 ≥ 0.667。');
+  for (const item of guard) {
+    const state = !item.outsideVocabulary ? '用例失效' : item.grounded ? '已命中' : '未命中';
+    const detail = item.grounded ? ` top1=${item.top.title} ${item.top.score}` : '';
+    const terms = item.outsideVocabulary ? '' : ` queryTerms=${JSON.stringify(item.queryTerms)}`;
+    console.log(`  ${state.padEnd(6)} 「${item.query}」${terms}${detail}`);
+  }
+  if (void_.length > 0) {
+    failures += void_.length;
+    console.log(`\n警告：${void_.length} 条守卫查询已被词表收编，这些用例不再测任何东西，需要换查询。`);
+  }
+  if (grounded.length > 0) {
+    failures += grounded.length;
+    problems.push(`词表外查询开始命中（${grounded.map((item) => item.query).join('、')}）：阈值、语料或词表三者之一发生了变化，需要显式裁定——这不是 bug，也不是可以直接忽略的信号。`);
+  }
+  console.log('  提醒：本守卫只覆盖词法路径。启用 embedding 后 grounded 可由向量余弦单独产生（HybridKnowledgeCatalog.java:43），本工具不验证该路径。');
 
   console.log('');
   const notApproved = documents.filter((document) => !document.approved);

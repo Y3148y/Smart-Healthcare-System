@@ -229,3 +229,46 @@ export function vocabularyCoverage(document) {
   const matched = topicTokens.filter((token) => vocabulary.has(token));
   return { topicTokens, matched, outside, ratio: topicTokens.length === 0 ? 1 : matched.length / topicTokens.length };
 }
+
+/**
+ * Out-of-vocabulary guard.
+ *
+ * `termScore` divides by `queryTerms.size()`, and `queryTerms` only ever contains the 52 words
+ * above (score():104-107). A query built entirely from words outside that list therefore scores
+ * `termScore = 0` and can only be rescued by the character-bigram channel:
+ *
+ *     score = 0.30 * cosine + 0.08   (for an https-sourced chunk)
+ *     passing 0.28 requires cosine >= 0.667
+ *
+ * Measured on the current 12-chunk corpus, every query below stays ungrounded — a 20-character
+ * verbatim quotation of a 150-character chunk tops out around 0.36 cosine, well short of 0.667.
+ * So on the lexical path this is a latent trap rather than an active bug: it activates if chunks
+ * get shorter, if the corpus gains short documents, or if the threshold moves.
+ *
+ * Scope limit, stated so nobody over-reads this guard: it mirrors the LEXICAL path only. When
+ * embeddings are configured, HybridKnowledgeCatalog.java:43 derives `grounded` from the union of
+ * semantic and lexical hits, and a pure paraphrase can satisfy it with no vocabulary word at all.
+ * This tool does not and cannot verify that path.
+ */
+export const OOV_GUARD_QUERIES = [
+  '脓毒症', '牙疼', '淋巴结肿大', '发热', '伤口流脓', '张口受限', '意识模糊',
+  '怕冷寒战发抖', '鼻涕流个不停一直喷嚏', '脓毒症败血症', '张口受限牙关紧闭',
+  '颈部肿胀发热', '意识模糊说话含糊', '伤口红肿渗液',
+];
+
+export function guardOutOfVocabulary(documents, minimumScore = DEFAULT_MIN_SCORE) {
+  return OOV_GUARD_QUERIES.map((query) => {
+    const result = retrieve(documents, query, 5, minimumScore);
+    return {
+      query,
+      // If a future vocabulary change pulls this query into the term list, the query no longer
+      // tests anything and the guard must report itself as void rather than pass silently.
+      outsideVocabulary: result.queryTerms.length === 0,
+      queryTerms: result.queryTerms,
+      grounded: result.grounded,
+      top: result.evidence[0]
+        ? { title: result.evidence[0].title, score: result.evidence[0].score }
+        : null,
+    };
+  });
+}
