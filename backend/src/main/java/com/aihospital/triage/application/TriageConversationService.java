@@ -3,6 +3,7 @@ package com.aihospital.triage.application;
 import com.aihospital.shared.model.Models.TriageResult;
 import com.aihospital.shared.model.Models.Doctor;
 import com.aihospital.shared.model.Models.DepartmentCandidate;
+import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.catalog.application.DoctorCatalogService;
@@ -77,7 +78,7 @@ public class TriageConversationService {
             TriageEngine.Guidance guidance = triageEngine.clarificationPrompt(combined, history);
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
                     guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures()));
-            update(id, title, content.substring(0, Math.min(120, content.length())), "待补充信息");
+            update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
             return conversation(id, patient);
         }
 
@@ -88,16 +89,14 @@ public class TriageConversationService {
             update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
             throw ex;
         }
-        if (!result.grounded() && !"紧急".equals(result.riskLevel())) {
+        if (!result.grounded() && !Disposition.EMERGENCY.equals(result.riskLevel())) {
             store.appendAssistantMessage(id, result.summary(), provenance(result));
-            update(id, title, content.substring(0, Math.min(120, content.length())), "待补充信息");
+            update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
             return conversation(id, patient);
         }
         int version = current.assessments().size() + 1;
         store.saveAssessmentAndAnswer(id, version, result);
-        update(id, title, content.substring(0, Math.min(120, content.length())),
-                "紧急".equals(result.riskLevel()) ? "紧急提示"
-                        : "待补充信息".equals(result.riskLevel()) ? "待补充信息" : "已完成分诊");
+        update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.sessionStatus(result.riskLevel()));
         return conversation(id, patient);
     }
 
@@ -120,8 +119,8 @@ public class TriageConversationService {
     }
 
     private TriageResult withCurrentAvailability(TriageResult result) {
-        if ("紧急".equals(result.riskLevel())) return result;
-        boolean schedulingAvailable = result.grounded() && !"待补充信息".equals(result.riskLevel())
+        if (Disposition.EMERGENCY.equals(result.riskLevel())) return result;
+        boolean schedulingAvailable = Disposition.isBookable(result.riskLevel()) && result.grounded()
                 && result.tools().stream()
                 .anyMatch(trace -> "doctor_schedule_search".equals(trace.tool()) && trace.success());
         Doctor available = !schedulingAvailable ? null : catalog.doctors(result.department()).stream()

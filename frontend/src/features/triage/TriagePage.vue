@@ -106,6 +106,7 @@ async function requestHumanReview(sessionId:string,reason:string){
     </div>
     <div class="disclaimer">预问诊会先回答一般健康问题、识别危险信号并按需追问；信息足够后才生成挂号建议。它不构成诊断或处方。</div>
     <div v-if="activeConversation?.session.status==='待补充信息'" class="triage-stage-note">当前处于预问诊阶段：请回答助手刚提出的关键问题。补充信息会保留在本会话中，后续分诊结果将作为新版本保存。</div>
+    <div v-if="activeConversation?.session.status==='建议尽快就医'" class="triage-stage-note">本次结果建议尽快到线下医疗机构评估，因此不提供模拟号源预约。若症状加重或出现胸痛、呼吸困难、意识改变等情况，请立即前往急诊或拨打 120。</div>
     <div v-if="activeConversation?.humanReview" class="human-review-status">人工导诊申请已提交 · {{ activeConversation.humanReview.status==='PENDING'?'等待处理':activeConversation.humanReview.status }}</div>
     <div v-else-if="activeConversation" class="manual-review-access"><button type="button" class="review-button" @click="requestHumanReview(activeConversation.session.id,'患者主动申请人工导诊')">需要人工导诊？提交申请</button><small>演示系统仅记录申请，当前不保证实时人工响应。出现急症请立即线下求助。</small></div>
     <label v-if="!activeConversation" class="eligibility-check"><input v-model="eligible" type="checkbox"> 我已年满 18 岁、为本人提问，且不处于孕产期；急症请立即线下求助。</label>

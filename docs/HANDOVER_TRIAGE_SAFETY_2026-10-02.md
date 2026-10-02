@@ -1,4 +1,4 @@
-﻿# 交接文档：预问诊安全层加固（2026-10-02）
+# 交接文档：预问诊安全层加固（2026-10-02）
 
 > **本文读者**：接手的 GPT 会话。
 > **写作者**：opencode（big-pickle）。
@@ -373,13 +373,13 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 
 - **D1**：✅ 已完成（`3f028aa`）
 - **D8**：✅ 已完成。跨度型规则改为 tempered 填充，否定词不再落入匹配区间内部；`POLICY_VERSION` → `2026.10-P1`；新增两条否定/肯定回归
-- **D2**：**下一项**。重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语。需与 Stage 2 的 `ER-INFECTION-SPREAD-001` 同批落地；同时处理 D8 条目登记的 `起了很多红点` 紧邻缺口
+- **D2**：**下一项**（Q5 已裁定：脸肿不作 EMERGENCY，改追问/尽快就医）。重写 `RuleBasedTriageEngineTest.java:64-72` 与 `TriageConversationTests.java:190-196`，**单独**断言「脸肿」，不依赖呼吸道短语。需与 Stage 2 的 `ER-INFECTION-SPREAD-001` 同批落地；同时处理 D8 条目登记的 `起了很多红点` 紧邻缺口
 - **D4**：✅ 已完成（`34c6f5f`，协作者实现）。处置非 bookable 时不挂医生；会话状态与 `riskLevel` 对齐；删除四处鼻部硬编码；重写鼻部相关测试并新增 `DispositionConsistencyTest`。独立复核已完成：在任务书约定范围内，55/55 全绿，未触碰 `TriageSafetyPolicy.java`。
   - **复核附注（需 owner 确认，非缺陷）**：`0cdfd4a`「allow grounded general-medicine booking for nasal symptoms」被本次实质回退。鼻部症状 + 明确挂号意图现在得到 `待补充信息` + 无任何科室 + 预约 `409`。这与任务书一致（那项能力本身就是硬编码），但它是**能力移除**而非纯 bug 修复，且搭在"bug fix"提交里，建议由 owner 显式追认。
-- **D5**：让 `humanReviewRecommended` 真正闸住预约 — **需先有 `§6 Q1` 裁定**，否则跳过
+- **D5**：✅ 已完成（Q1=A）。URGENT 阻断预约与扣号；新增 `Disposition` 集中定义处置词汇；`尽快就医` 会话状态为 `建议尽快就医`；`已完成分诊` 仅在可预约时出现
 - **D9**：`TriageConversationService:75` 把所有历史 USER 消息拼成 `combined`，第 1 轮的拒答意图会永久粘住后续轮次。属行为变更，需与 GPT 商定按轮次意图还是按会话意图
 - 可选：`AI_TIMEOUT_SECONDS` 默认 35 → 20。代价是 fallback 率上升。**默认不动**，单独提 commit 交用户定
-- 回归须全量通过（**当前基线 55/55 / 10 个测试类**，JDK 17）
+- 回归须全量通过（**当前基线 57/57 / 10 个测试类**，JDK 17）
 
 ### 7.5 Stage 2｜P0 规则 + 语料（依赖 §6 Q2）
 

@@ -171,11 +171,36 @@ class TriageConversationTests {
         JsonNode gynecology = turn(owner, period, "持续两天，经量和平时差不多");
         org.junit.jupiter.api.Assertions.assertEquals("妇科", gynecology.path("assessments").get(0).path("result").path("department").asText());
 
-        JsonNode combined = turn(owner, fracture, "我嗓子疼，而且痛经");
-        JsonNode candidates = combined.path("assessments").get(1).path("result").path("candidates");
-        org.junit.jupiter.api.Assertions.assertEquals(3, candidates.size());
+        String multiSession = create(owner);
+        org.junit.jupiter.api.Assertions.assertEquals(0,
+                turn(owner, multiSession, "我嗓子疼，而且痛经").path("assessments").size());
+        JsonNode multiSite = turn(owner, multiSession, "都持续三天了，没有发热和呼吸困难，经量和平时差不多");
+        JsonNode multiRisk = multiSite.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("多科室参考", multiRisk.path("riskLevel").asText());
+        JsonNode candidates = multiRisk.path("candidates");
+        org.junit.jupiter.api.Assertions.assertTrue(candidates.size() >= 2);
         for (JsonNode candidate : candidates)
             org.junit.jupiter.api.Assertions.assertFalse(candidate.path("doctor").path("id").asText().isBlank());
+    }
+
+    @Test
+    void urgentDispositionBlocksBookingAndReportsItsOwnSessionStatus() throws Exception {
+        String owner = token("urgent-blocking-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode bone = turn(owner, id, "我手摔断了");
+        JsonNode result = bone.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("尽快就医", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("建议尽快就医", bone.path("session").path("status").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull()
+                || result.path("doctor").path("id").asText().isBlank());
+        for (JsonNode candidate : result.path("candidates"))
+            org.junit.jupiter.api.Assertions.assertTrue(candidate.path("doctor").isNull()
+                    || candidate.path("doctor").path("id").asText().isBlank());
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "d1",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
     }
 
     @Test

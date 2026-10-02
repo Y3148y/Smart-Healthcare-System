@@ -3,6 +3,7 @@ package com.aihospital.booking.application;
 import com.aihospital.shared.model.Models.Appointment;
 import com.aihospital.shared.model.Models.TriageResult;
 import com.aihospital.triage.application.TriageConversationService;
+import com.aihospital.triage.domain.Disposition;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -24,8 +25,7 @@ public class BookingApplicationService {
             boolean primary = result != null && result.doctor() != null && result.doctor().id().equals(doctorId);
             boolean candidate = result != null && result.candidates() != null && result.candidates().stream()
                     .anyMatch(option -> option.doctor() != null && option.doctor().id().equals(doctorId));
-            if (result == null || "紧急".equals(result.riskLevel())
-                    || "待补充信息".equals(result.riskLevel()) || (!primary && !candidate))
+            if (result == null || !Disposition.isBookable(result.riskLevel()) || (!primary && !candidate))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该分诊结果不能预约此模拟号源");
         }
         return booking.book(doctorId, effectiveSession, patient, idempotencyKey);

@@ -9,7 +9,7 @@ const traceExpanded=ref(false)
 const shown=computed(()=>props.assessments.find(item=>item.version===selectedVersion.value)||props.anchor)
 const latestVersion=computed(()=>props.assessments[props.assessments.length-1]?.version)
 const isBookable=computed(()=>shown.value.version===latestVersion.value && shown.value.result.grounded
-  && shown.value.result.riskLevel!=='待补充信息' && shown.value.result.riskLevel!=='紧急')
+  && !['待补充信息','紧急','尽快就医'].includes(shown.value.result.riskLevel))
 const explanation=computed(()=>{
   if(props.anchor.version===1)return '第 1 版是本次会话首次分诊的原始快照；后续补充症状不会改写此结果。'
   const previous=props.assessments.find(item=>item.version===props.anchor.version-1)

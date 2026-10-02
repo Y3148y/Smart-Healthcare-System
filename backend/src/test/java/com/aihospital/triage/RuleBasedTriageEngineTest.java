@@ -3,6 +3,7 @@ package com.aihospital.triage;
 import com.aihospital.catalog.infrastructure.demo.DemoDoctorDirectory;
 import com.aihospital.knowledge.infrastructure.demo.InMemoryKnowledgeCatalog;
 import com.aihospital.observation.infrastructure.demo.InMemoryCallLogStore;
+import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
 import com.aihospital.triage.infrastructure.demo.RuleBasedTriageEngine;
@@ -12,6 +13,7 @@ import com.aihospital.tools.infrastructure.demo.InMemoryToolRegistry;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -113,6 +115,22 @@ class RuleBasedTriageEngineTest {
         assertTrue(safety.assess("以前胸痛现在又胸痛").stopRoutineFlow());
         assertTrue(safety.assess("手摔断了").humanReviewRecommended());
         assertFalse(safety.assess("手摔断了").stopRoutineFlow());
+    }
+
+    @Test
+    void urgentIsNotBookableButRoutineAndMultiDepartmentRemainBookable() {
+        assertFalse(Disposition.isBookable(Disposition.EMERGENCY));
+        assertFalse(Disposition.isBookable(Disposition.URGENT));
+        assertFalse(Disposition.isBookable(Disposition.PENDING));
+        assertTrue(Disposition.isBookable(Disposition.ROUTINE));
+        assertTrue(Disposition.isBookable(Disposition.MULTI));
+        assertEquals("紧急提示", Disposition.sessionStatus(Disposition.EMERGENCY));
+        assertEquals("建议尽快就医", Disposition.sessionStatus(Disposition.URGENT));
+        assertEquals("待补充信息", Disposition.sessionStatus(Disposition.PENDING));
+        assertEquals("已完成分诊", Disposition.sessionStatus(Disposition.ROUTINE));
+        assertEquals("已完成分诊", Disposition.sessionStatus(Disposition.MULTI));
+        for (String risk : java.util.List.of(Disposition.EMERGENCY, Disposition.URGENT, Disposition.PENDING))
+            org.junit.jupiter.api.Assertions.assertNotEquals("已完成分诊", Disposition.sessionStatus(risk), risk);
     }
 
     @Test

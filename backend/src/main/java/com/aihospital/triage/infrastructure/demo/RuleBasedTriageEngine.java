@@ -5,6 +5,7 @@ import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval;
 import com.aihospital.observation.domain.CallLogStore;
 import com.aihospital.shared.model.Models.*;
+import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
@@ -207,9 +208,10 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history);
         int confidence = emergency ? 100 : !grounded ? 35 : structuredConfidence > 0 ? structuredConfidence
                 : "全科医学科".equals(department) ? 55 : 72;
-        String risk = emergency ? "紧急" : possibleFracture || "URGENT".equals(safetyAssessment.acuity()) ? "尽快就医" : candidates.size() > 1
-                ? "多科室参考" : confidence < 60 ? "待补充信息" : "普通";
-        boolean bookable = grounded && !"待补充信息".equals(risk) && !"紧急".equals(risk);
+        String risk = emergency ? Disposition.EMERGENCY : possibleFracture || "URGENT".equals(safetyAssessment.acuity())
+                ? Disposition.URGENT : candidates.size() > 1
+                ? Disposition.MULTI : confidence < 60 ? Disposition.PENDING : Disposition.ROUTINE;
+        boolean bookable = grounded && Disposition.isBookable(risk);
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, bookable ? doctor : null, answer.text(),
                 safetyTip, evidence, List.copyOf(trace), candidates, answer.status(), answer.modelName(), LocalDateTime.now(),
                 safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核");

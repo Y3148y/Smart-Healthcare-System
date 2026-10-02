@@ -1,4 +1,4 @@
-﻿# 预临床已知问题登记（未经临床审核）
+# 预临床已知问题登记（未经临床审核）
 
 > **性质**：本文登记的是**已确认的代码缺陷与未决问题**，不是待办愿望清单。
 > **定级**：本系统为未经临床审核的原型。下列任何内容都未获得临床签署。
@@ -13,6 +13,7 @@
 | --- | --- | --- |
 | D1 | 合规拒答被记成普通追问引导，审计链断裂 | `3f028aa` |
 | D4 | `待补充信息` 同时挂可预约医生，会话状态与 `riskLevel` 不一致 | `34c6f5f` |
+| D5 | `humanReviewRecommended` 为死字段，URGENT 仍可预约并扣号 | 本次提交 |
 | D8 | 跨度型规则对否定词失效，`舌头没有肿` 被误判急症 | `48e2b9b` |
 | — | 工具链事实：本机存在 JDK 17；JDK 25 会产生 mock 假失败 | `a13864d` |
 
@@ -63,13 +64,20 @@
 - 测试固化问题：`TriageConversationTests.java:308-328`（`explicitBookingForNasalSymptomsCreatesGroundedGeneralMedicineRecommendation`）**把该 bug 写成了期望值**。
 - 修复方向：处置不可预约时不挂医生；会话状态与 `riskLevel` 对齐；删除鼻部硬编码；重写上述测试。
 
-### D5｜`humanReviewRecommended` 是死字段
+### D5｜已修复｜`humanReviewRecommended` 曾是死字段，URGENT 可预约并扣号
 
 - 位置：计算于 `TriageSafetyPolicy.java:63`（作为第 4 个构造参数，即 `humanReviewRecommended`），断言于 `RuleBasedTriageEngineTest.java:89`
 - 成因：`Models.SafetyAssessment`（`shared/model/Models.java:16-18`）第 4 个字段是 `humanReviewRecommended`，但**全库无任何生产代码读取**。
 - 后果：URGENT（`UR-TRAUMA-001`/`UR-FEVER-001`/`UR-PAIN-001`）实际不触发任何人工接管。
 - 复核命令：`git grep -n "humanReviewRecommended"`（应只命中定义、赋值与测试断言）
-- 修复方向：**待裁定**（见第三节 Q1）。接通它会改变现有预约行为。
+- **裁定（Q1=A）**：当前没有医院急诊号源与临床复核流程，`URGENT` 阻断普通模拟预约与扣号，只给及时线下就医指引。将来接入医院后再设计独立的紧急转诊流程。
+- 修复：新增 `triage/domain/Disposition.java` 集中定义处置词汇与两条判定，消除 D4 那种"三处各自判断可否预约"的结构性成因。
+  - `isBookable`：`紧急` / `尽快就医` / `待补充信息` 均不可预约；`普通` 与 `多科室参考` 保持可预约（Q1 只要求阻断 URGENT，未要求牵连多科室）
+  - `sessionStatus`：`尽快就医` → `建议尽快就医`。**关键**：`已完成分诊` 现在只在处置本身可预约时出现，否则会话会再次出现 D4 那种"声称完成却不可预约"的矛盾
+  - 接入点：`RuleBasedTriageEngine` 挂医生、`TriageConversationService.withCurrentAvailability` 检索号源、`BookingApplicationService.book` 预约闸门，三处改为调用同一判定
+  - 前端：`AssessmentCard.vue` 预约按钮排除 `尽快就医`；`TriagePage.vue` 对 `建议尽快就医` 会话显示线下就医与急诊升级提示
+- 回归：`RuleBasedTriageEngineTest.urgentIsNotBookableButRoutineAndMultiDepartmentRemainBookable`、`TriageConversationTests.urgentDispositionBlocksBookingAndReportsItsOwnSessionStatus`（URGENT → `尽快就医` / `建议尽快就医` / 无医生 / 预约 `409`）
+- 改写：`clearFirstTurnSymptomsRouteDirectlyAndMultipleSitesHaveMultipleDoctors` 原用"骨折会话 + 第 2 轮痛经"验证多科室有医生；该会话因 `combined` 仍含骨折而判 URGENT，新语义下正确地不附医生。已拆为独立用例，**不把 D9 的跨轮粘滞写成期望值**。
 
 ### D6｜测试套件绑定 demo 模式，live 路径无法在 CI 验证
 
