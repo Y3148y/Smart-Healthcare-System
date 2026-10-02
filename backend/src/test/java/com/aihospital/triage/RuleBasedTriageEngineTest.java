@@ -331,6 +331,41 @@ class RuleBasedTriageEngineTest {
                 .anyMatch(s -> "ER-PREGNANCY-001".equals(s.ruleCode())));
     }
 
+    /**
+     * D11 ruling 2. 句号不是组合的硬阻断边界——「我脸肿。现在张不开嘴」仍是同一个人的
+     * 连续情况，硬切断会漏报。否定在句号下仍然优先。
+     *
+     * <p>同时如实锁定当前的**已知不足**：组合只看「相邻 + 各自肯定」，因此尚不能可靠
+     * 隔离第三人、既往事件和跨轮不同事件。那需要按主体与时间归属解决，不是标点能
+     * 承担的，本测试不声称已解决。
+     */
+    @Test
+    void sentencePeriodDoesNotHardBlockCombinationButNegationStillWins() {
+        var p = new com.aihospital.triage.domain.TriageSafetyPolicy();
+
+        var positive = p.assess("我脸肿。现在张不开嘴");
+        org.junit.jupiter.api.Assertions.assertEquals("EMERGENCY", positive.acuity());
+        org.junit.jupiter.api.Assertions.assertTrue(positive.signals().stream()
+                .anyMatch(s -> "ER-FACE-SPREAD-001".equals(s.ruleCode())),
+                "句号不应阻断同一人的连续描述，实际: "
+                        + positive.signals().stream().map(s -> s.ruleCode()).toList());
+
+        var negative = p.assess("我脸肿。没有张口受限");
+        org.junit.jupiter.api.Assertions.assertFalse(negative.signals().stream()
+                .anyMatch(s -> "ER-FACE-SPREAD-001".equals(s.ruleCode())),
+                "否定在句号下必须仍然压制组合急症");
+        org.junit.jupiter.api.Assertions.assertTrue(negative.signals().stream()
+                .anyMatch(s -> "UR-FACE-SWELLING-001".equals(s.ruleCode())),
+                "单独脸肿应保留尽快就医信号，实际: "
+                        + negative.signals().stream().map(s -> s.ruleCode()).toList());
+
+        // 已知不足的显式记录：第三人称目前无法隔离，这是不应被忘记的边界。
+        var thirdPerson = p.assess("我脸肿。我同事说张口受限很难受");
+        org.junit.jupiter.api.Assertions.assertTrue(thirdPerson.signals().stream()
+                .anyMatch(s -> "ER-FACE-SPREAD-001".equals(s.ruleCode())),
+                "当前实现无法隔离第三人——这是已知不足，若本用例将来失败说明隔离能力已引入");
+    }
+
     @Test
     void symptomsAcrossDepartmentsRetainCandidatesInsteadOfArbitraryFirstMatch() {
         NarrationModel narration = mock(NarrationModel.class);
