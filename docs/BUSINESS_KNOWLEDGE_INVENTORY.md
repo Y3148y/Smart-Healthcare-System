@@ -1,7 +1,8 @@
 # 业务知识清单：当前散落在代码里的业务规则
 
 > **性质**：本文**只登记，不修复**。每条给出位置、是否单源、能否成为知识库内容、修复会触碰哪些文件。
-> **基线**：行号已按提交 `c3e24ad` 全量重核。`193c6fc` 之后的 `895cf7a`（D3 复裁定，新增孕产边界逻辑）与 `c3e24ad` 使 `TriageConversationService.java` 整体下移约 6 行、`TriagePage.vue` 因新增免责声明下移 1 行，相关引用已全部修正；`RuleBasedTriageEngine.java`、`AssessmentCard.vue` 及其余被引用文件未被这两次提交触及，引用保持不变。行号会随代码继续变动，引用前请复核。
+> **基线**：行号已全量重核。`193c6fc` 之后的 `895cf7a`（D3 复裁定，新增孕产边界逻辑）与 `c3e24ad` 使 `TriageConversationService.java` 整体下移约 6 行、`TriagePage.vue` 因新增免责声明下移 1 行，相关引用已全部修正并逐行断言过内容；`RuleBasedTriageEngine.java` 及其余被引用文件未被这两次提交触及，引用保持不变。**§3 的前端模型状态映射引用基线为 `c150929`**（该提交才补上 `POLICY_REFUSAL`）。行号会随代码继续变动，引用前请复核。
+> **核对方式**：引用不是目测——用 `git show <commit>:<path>` 取出提交态内容逐行断言所引行确实含所述内容，因此不受他人未提交工作树改动影响。
 > **定级**：本系统为未经临床审核的原型，无医生执业资质审核、无医院系统对接、无患者数据留痕基础设施。本文不构成合规意见，也不构成临床认可。
 > **配套**：[`docs/KNOWLEDGE_PIPELINE.md`](KNOWLEDGE_PIPELINE.md)（临床知识侧）、[`docs/KNOWLEDGE_SOURCES.md`](KNOWLEDGE_SOURCES.md)（来源与许可）
 
@@ -70,13 +71,23 @@
 
 1. **否决表而非白名单**（`Disposition.java:34`）：新增任何 riskLevel 字面量都**默认可预约**。
 2. **前端多两个条件**：`AssessmentCard.vue:11-12` 还要求 `version === latestVersion` 与 `grounded`，后端这两层没有 → 界面可以比 API 更严，界面更严时用户会看到"没有预约按钮"而无解释。
-3. **两份前端模型状态词表互不一致且都不完整**：
-   - `AssessmentCard.vue:35` 处理 `LIVE` / `SAFETY_RULE` / `EVIDENCE_BLOCKED` / `VALIDATION_BLOCKED` / `FALLBACK`
-   - `TriagePage.vue:31-39` 处理 `SAFETY_RULE` / `LIVE` / `LIVE_UNGROUNDED` / `DEMO*` / `FALLBACK*` / `VALIDATION_BLOCKED`
-   - **两处都不处理 `POLICY_REFUSAL`**（诊断/处方拒答状态）。于是一次合规拒答在结果卡上显示为「本地规则回答」，在会话页显示为「未生成模型回答；建议补充信息或人工咨询」——**把合规拒答说成了"没生成"，与 `RuleBasedTriageEngine.java:52-53` 的真实文案矛盾。**
-   - `TriagePage.vue` 漏掉 `EVIDENCE_BLOCKED`；`AssessmentCard.vue` 漏掉 `POLICY_REFUSAL` 与 `DEMO*` / `LIVE_UNGROUNDED`。
+3. **两份前端模型状态词表互不一致且都不完整**（本小节行号基线 `c150929`）：
+   - `AssessmentCard.vue:40` 处理 `LIVE` / `SAFETY_RULE` / `POLICY_REFUSAL` / `EVIDENCE_BLOCKED` / `VALIDATION_BLOCKED` / `FALLBACK`
+   - `TriagePage.vue:32-40`（映射函数 `:31-40`）处理 `SAFETY_RULE` / `POLICY_REFUSAL` / `LIVE` / `LIVE_UNGROUNDED` / `DEMO*` / `FALLBACK*` / `VALIDATION_BLOCKED`
+   - **`POLICY_REFUSAL` 已于 `c150929` 补齐**（此前两处都不处理，一次合规拒答在结果卡显示「本地规则回答」、在会话页显示「未生成模型回答；建议补充信息」——把合规拒答说成"没生成"，与 `RuleBasedTriageEngine.java:52-53` 的真实文案矛盾）。该修复同时把"拒答不携带 grounded 标记、因此不保存 assessment"这一不变量写进了 `AssessmentCard.vue:35` 的注释。
+   - **仍存的分歧**：`TriagePage.vue` 未处理 `EVIDENCE_BLOCKED`（会落到默认「未生成模型回答」，而实际是"知识依据不足已停止生成"）；`AssessmentCard.vue` 未处理 `DEMO*` / `LIVE_UNGROUNDED`（会落到「本地规则回答」，而实际是"演示规则回答，未调用外部模型"或"模型回答一般问题"）。两处仍应合并为一份状态→文案的映射。
 
-> **修复会触碰**：`Disposition`、`AssessmentCard.vue`、`TriagePage.vue`。前端两个文件在本轮他人任务中被改过，需串行。
+> **修复会触碰**：`Disposition`、`AssessmentCard.vue`、`TriagePage.vue`。这两个前端文件在基线 `c3e24ad` 时仍属他人单写范围，需串行。
+
+---
+
+## 3.1 已完成项登记（避免与本文 §7 重复或矛盾）
+
+| 项 | 提交 | 说明 |
+| --- | --- | --- |
+| `POLICY_REFUSAL` 前端显示 | `c150929` | 会话页兜底改为明确的合规拒答文案；结果卡补 `POLICY_REFUSAL` 徽标，并把"拒答不保存 assessment"的不变量写进注释（该分支属防御性，正常路径不可达） |
+| D10 两步评估 / 孕产状态待确认 / 边界文案 | `57e67bc`…`cbd2008` | `POLICY_VERSION` 已升至 `2026.10-P4`，新增 `UR-PREGNANCY-001`（孕产状态不确定时按 URGENT 阻断普通预约） |
+| NG255 补录 | `5c3c131` | 由本文作者（knowledge-sync owner）按 `docs/AGENT_BOARD.md` 指派补录，来源见 `docs/KNOWLEDGE_SOURCES.md` |
 
 ---
 
@@ -196,14 +207,14 @@ knowledge.documents().size(), calls.calls().size() * 4);
 > **在途状态**：基线 `c3e24ad` 时，以下第 1–5 项涉及的文件**仍在 opencode 单写范围内、本轮未完成**。本文只登记，不催促。
 
 1. **先删编造指标**：`AdminOverviewService.java:28` 的 `* 4`。
-2. **补 `POLICY_REFUSAL` 显示**：两个前端组件的模型状态映射（`AssessmentCard.vue:35`、`TriagePage.vue:31-39`）——这是**事实性错误**，合规拒答被说成"未生成模型回答"，优先级高于一切重构。
-   - 已知不变量：拒答路径**不保存任何 assessment**（现有测试断言 `assessments.size()==0`），故 `AssessmentCard.vue:35` 的兜底当前**不可达**。处理时应补分支并把该不变量写进注释，避免下一个人把它误判成活 bug 的同等紧急项；`TriagePage.vue:38` 的兜底可达，属活 bug。
+2. ~~**补 `POLICY_REFUSAL` 显示**~~ ✅ 已完成（`c150929`，见 §3.1）。**残留**：两份前端模型状态映射仍应合并为一份（`TriagePage.vue` 缺 `EVIDENCE_BLOCKED`、`AssessmentCard.vue` 缺 `DEMO*` / `LIVE_UNGROUNDED`）。
 3. **把 `已完成分诊` 从 SQL 里拿出来**：改为按 `Disposition` 常量传入或用状态枚举列。
 4. **加 `GET /api/departments`**，前端 `depts` 改为从接口取；顺带补上 `全科医学科`。
 5. **把 `isBookable` 改为白名单**，并让前端从后端字段派生而非硬编码数组。
-6. 以上都完成后再考虑：路由词表数据化、资格声明落库、多日排班。
+6. **合并前端模型状态映射**（见第 2 条残留项）。
+7. 以上都完成后再考虑：路由词表数据化、资格声明落库、多日排班。
 
-> 第 1–5 项都会改动 opencode 当前单写手范围内的文件（`RuleBasedTriageEngine` 及其测试、`AssessmentCard.vue`、`TriagePage.vue`）。**必须串行交接，不得并行。** GPT 除 D4 外只出裁定、不写生产代码，不构成并行写入方。
+> 第 1、3–7 项都会改动 opencode 当前单写手范围内的文件（`RuleBasedTriageEngine` 及其测试、`AssessmentCard.vue`、`TriagePage.vue`、知识相关 Java）。**必须串行交接，不得并行。** GPT 除 D4 外只出裁定、不写生产代码，不构成并行写入方。
 
 ---
 
