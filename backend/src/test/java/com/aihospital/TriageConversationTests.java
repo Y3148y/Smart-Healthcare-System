@@ -31,6 +31,15 @@ class TriageConversationTests {
 
     private String token(String subject) { return "Bearer " + jwt.issue(subject, "PATIENT"); }
 
+    /**
+     * D6. Whether the suite runs against the demo narration or a live provider is a profile
+     * choice, so assertions about the provider label must ask the active profile instead of
+     * assuming demo. Mode-independent behaviour is asserted unconditionally elsewhere.
+     */
+    @Autowired org.springframework.core.env.Environment env;
+
+    private boolean demoProfileActive() { return "demo".equals(env.getProperty("ai.mode", "demo")); }
+
     private String create(String auth) throws Exception {
         String body = mvc.perform(post("/api/triage/sessions").header("Authorization", auth)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -381,7 +390,13 @@ class TriageConversationTests {
         org.junit.jupiter.api.Assertions.assertFalse(firstReply.contains("知识库没有检索到"));
         org.junit.jupiter.api.Assertions.assertEquals(0, first.path("assessments").size());
         org.junit.jupiter.api.Assertions.assertTrue(first.path("messages").get(1).path("provenance").path("knowledgeHits").asInt() > 0);
-        org.junit.jupiter.api.Assertions.assertEquals("DEMO", first.path("messages").get(1).path("provenance").path("modelStatus").asText());
+        // D6: the mode-independent contract is that the reply is produced by a configured
+        // narration path rather than by an ungrounded fallback. The literal provider label is a
+        // property of the active profile, so it is asserted only when demo mode is active.
+        String firstStatus = first.path("messages").get(1).path("provenance").path("modelStatus").asText();
+        org.junit.jupiter.api.Assertions.assertNotEquals("DEMO_UNGROUNDED", firstStatus);
+        if (demoProfileActive())
+            org.junit.jupiter.api.Assertions.assertEquals("DEMO", firstStatus);
 
         JsonNode second = turn(owner, id, "流鼻涕啊，有什么好说的");
         String secondReply = second.path("messages").get(3).path("content").asText();

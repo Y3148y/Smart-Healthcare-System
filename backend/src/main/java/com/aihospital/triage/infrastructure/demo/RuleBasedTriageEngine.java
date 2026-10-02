@@ -197,6 +197,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 : possibleFracture ? "如果怀疑骨折，请尽快到线下医疗机构评估；若骨头外露、伤口大量出血或肢体明显变形，应立即急诊。模拟预约不能代替及时就医。"
                 : candidates.size() > 1 ? "症状涉及多个科室方向，建议先咨询全科或人工导诊；本建议不构成诊断、处方或治疗意见。"
                 : "本建议仅用于辅助分诊和挂号参考，不构成诊断、处方或治疗意见。";
+        if (needsFeverCaveat(text, safetyAssessment)) safetyTip = safetyTip + " " + FEVER_CAVEAT;
         String fallback = fallbackAnswer(department, emergency, candidates);
         boolean grounded = emergency || retrieval.grounded();
         NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
@@ -248,6 +249,26 @@ public class RuleBasedTriageEngine implements TriageEngine {
 
     private boolean hasClinicalQualifier(String text) {
         return text.matches("(?s).*(发热|体温|咳痰|痰|肿|麻|无力|外伤|摔|扭|经量|周期|恶心|呕吐|反酸|腹泻|便秘|出汗|无|没有|否认|不伴|影响|夜间).*" );
+    }
+
+    private static final Pattern FEVER_MENTION = Pattern.compile("发热|低热|发烧|体温|寒战");
+
+    /**
+     * D7, ruling Q6=b. The 39C threshold is kept for now, but NICE NG253 section 1.1 states
+     * that suspected sepsis may not have a high temperature. Without this note, a patient
+     * reporting 38C reads "no emergency signal found" as "no serious infection", which is the
+     * reverse guarantee the ruling asked us to avoid.
+     *
+     * <p>未经临床审核: the wording is unreviewed and the threshold itself remains a registered
+     * gap. This text adds no diagnostic claim, only a refusal to rule anything out.
+     */
+    private static final String FEVER_CAVEAT = "补充说明：体温没有达到本系统的急诊阈值，并不代表可以排除严重感染。"
+            + "疑似脓毒症的人可能并不发热，低体温、反应变差、意识改变等表现也需要整体评估"
+            + "（依据 NICE NG253，未经临床审核）。如症状加重或出现意识、呼吸、血压方面的异常，请立即线下就医。";
+
+    private boolean needsFeverCaveat(String text, SafetyAssessment assessment) {
+        if (text == null || !FEVER_MENTION.matcher(text).find()) return false;
+        return assessment.signals().stream().noneMatch(signal -> "UR-FEVER-001".equals(signal.ruleCode()));
     }
 
     private boolean possibleFracture(String text) {

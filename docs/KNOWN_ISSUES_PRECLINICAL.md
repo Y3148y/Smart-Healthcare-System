@@ -100,20 +100,32 @@
 - 回归：`RuleBasedTriageEngineTest.urgentIsNotBookableButRoutineAndMultiDepartmentRemainBookable`、`TriageConversationTests.urgentDispositionBlocksBookingAndReportsItsOwnSessionStatus`（URGENT → `尽快就医` / `建议尽快就医` / 无医生 / 预约 `409`）
 - 改写：`clearFirstTurnSymptomsRouteDirectlyAndMultipleSitesHaveMultipleDoctors` 原用"骨折会话 + 第 2 轮痛经"验证多科室有医生；该会话因 `combined` 仍含骨折而判 URGENT，新语义下正确地不附医生。已拆为独立用例，**不把 D9 的跨轮粘滞写成期望值**。
 
-### D6｜测试套件绑定 demo 模式，live 路径无法在 CI 验证
+### D6｜已修复｜测试套件与 demo 模式解耦
 
 - 位置：`TriageConversationTests.java:297` 断言 `provenance.modelStatus == "DEMO"`
 - 后果：设 `AI_MODE=openai-compatible` 会使该套件失败。
 - 说明：这是有意的严格断言（demo 模式不调外部模型），但代价是 live 行为无自动化覆盖。
 - 修复方向：若要覆盖 live 路径，需分离"模式无关断言"与"模式相关断言"，或引入显式 profile。**非紧急。**
+- 全仓核查后确认：**只有一处**真正钉死 demo 语义（`TriageConversationTests.java:384` 断言 `modelStatus == "DEMO"`）。其余 `DEMO` 均为注入桩构造参数，或本就该是 `SAFETY_RULE` / `POLICY_REFUSAL` 的路径，不受影响。
+- 已实施：拆成模式无关契约 + 模式相关标识。
+  - 模式无关（无条件断言）：回复非空、不含未检索话术、`knowledgeHits > 0`、无分诊版本、`modelStatus != "DEMO_UNGROUNDED"`（即由已配置的叙述路径产出，而非未命中回退）
+  - 模式相关（仅 demo 下断言）：`modelStatus == "DEMO"`，由 `demoProfileActive()` 读 `Environment` 的 `ai.mode` 决定
+- **已用证伪法验证解耦真实生效**，非仅改写文本：把条件内断言故意改成 `DELIBERATELY_WRONG_PROBE` 后，默认 demo 下该用例**失败**、加 `-Dai.mode=openai-compatible` 下**通过**（分支确被跳过）。随后恢复断言。
+- 回归：`-Dai.mode=openai-compatible` 下全量 61/61 绿。**注意**：无 api-key 时叙述层会静默回退，故此项只证明断言已解耦，**不等于 live 链路行为已验证**。
+- 仍未覆盖：live 链路的**行为**验证需要真实凭据，属人工验证范围，不在 CI 内。
 
-### D7｜`UR-FEVER-001` 门槛与 NICE 指南冲突
+### D7｜`UR-FEVER-001` 门槛与 NICE 指南冲突（**裁定 Q6=b：保留门槛并登记缺口**）
 
 - 位置：`TriageSafetyPolicy.java:33`，表达式 `持续高热|高烧不退|体温.{0,3}(39\|40)`
 - 冲突：NICE `NG253` §1.1 指出脓毒症 *"may not have a high temperature"*。现有规则把 ≥39℃ 当作门槛，结构上与该指南相反。
 - 附加缺口：未覆盖低体温、寒战、皮肤冰冷。老年感染者低体温常见。
 - 修复方向：补低体温/寒战表达，去掉"必须 ≥39℃"这一门槛。
 - 约束：无临床团队无法仲裁阈值取舍。修改时必须附出处 + `未经临床审核` 标记，并升 `POLICY_VERSION`。
+- **裁定（Q6=b）**：保留现有 ≥39℃ 门槛，**不自行改写**脓毒症规则；规则调整须经临床审核。同时必须避免界面或文档给出**反向保证**。
+- 已实施的反向保证防线：`RuleBasedTriageEngine.FEVER_CAVEAT`。当文本提到 `发热|低热|发烧|体温|寒战` 且未命中 `UR-FEVER-001` 时，在 `safetyTip` 追加说明：体温未达急诊阈值**不代表可以排除严重感染**，并指出疑似脓毒症者可能并不发热、低体温/反应变差/意识改变也需整体评估（依据 NICE NG253，标注未经临床审核）。
+  - 该文案只声明"不能排除"，**不新增诊断结论**，因此不升 `POLICY_VERSION`（规则表达式未变）。
+  - 回归：`subThresholdFeverNeverReadsAsRulingOutSeriousInfection`，覆盖三条：38℃ 必含该说明、无发热话题不含、39℃ 已升 URGENT 不重复该说明。
+- 门槛本身仍是**未修缺口**：低体温、寒战、皮肤冰冷仍未覆盖，等待临床审核后统一处理。
 
 ### D8｜跨度型规则对否定词失效，现网已有急症误报（**已修复**）
 

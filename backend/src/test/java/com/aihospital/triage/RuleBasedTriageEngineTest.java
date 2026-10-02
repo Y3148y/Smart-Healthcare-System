@@ -212,6 +212,29 @@ class RuleBasedTriageEngineTest {
         assertTrue(result.modelStatus().equals("FALLBACK"));
     }
 
+    /**
+     * D7 / Q6=b. NICE NG253 states suspected sepsis may not have a high temperature, so a
+     * sub-threshold temperature must never read as "serious infection ruled out".
+     */
+    @Test
+    void subThresholdFeverNeverReadsAsRulingOutSeriousInfection() {
+        NarrationModel narration = mock(NarrationModel.class);
+        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+            .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
+        when(narration.guideGeneral(anyString(), anyString(), anyList()))
+            .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(1), "DEMO", ""));
+        RuleBasedTriageEngine service = engine(narration);
+        var belowThreshold = service.triage("fever-low", "我发烧38度两天了", "张三", java.util.List.of());
+        assertFalse(belowThreshold.safetyAssessment().stopRoutineFlow());
+        assertFalse(belowThreshold.safetyAssessment().humanReviewRecommended());
+        assertTrue(belowThreshold.safetyTip().contains("并不代表可以排除严重感染"), belowThreshold.safetyTip());
+        var unrelated = service.triage("no-fever", "我最近头晕想吐", "张三", java.util.List.of());
+        assertFalse(unrelated.safetyTip().contains("并不代表可以排除严重感染"), unrelated.safetyTip());
+        var highFever = service.triage("fever-high", "我持续高热，体温39度", "张三", java.util.List.of());
+        assertTrue(highFever.safetyAssessment().humanReviewRecommended());
+        assertFalse(highFever.safetyTip().contains("并不代表可以排除严重感染"), highFever.safetyTip());
+    }
+
     @Test
     void symptomsAcrossDepartmentsRetainCandidatesInsteadOfArbitraryFirstMatch() {
         NarrationModel narration = mock(NarrationModel.class);
