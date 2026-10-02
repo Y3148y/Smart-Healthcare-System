@@ -11,8 +11,9 @@
  * 这个工具永远不写 backend/src/main/resources/knowledge/。入库必须是独立、经批准的手工提交。
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { CACHE_DIR, REPORTS_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
+import { CACHE_DIR, REPORTS_DIR, ROOT, TOOL_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
 import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
 import { writeWorksheets } from './lib/proposal.mjs';
@@ -258,18 +259,49 @@ function commandVerify() {
   process.exitCode = failures > 0 ? 1 : 0;
 }
 
+async function commandRefs() {
+  const commit = positional.find((item) => !item.startsWith('--')) ?? 'HEAD';
+  const data = JSON.parse(readFileSync(join(TOOL_DIR, 'doc-refs.json'), 'utf8'));
+  console.log(`校验 ${data.refs.length} 条文档引用（提交态：${commit}）`);
+  let failed = 0;
+  for (const ref of data.refs) {
+    let text;
+    try {
+      text = execFileSync('git', ['show', `${commit}:${ref.path}`], {
+        cwd: ROOT, encoding: 'utf8', maxBuffer: 1e8,
+      });
+    } catch {
+      console.log(`FAIL ${ref.path} —— 该提交态下取不到此文件`);
+      failed += 1;
+      continue;
+    }
+    const line = text.split('\n')[ref.line - 1] ?? '';
+    if (line.includes(ref.mustContain)) {
+      const note = ref.note ? `  // ${ref.note}` : '';
+      console.log(`PASS ${ref.path.split('/').pop()}:${ref.line} ${JSON.stringify(ref.mustContain)}${note}`);
+    } else {
+      console.log(`FAIL ${ref.path.split('/').pop()}:${ref.line} 期望含 ${JSON.stringify(ref.mustContain)}`
+        + ` 实际 ${JSON.stringify(line.trim().slice(0, 70))}  [${ref.doc}]`);
+      failed += 1;
+    }
+  }
+  console.log(`\n${failed === 0 ? '全部引用与提交态一致。' : `${failed} 条失效——先按 mustContain 内容串重新定位，再更新 doc-refs.json 的行号与 baseline。`}`);
+  process.exitCode = failed > 0 ? 1 : 0;
+}
+
 const commands = {
   sources: commandSources,
   fetch: commandFetch,
   diff: commandDiff,
   proposals: commandProposals,
   verify: commandVerify,
+  refs: commandRefs,
 };
 
 const selected = commands[command];
 if (!selected) {
   console.error(`未知命令：${command}`);
-  console.error('可用：sources | fetch | diff | proposals | verify');
+  console.error('可用：sources | fetch | diff | proposals | verify | refs');
   process.exit(2);
 }
 await selected();

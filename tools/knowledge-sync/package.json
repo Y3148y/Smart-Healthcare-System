@@ -12,6 +12,7 @@
     "fetch": "node cli.mjs fetch",
     "diff": "node cli.mjs diff",
     "proposals": "node cli.mjs proposals",
-    "verify": "node cli.mjs verify"
+    "verify": "node cli.mjs verify",
+    "refs": "node cli.mjs refs"
   }
 }

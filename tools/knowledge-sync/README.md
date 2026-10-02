@@ -11,6 +11,7 @@
 | 命令 | 联网 | 作用 |
 | --- | --- | --- |
 | `npm run sources` | 否 | 打印登记表摘要（优先级、抓取方式、核实状态） |
+| `npm run refs -- <commit>` | 否 | 校验两份文档引用的代码位置是否仍成立（`doc-refs.json` 里 28 条"该行必须包含的内容串"） |
 | `npm run verify` | 否 | 离线复算生产检索算法，预测语料改动的召回影响 |
 | `npm run fetch -- --dry-run` | 是 | 抓取并打印结果，不写 `state.json` |
 | `npm run fetch` | 是 | 抓取到期来源，写快照到 `cache/`、哈希到 `state.json` |
