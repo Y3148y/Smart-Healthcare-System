@@ -26,7 +26,8 @@
 
 - 写的人不复核自己的东西。owner 之外的一方负责验收复核。
 - 验收标准以任务书为准，缺一项不验收。
-- 测试是底线：改完必须跑 `backend` 的 `mvn test`（本机唯一可用 JDK 为 `D:\Elasticsearch\elasticsearch-9.3.3\jdk`（JDK 25），须先设 `$env:JAVA_HOME`；默认 `java` 为 1.8 会报 class version 61；无任何 `AI_*` 环境变量时必须全绿，基线 53 项）和 `frontend` 的 `npm run build`。详见 [docs/KNOWN_ISSUES_PRECLINICAL.md](docs/KNOWN_ISSUES_PRECLINICAL.md) 第四节。
+- 测试是底线：改完必须跑 `backend` 的 `mvn test`（**基准 JDK 为 `E:\JDK17\jdk-17.0.1`（JDK 17）**，须先设 `$env:JAVA_HOME`；默认 `java` 为 1.8 会报 class version 61；无任何 `AI_*` 环境变量时必须全绿）和 `frontend` 的 `npm run build`。详见 [docs/KNOWN_ISSUES_PRECLINICAL.md](docs/KNOWN_ISSUES_PRECLINICAL.md) 第四节。
+- **不要用 JDK 25 跑测试**：`D:\Elasticsearch\elasticsearch-9.3.3\jdk`（JDK 25）存在，但本项目 Mockito 所依赖的 Byte Buddy 仅支持到 Java 23。在 JDK 25 下，任何 **mock 具体类**（非接口）的用例会报 `Java 25 (69) is not supported by the current version of Byte Buddy`，产生与业务代码无关的假失败。仅 mock 接口的用例在 JDK 25 下碰巧能过，不要据此认为 JDK 25 可用。
 
 ## 5. 诚实红线（面试与文档共用）
 

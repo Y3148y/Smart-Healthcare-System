@@ -187,11 +187,12 @@
 
 | 事项 | 事实 |
 | --- | --- |
-| 可用 JDK | **仅** `D:\Elasticsearch\elasticsearch-9.3.3\jdk`（JDK 25）。需先设 `$env:JAVA_HOME` |
+| 可用 JDK | 基准 `E:\JDK17\jdk-17.0.1`（JDK 17）。需先设 `$env:JAVA_HOME`。另有 `D:\Elasticsearch\elasticsearch-9.3.3\jdk`（JDK 25） |
 | 默认 `java` | 1.8.0_221，`mvn test` 报 `class version 61` |
 | `D:\FinallShell\finalshell\jre` | 缺 `com.sun.net.httpserver`，`QdrantSemanticIndexTest` 抛 `NoClassDefFoundError` |
-| 本机是否存在 JDK 17 | **否**。`AGENTS.md` 原文要求 JDK 17，无法满足，已修正为 JDK 25 |
-| 测试基线 | **53 项 / 9 个测试类全绿**（无任何 `AI_*` 环境变量） |
+| JDK 25 能否跑测试 | **不能**。本项目 Mockito 依赖的 Byte Buddy 仅支持到 Java 23；JDK 25 下 mock **具体类**（如 `SimulationBookingService`、`DoctorCatalogService`）报 `Java 25 (69) is not supported by the current version of Byte Buddy`。仅 mock 接口的用例碰巧能过，易误判为可用 |
+| 本机是否存在 JDK 17 | **存在**，`E:\JDK17\jdk-17.0.1`（17.0.1+12）。此前"否、已修正为 JDK 25"的结论**错误**，源于未实际探测全部 JDK 路径 |
+| 测试基线 | **仓库已提交 53 项 / 9 个测试类全绿**（无任何 `AI_*` 环境变量）。工作区含在途 D4 用例时为 55 项 / 10 个类 |
 | 计数陷阱 | `target/surefire-reports/` 残留已删除测试类的旧报告（`LocalRetrieveProbeTest`、`SourceEncodingProbeTest`），直接汇总会多算 2 项。统计时按文件修改时间过滤 |
 | PowerShell 中文 | 请求体必须 `[System.Text.Encoding]::UTF8.GetBytes($json)`，`ContentType` 带 `charset=utf-8`。否则正文变 `????`，**所有安全规则全部漏判** |
 | 管理端鉴权 | 必须 `Authorization: Bearer <token>`。漏 `Bearer ` 前缀会被误判为 `JwtService` 缺陷 |

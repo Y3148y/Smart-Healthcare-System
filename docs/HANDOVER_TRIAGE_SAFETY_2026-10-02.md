@@ -16,7 +16,7 @@
 3. **密钥不入库。** 会话中已暴露的百炼 key 需用户轮换；代码、文档、日志、测试数据均不得含真实 key。
 4. **不要重构 `TriageSafetyPolicy` 的否定/历史机制。** `isAsserted` 已被 `RuleBasedTriageEngineTest.java:74-91` 的安全矩阵锁定，改动必须同步重写该矩阵。
 5. **范围限于成人非孕产。** 不引入儿科。孕产见 `§4 D3` 与 `§6 Q2`。
-6. **JDK 必须用 `D:\Elasticsearch\elasticsearch-9.3.3\jdk`（JDK 25）。** 默认 JDK 8 报 `class version 61`；`D:\FinallShell\finalshell\jre` 缺 `com.sun.net.httpserver`，会在 `QdrantSemanticIndexTest` 抛 `NoClassDefFoundError`。
+6. **基准 JDK 为 `E:\JDK17\jdk-17.0.1`（JDK 17）。** 默认 JDK 8 报 `class version 61`；`D:\FinallShell\finalshell\jre` 缺 `com.sun.net.httpserver`，会在 `QdrantSemanticIndexTest` 抛 `NoClassDefFoundError`。**不要用 JDK 25 跑测试**（见第 4 项与 `AGENTS.md` 第 4 节）。
 7. **沿用 `AGENTS.md` 红线**：单写手/复核分离、每个验收任务一个 commit、文档是事实源、不得夸大未验证结论。
 
 ---
@@ -365,7 +365,7 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 2. ✅ 拒答测试强化为逐字契约 + 状态 + 零工具调用 + 预约 409
 3. ✅ 核对 `diagnosisIntentPatternDoesNotSwallowOrdinaryTriageQuestions` 期望
 4. ✅ 新建 `docs/KNOWN_ISSUES_PRECLINICAL.md`（**缺陷本体登记表**）
-5. ✅ 修正 `AGENTS.md` 的 JDK 要求：本机无 JDK 17，原文"（JDK 17…）"无法满足，已改为 JDK 25 及实际路径
+5. ⚠️ 后被推翻：本条曾断言"本机无 JDK 17"并把 `AGENTS.md` 改为 JDK 25。2026-10-02 复核发现 `E:\JDK17\jdk-17.0.1` 确实存在，JDK 25 才是错误选择（Byte Buddy 仅支持到 Java 23）。已改回 JDK 17
 
 回归：**53 项 / 9 个测试类全绿**。统计陷阱见 `KNOWN_ISSUES_PRECLINICAL.md` 第四节——`target/surefire-reports/` 残留两份已删除测试类的旧报告，直接汇总会多算 2 项得到 52。
 
@@ -402,7 +402,7 @@ ef8e58f fix: make diagnosis/prescription refusal deterministic and pin it verbat
 
 每个 Stage 必须满足：
 
-- JDK 25 下 `mvn test` 全量通过（基线 53/53，Stage 2 后按新增用例数递增）
+- JDK 17 下 `mvn test` 全量通过（仓库已提交基线 53/53；含在途 D4 用例为 55/55，Stage 2 后按新增用例数递增）
 - 每次 commit 只做一件事，message 含变更原因
 - 文档先于或同 commit 更新
 - 无真实密钥、无个人数据
