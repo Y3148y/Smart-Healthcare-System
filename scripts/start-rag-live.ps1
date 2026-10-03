@@ -5,11 +5,15 @@ param(
     [string]$EmbeddingBaseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     [string]$RerankModel = 'qwen3.7-text-rerank',
     [string]$RerankUrl = 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank',
-    [string]$ChatModel = 'glm-5.3'
+    [string]$ChatModel = 'glm-5.3',
+    [string]$ChatBaseUrl = $env:AI_BASE_URL
 )
 $ErrorActionPreference = 'Stop'
 $backendPath = (Resolve-Path -LiteralPath $BackendDirectory).Path
 if (!(Test-Path -LiteralPath (Join-Path $backendPath 'pom.xml'))) { throw 'Backend pom.xml not found' }
+if ([string]::IsNullOrWhiteSpace($ChatBaseUrl)) {
+    throw 'Set AI_BASE_URL or pass -ChatBaseUrl using the chat workspace Base URL; it is independent of EmbeddingBaseUrl.'
+}
 $names = @('JAVA_HOME','PATH','MAVEN_OPTS','SPRING_PROFILES_ACTIVE','SERVER_PORT','AI_DB_URL',
     'AI_MODE','AI_API_KEY','AI_BASE_URL','AI_MODEL','AI_EMBEDDING_API_KEY','AI_EMBEDDING_MODEL',
     'AI_EMBEDDING_BASE_URL','AI_RERANK_API_KEY','AI_RERANK_MODEL','AI_RERANK_URL','AI_QDRANT_COLLECTION')
@@ -35,7 +39,7 @@ try {
     $env:AI_MODE = 'openai-compatible'
     if ([string]::IsNullOrWhiteSpace($env:AI_API_KEY)) { $env:AI_API_KEY = $env:AI_EMBEDDING_API_KEY }
     $env:AI_MODEL = $ChatModel
-    $env:AI_BASE_URL = $EmbeddingBaseUrl
+    $env:AI_BASE_URL = $ChatBaseUrl
     $env:AI_EMBEDDING_MODEL = $EmbeddingModel
     $env:AI_EMBEDDING_BASE_URL = $EmbeddingBaseUrl
     $env:AI_RERANK_API_KEY = $env:AI_EMBEDDING_API_KEY
