@@ -138,6 +138,26 @@ export function checkRuleInvariants(rulesJson) {
       });
     }
   }
+
+  // Auxiliary patterns are the third declaration group and used to be unchecked. A pattern that
+  // carries neither citations, nor citationGap, nor a note explaining its non-clinical origin
+  // reads as sourced when it is not — the exact failure this file exists to prevent.
+  //
+  // `UNCLEAR_BLEEDING_RULE` is a known legitimate exception: it exists because of a product
+  // ruling (D11 "量级不明不升急症"), so it has no clinical source and no gap to declare. It is
+  // accepted via its `note`, and that exception is stated here rather than left to chance.
+  for (const pattern of rulesJson.auxiliaryPatterns ?? []) {
+    const citations = pattern.citations ?? [];
+    if (citations.length > 0) continue;
+    if (pattern.citationGap === true) continue;
+    if (typeof pattern.note === 'string' && pattern.note.trim() !== '') continue;
+    problems.push({
+      level: 'error',
+      code: `(auxiliary) ${pattern.name ?? '(未命名)'}`,
+      why: '既无引用、也没标 citationGap、没有 note 说明其非临床来源——读起来像有出处，实际没有',
+    });
+  }
+
   return { problems, codes: [...seen.keys()], refsUsed: [...new Set(refs)], vocabularyKeys: vocabulary };
 }
 

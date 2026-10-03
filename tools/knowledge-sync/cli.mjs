@@ -317,7 +317,7 @@ function commandCitations() {
   }
   console.log('');
   console.log('── 结构不变量（语义校验，不依赖行号）──');
-  console.log(`词表键 ${Object.keys(rules.vocabulary ?? {}).length} 个；{ref:…} 引用 ${invariants.refsUsed.length} 个不同名称`);
+  console.log(`词表键 ${Object.keys(rules.vocabulary ?? {}).length} 个；{ref:…} 引用 ${invariants.refsUsed.length} 个不同名称；辅助模式 ${(rules.auxiliaryPatterns ?? []).length} 个`);
   if (invariants.problems.length === 0) {
     console.log('结构自洽：每条规则要么有引用、要么显式声明为缺口；{ref:…} 全部可解析；规则码唯一。');
   } else {
