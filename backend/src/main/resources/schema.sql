@@ -114,3 +114,14 @@ CREATE TABLE IF NOT EXISTS sim_appointment (
   created_at TIMESTAMP NOT NULL,
   UNIQUE (patient_id, idempotency_key)
 );
+
+CREATE TABLE IF NOT EXISTS patient_profile (
+  patient_id VARCHAR(128) PRIMARY KEY,
+  display_name VARCHAR(80) NOT NULL,
+  birth_date VARCHAR(10),
+  allergies VARCHAR(1000) NOT NULL,
+  medications VARCHAR(1000) NOT NULL,
+  health_background VARCHAR(1000) NOT NULL,
+  version_number BIGINT NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+);

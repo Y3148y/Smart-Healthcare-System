@@ -6,6 +6,7 @@ import HomePage from './features/home/HomePage.vue'
 import BookingPage from './features/booking/BookingPage.vue'
 import VisitsPage from './features/visits/VisitsPage.vue'
 import AdminPage from './features/admin/AdminPage.vue'
+import ProfilePage from './features/profile/ProfilePage.vue'
 import type { Doctor, ChatSession, TimelineEvent, HumanReview } from './features/triage/types'
 const params=new URLSearchParams(window.location.search), demo=params.get('demo'), loginFromForm=(params.get('login')||'').trim(), initialRole=(demo==='admin'||loginFromForm.toLowerCase()==='admin')?'ADMIN':'PATIENT', isDemoEntry=Boolean(demo||loginFromForm)
 const readStored=(key:string)=>{try{return localStorage.getItem(key)}catch{return null}}
@@ -18,9 +19,10 @@ const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), login
 const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), reviews=ref<HumanReview[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null), knowledgeRuntime=ref<any>(null)
 const bookingRunning=ref(false), toast=ref('')
 const adminReady=ref(false)
+const patientReady=ref(false)
 const depts=computed(()=>['全部',...new Set(doctors.value.map(d=>d.department))])
 const isAdmin=computed(()=>role.value==='ADMIN')
-const nav=[['home','首页'],['triage','智能预问诊'],['booking','预约挂号'],['visits','我的就诊']]
+const nav=[['home','首页'],['triage','智能预问诊'],['booking','预约挂号'],['visits','我的就诊'],['profile','我的资料']]
 const showToast=(text:string)=>{toast.value=text;setTimeout(()=>toast.value='',2600)}
 async function establishDemoSession():Promise<boolean>{
   if(!isDemoEntry)return Boolean(readStored('ai-hospital-token'))
@@ -44,6 +46,7 @@ onMounted(async()=>{
   else if(!loggedIn.value)return
   if(isAdmin.value){await loadAdmin();adminReady.value=true;return}
   await loadPatient()
+  patientReady.value=true
   const symptom=params.get('symptom')
   if(page.value==='triage' && symptom)history.replaceState({},'',patientRoute('triage'))
   const doctorId=params.get('book')
@@ -77,6 +80,8 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
       <TriagePage v-else-if="page==='triage'" :sessions="sessions" :initial-symptom="params.get('symptom') || ''" :booking-running="bookingRunning" @book="book" @updated="loadPatient" @notify="showToast" />
       <BookingPage v-else-if="page==='booking'" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
       <VisitsPage v-else-if="page==='visits'" :visits="visits" :timeline="timeline" />
+      <ProfilePage v-else-if="page==='profile' && patientReady" />
+      <p v-else-if="page==='profile'" role="status">正在验证身份…</p>
     </template>
     <AdminPage v-else :ready="adminReady" :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :reviews="reviews" :runtime="aiRuntime" :knowledge-runtime="knowledgeRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @approve-knowledge="approveKnowledge" @toggle-tool="toggleTool" @run-tool="runTool" @handle-review="handleReview" />
     <div v-if="toast" class="toast">{{ toast }}</div>
