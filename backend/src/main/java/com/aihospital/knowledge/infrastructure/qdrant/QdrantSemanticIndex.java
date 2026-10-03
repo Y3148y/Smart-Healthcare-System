@@ -42,6 +42,10 @@ public class QdrantSemanticIndex {
     public boolean configured() { return !model.isBlank() && !apiKey.isBlank() && !embeddingBaseUrl.isBlank(); }
     public boolean indexed() { return indexed; }
     public String status() { return status; }
+    public String modelName() { return model; }
+    public synchronized int indexedCount(List<Evidence> corpus) {
+        return (int) corpus.stream().map(this::pointId).filter(indexedPointIds::contains).count();
+    }
 
     public synchronized boolean ensureIndexed(List<Evidence> corpus) {
         if (!configured()) { status = "NOT_CONFIGURED"; return false; }

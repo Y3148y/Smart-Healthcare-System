@@ -16,11 +16,12 @@ class BailianRerankerTest {
     @Test void providerRanksAreValidatedAndLowRelevanceIsFiltered() throws Exception {
         var reply = new AtomicReference<>("{\"output\":{\"results\":[{\"index\":1,\"relevance_score\":0.9},{\"index\":0,\"relevance_score\":0.1}]}}");
         var received = new AtomicReference<String>();
+        var httpStatus = new java.util.concurrent.atomic.AtomicInteger(200);
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/rerank", exchange -> {
             received.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             byte[] bytes = reply.get().getBytes(StandardCharsets.UTF_8);
-            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.sendResponseHeaders(httpStatus.get(), bytes.length);
             try(var stream = exchange.getResponseBody()) { stream.write(bytes); }
         });
         server.start();
@@ -38,6 +39,14 @@ class BailianRerankerTest {
             assertEquals("胸口痛", new ObjectMapper().readTree(received.get()).path("input").path("query").asText());
             reply.set("{\"output\":{\"results\":[{\"index\":1,\"relevance_score\":0.9},{\"index\":1,\"relevance_score\":0.8}]}}");
             assertEquals("INVALID_RESPONSE", reranker.rank("胸口痛", candidates, 3).status());
+            httpStatus.set(400);
+            reply.set("{\"code\":\"Arrearage\",\"message\":\"private-query-and-provider-message\"}");
+            var failed = reranker.rank("胸口痛", candidates, 3);
+            assertEquals("HTTP_400:Arrearage", failed.status());
+            assertTrue(failed.evidence().isEmpty());
+            assertFalse(failed.status().contains("private-query"));
+            reply.set("{\"code\":\"unsafe error with patient text\"}");
+            assertEquals("HTTP_400", reranker.rank("胸口痛", candidates, 3).status());
         } finally { server.stop(0); }
     }
 }

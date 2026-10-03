@@ -57,6 +57,8 @@ Qdrant 真实向量检索的本机实测数据（命中分数、降级与恢复�
 
 后续扩展的模块边界、接口地图、真实模型/RAG/数据库接入方式与已知限制见 [后续扩展说明](docs/EXTENSION_GUIDE.md)；接口联调记录见 [2026-09-24 验收记录](QA_RUN_2026-09-24.md) 和 [2026-09-26 全链路回归记录](QA_RUN_2026-09-26.md)。
 
+管理员后台新增文档原文/来源/片段与审批、增量索引同步、逐候选检索调试、配置与执行状态观测、工具错误详情和日志分页。入口为 `?demo=admin&page=admin&adminPage=knowledge`，检索调试使用 `adminPage=retrieval`，观测使用 `adminPage=observe`。当前索引状态是本进程写入记录，检索摘要只保留内存中最近 100 条，不是实时健康探针或完整持久化审计。验证结果、当前百炼 Arrearage 和会话排序复验问题见 [后台交付记录](docs/ADMIN_AI_WORKSPACE_2026-10-03.md)。
+
 真实模型连通性验证与安全配置原则见 [模型连通性记录](QA_MODEL_CONNECTIVITY_2026-09-25.md)。密钥不得写入项目文件。
 
 登录与文本编码问题的故障原因、修复和回归项见 [故障记录](docs/INCIDENT_LOGIN_AND_TEXT_ENCODING_2026-09-25.md)。

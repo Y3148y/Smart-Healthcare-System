@@ -1,0 +1,71 @@
+// Run with Playwright available in NODE_PATH. Uses real HTTP APIs on a local demo instance.
+const { chromium } = require('playwright')
+const assert = require('node:assert/strict')
+const base = process.env.ADMIN_TEST_BASE_URL || 'http://127.0.0.1:5188'
+const executablePath = process.env.ADMIN_TEST_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
+const expectedMode = process.env.ADMIN_TEST_EXPECT_MODE || 'HYBRID_QDRANT_RERANKED'
+
+;(async () => {
+  const browser = await chromium.launch({ headless: true, executablePath })
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } })
+  const page = await context.newPage()
+  const errors = []
+  page.on('pageerror', error => errors.push(error.message))
+  try {
+    const previousLogin = await context.request.post(`${base}/api/auth/login`, { data: { username: 'zhangsan', password: '123456' } })
+    const previous = await previousLogin.json()
+    await context.addInitScript(token => { if (!localStorage.getItem('ai-hospital-token')) localStorage.setItem('ai-hospital-token', token) }, previous.token)
+    await page.goto(`${base}/?demo=admin&page=admin&adminPage=knowledge`)
+    await page.getByRole('button', { name: '查看原文与片段' }).first().waitFor()
+    await page.getByRole('button', { name: '查看原文与片段' }).first().click()
+    await page.getByRole('region', { name: '文档详情' }).waitFor()
+    assert.ok(await page.getByText('向量状态：', { exact: false }).count())
+    await page.getByText('查看完整原文', { exact: true }).click()
+    assert.ok((await page.locator('.admin-document pre').innerText()).length > 10)
+    await page.getByRole('button', { name: '新增资料', exact: true }).click()
+    await page.getByLabel('资料标题', { exact: true }).fill('后台功能测试（待审批）')
+    await page.getByLabel('资料正文', { exact: true }).fill('此资料仅用于验证后台提交和审批状态，不包含医学建议，保持待审批。')
+    await page.getByRole('button', { name: '提交待审批', exact: true }).click()
+    await page.getByText('资料已提交待审批，尚未用于患者检索。', { exact: true }).waitFor()
+    assert.ok(await page.getByRole('button', { name: '核对后审批通过' }).count())
+    await page.getByRole('button', { name: '新增资料', exact: true }).click()
+    await page.locator('input[type=file]').setInputFiles({ name: '后台上传测试（待审批）.md', mimeType: 'text/markdown', buffer: Buffer.from('仅用于验证 TXT/Markdown 文件上传，保持待审批。', 'utf8') })
+    await page.getByRole('button', { name: '上传资料', exact: true }).click()
+    await page.getByText('资料已提交待审批，尚未用于患者检索。', { exact: true }).waitFor()
+    await page.getByRole('region', { name: '文档详情' }).getByRole('heading', { name: '后台上传测试（待审批）.md', exact: true }).waitFor()
+    // A nonclinical fixture is deliberately left pending; approval/indexing is covered by backend tests.
+    await page.getByRole('link', { name: '⌕ 检索调试', exact: true }).click()
+    await page.getByRole('textbox', { name: '检索问题', exact: true }).fill('我胸口痛')
+    await page.getByRole('button', { name: '执行检索', exact: true }).click()
+    await page.locator('.admin-candidate-table').waitFor({ timeout: 60000 })
+    const mode = await page.locator('.admin-status-grid article').first().innerText()
+    assert.ok(mode.includes(expectedMode), `Unexpected live path: ${mode}`)
+    assert.ok(await page.getByRole('heading', { name: '最终保留片段' }).count())
+    if (expectedMode === 'HYBRID_QDRANT_RERANKED') assert.ok((await page.locator('.admin-segment').first().innerText()).includes('急性胸痛安全分流'))
+    else {
+      assert.ok((await page.locator('.admin-status-grid article').nth(2).innerText()).includes('Arrearage'))
+      assert.equal(await page.locator('.admin-segment').count(), 0)
+      assert.ok((await page.locator('.admin-candidate-table').innerText()).includes('必需服务不可用'))
+    }
+    await page.getByRole('link', { name: '◉ AI 运行观测', exact: true }).click()
+    await page.getByRole('heading', { name: '最近检索执行', exact: true }).waitFor()
+    await page.getByText(expectedMode, { exact: true }).first().waitFor()
+    await page.getByRole('button', { name: '刷新状态与记录', exact: true }).click()
+    await page.getByRole('button', { name: '刷新状态与记录', exact: true }).waitFor()
+    await page.route('**/api/admin/calls', route => route.fulfill({ status: 500, contentType: 'application/json', body: '{"message":"controlled-browser-error"}' }))
+    await page.getByRole('button', { name: '刷新状态与记录', exact: true }).click()
+    await page.getByRole('alert').filter({ hasText: 'controlled-browser-error' }).waitFor()
+    assert.ok((await page.locator('.admin-status-grid').innerText()).includes('配置已加载'))
+    await page.unroute('**/api/admin/calls')
+    await page.getByRole('button', { name: '刷新状态与记录', exact: true }).click()
+    await page.getByRole('button', { name: '刷新状态与记录', exact: true }).waitFor()
+    // Admin authorization is enforced by the backend, independently of the navigation.
+    const login = await context.request.post(`${base}/api/auth/login`, { data: { username: 'zhangsan', password: '123456' } })
+    const { token } = await login.json()
+    const denied = await context.request.get(`${base}/api/admin/knowledge/retrieval-events`, { headers: { Authorization: `Bearer ${token}` } })
+    assert.equal(denied.status(), 403)
+    assert.deepEqual(errors, [])
+    if (process.env.ADMIN_TEST_SCREENSHOT) await page.screenshot({ path: process.env.ADMIN_TEST_SCREENSHOT, fullPage: true })
+    console.log(JSON.stringify({ passed: true, expectedMode, checks: ['patient-to-admin-session', 'document-source-and-segments', 'pending-document-submission', 'file-upload', 'real-retrieval-status', 'runtime-events', 'partial-api-failure', 'patient-forbidden', 'no-page-errors'] }))
+  } finally { await browser.close() }
+})().catch(error => { console.error(error.message); process.exitCode = 1 })

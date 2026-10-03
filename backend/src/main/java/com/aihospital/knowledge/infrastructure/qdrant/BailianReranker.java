@@ -25,6 +25,7 @@ public class BailianReranker {
     @Value("${ai.rerank.timeout-seconds:12}") private int timeout = 12;
     public BailianReranker(ObjectMapper json) { this.json = json; }
     public boolean configured() { return !url.isBlank() && !key.isBlank() && !model.isBlank(); }
+    public String modelName() { return model; }
     public Result rank(String query, List<Evidence> candidates, int limit) {
         if (!configured()) return new Result(List.of(), "NOT_CONFIGURED");
         if (candidates.isEmpty()) return new Result(List.of(), "EMPTY");
@@ -36,7 +37,7 @@ public class BailianReranker {
                                     .map(e -> e.title() + "\n" + e.excerpt()).toList()),
                             "parameters", Map.of("top_n", candidates.size(), "return_documents", false))))).build();
             var response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) return new Result(List.of(), "HTTP_" + response.statusCode());
+            if (response.statusCode() / 100 != 2) return new Result(List.of(), failureStatus(response));
             var results = json.readTree(response.body()).path("output").path("results");
             if (!results.isArray() || results.size() != candidates.size()) return new Result(List.of(), "INVALID_RESPONSE");
             Set<Integer> seen = new HashSet<>();
@@ -58,5 +59,14 @@ public class BailianReranker {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt(); return new Result(List.of(), "INTERRUPTED");
         } catch (Exception ex) { return new Result(List.of(), "UNAVAILABLE"); }
+    }
+    private String failureStatus(HttpResponse<String> response) {
+        String status = "HTTP_" + response.statusCode();
+        try {
+            String code = json.readTree(response.body()).path("code").asText("");
+            // Display only a provider error identifier, never a raw body or echoed patient input.
+            if (code.matches("[A-Za-z0-9_.-]{1,80}")) status += ":" + code;
+        } catch (Exception ignored) { }
+        return status;
     }
 }

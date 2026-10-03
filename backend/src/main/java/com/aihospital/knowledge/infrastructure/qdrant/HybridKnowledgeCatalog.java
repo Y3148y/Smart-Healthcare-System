@@ -26,6 +26,29 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.retrieval.require-semantic:false}") private boolean requireSemantic;
     @Value("${ai.retrieval.require-rerank:false}") private boolean requireRerank;
     private volatile String lastMode = "NOT_QUERIED";
+    private final java.util.Deque<RetrievalEvent> events = new java.util.ArrayDeque<>();
+    public record RetrievalEvent(String id, java.time.Instant time, String mode, String semanticStatus,
+                                 String rerankStatus, int candidates, int selected, long elapsedMs) {}
+    @Override public synchronized List<RetrievalEvent> retrievalEvents() { return List.copyOf(events); }
+    private synchronized void recordEvent(Report report) {
+        events.addFirst(new RetrievalEvent(UUID.randomUUID().toString(), java.time.Instant.now(), report.mode(),
+                report.semanticStatus(), report.rerankStatus(), report.candidates().size(),
+                report.retrieval().evidence().size(), report.elapsedMs()));
+        while (events.size() > 100) events.removeLast();
+    }
+    @Override public DocumentDetail documentDetails(String id) {
+        var detail = local.documentDetails(id);
+        boolean approved = "READY".equals(detail.document().status());
+        int count = approved ? semantic.indexedCount(detail.segments()) : 0;
+        String state = !approved ? "NOT_APPROVED" : !semantic.configured() ? "NOT_CONFIGURED"
+                : count == detail.segments().size() ? "INDEXED_IN_PROCESS" : count == 0 ? "NOT_INDEXED" : "PARTIAL";
+        return new DocumentDetail(detail.document(), detail.source(), detail.segments(), state, count,
+                "索引计数是本进程成功写入记录，不是 Qdrant 实时探测；资料和审批状态仍为内存演示。");
+    }
+    @Override public Map<String, String> syncIndex() {
+        boolean success = semantic.ensureIndexed(local.approvedCorpus());
+        return Map.of("status", semantic.status(), "success", String.valueOf(success));
+    }
 
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic) {
         this(local, semantic, null);
@@ -51,6 +74,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         return Map.of("mode", lastMode, "embeddingConfigured", String.valueOf(semantic.configured()),
                 "semanticStatus", semantic.status(), "rerankConfigured", String.valueOf(reranker != null && reranker.configured()),
                 "requireSemantic", String.valueOf(requireSemantic), "requireRerank", String.valueOf(requireRerank),
+                "embeddingModel", semantic.modelName(), "rerankModel", reranker == null ? "" : reranker.modelName(),
                 "note", "mode is the last completed retrieval; it is not a live health probe");
     }
     public record FusionRecord(String title, String source, String excerpt, int lexicalRank, Double lexicalScore,
@@ -112,9 +136,11 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
                 : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k")).toList();
-        return new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()
+        var report = new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()
                 + "; selected=" + selected.size() + "; retrieval relevance does not prove answer support"), mode,
                 semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);
+        recordEvent(report);
+        return report;
     }
     private static final class Candidate {
         final Evidence evidence;

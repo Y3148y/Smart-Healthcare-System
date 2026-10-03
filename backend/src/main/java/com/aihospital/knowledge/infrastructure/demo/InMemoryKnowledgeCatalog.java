@@ -55,6 +55,15 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return chunks.values().stream().flatMap(List::stream)
                 .map(chunk -> new Evidence(chunk.title(), chunk.source(), chunk.text(), 1.0)).toList();
     }
+    @Override public synchronized DocumentDetail documentDetails(String id) {
+        KnowledgeDocument document = documents.get(id);
+        if (document == null) throw new IllegalArgumentException("知识资料不存在");
+        String source = sources.get(id);
+        var segments = chunk(id, document.title(), document.body(), source).stream()
+                .map(c -> new Evidence(c.title(), c.source(), c.text(), 0)).toList();
+        return new DocumentDetail(document, source, segments, "READY".equals(document.status())
+                ? "NOT_CHECKED" : "NOT_APPROVED", 0, "片段预览不等于已进入向量索引；待审核资料不参与患者检索。");
+    }
     @Override public KnowledgeDocument addDocument(String title, String body) { return add(title, body, "管理员录入/本地上传"); }
 
     @Override public synchronized KnowledgeDocument approveDocument(String id) {

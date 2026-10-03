@@ -7,6 +7,8 @@ import java.util.Map;
 
 public interface KnowledgeCatalog {
     record Retrieval(List<Evidence> evidence, boolean grounded, String message) {}
+    record DocumentDetail(KnowledgeDocument document, String source, List<Evidence> segments,
+                          String indexStatus, int indexedChunks, String indexNote) {}
     List<KnowledgeDocument> documents();
     KnowledgeDocument addDocument(String title, String body);
     KnowledgeDocument approveDocument(String id);
@@ -15,4 +17,7 @@ public interface KnowledgeCatalog {
     default String retrievalMode() { return "LOCAL_LEXICAL_VECTOR"; }
     default Map<String, String> runtimeDetails() { return Map.of("mode", retrievalMode()); }
     default Object retrievalDetails(String query) { return retrieve(query, 3, 0.28); }
+    default DocumentDetail documentDetails(String id) { throw new IllegalArgumentException("知识资料不存在"); }
+    default Map<String, String> syncIndex() { return Map.of("status", "UNSUPPORTED"); }
+    default List<?> retrievalEvents() { return List.of(); }
 }

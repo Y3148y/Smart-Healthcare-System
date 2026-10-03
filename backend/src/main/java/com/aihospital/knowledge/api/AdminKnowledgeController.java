@@ -27,6 +27,16 @@ public class AdminKnowledgeController {
     @GetMapping("/runtime") public Map<String,String> runtime(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.runtimeDetails();
     }
+    @GetMapping("/{id}/details") public KnowledgeCatalog.DocumentDetail details(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.documentDetails(id);
+    }
+    @PostMapping("/index/sync") public Map<String, String> sync(@RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.syncIndex();
+    }
+    @GetMapping("/retrieval-events") public List<?> events(@RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.retrievalEvents();
+    }
     @PostMapping public KnowledgeDocument add(@RequestBody Map<String, String> body,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");

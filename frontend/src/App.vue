@@ -17,6 +17,7 @@ const clearStored=()=>{try{localStorage.clear()}catch{}}
 const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), loginName=ref('zhangsan'), password=ref('123456'), role=ref(isDemoEntry?initialRole:(readStored('ai-hospital-role')||initialRole)), displayName=ref(isDemoEntry?(initialRole==='ADMIN'?'系统管理员':loginFromForm.toLowerCase()==='lisi'?'李四':'张三'):(readStored('ai-hospital-name')||(initialRole==='ADMIN'?'系统管理员':'张三')))
 const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), reviews=ref<HumanReview[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null), knowledgeRuntime=ref<any>(null)
 const bookingRunning=ref(false), toast=ref('')
+const adminReady=ref(false)
 const depts=['全部','消化内科','心血管内科','呼吸内科','骨科','神经内科','妇科']
 const isAdmin=computed(()=>role.value==='ADMIN')
 const nav=[['home','首页'],['triage','智能预问诊'],['booking','预约挂号'],['visits','我的就诊']]
@@ -41,7 +42,7 @@ function adminRoute(next:string) { return '?' + new URLSearchParams({demo:'admin
 onMounted(async()=>{
   if(isDemoEntry){if(!await establishDemoSession()){loggedIn.value=false;return}loggedIn.value=true}
   else if(!loggedIn.value)return
-  if(isAdmin.value){await loadAdmin();return}
+  if(isAdmin.value){await loadAdmin();adminReady.value=true;return}
   await loadPatient()
   const symptom=params.get('symptom')
   if(page.value==='triage' && symptom)history.replaceState({},'',patientRoute('triage'))
@@ -77,7 +78,7 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
       <BookingPage v-else-if="page==='booking'" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
       <VisitsPage v-else-if="page==='visits'" :visits="visits" :timeline="timeline" />
     </template>
-    <AdminPage v-else :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :reviews="reviews" :runtime="aiRuntime" :knowledge-runtime="knowledgeRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @approve-knowledge="approveKnowledge" @toggle-tool="toggleTool" @run-tool="runTool" @handle-review="handleReview" />
+    <AdminPage v-else :ready="adminReady" :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :reviews="reviews" :runtime="aiRuntime" :knowledge-runtime="knowledgeRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @approve-knowledge="approveKnowledge" @toggle-tool="toggleTool" @run-tool="runTool" @handle-review="handleReview" />
     <div v-if="toast" class="toast">{{ toast }}</div>
   </main>
 </template>
