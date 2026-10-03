@@ -1,0 +1,14 @@
+[
+  {"id":"held-chest","query":"胸前像被压着一样疼","relevant":["急性胸痛安全分流"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-nasal","query":"鼻子一直流水还堵得慌","relevant":["流鼻涕与鼻塞的普通预问诊说明"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-cough","query":"最近总是咳嗽，能咳出痰","relevant":["呼吸系统症状门诊分流"],"forbidden":["经期疼痛就医方向"]},
+  {"id":"held-dizzy","query":"感觉天旋地转而且恶心","relevant":["头晕、眩晕与恶心的导诊信息"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-injury","query":"摔倒后胳膊变形，怀疑骨折","relevant":["疑似四肢骨折的就医分流"],"forbidden":["经期疼痛就医方向"]},
+  {"id":"held-throat","query":"喉咙疼，吞口水也不舒服","relevant":["咽喉疼痛就医方向"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-period","query":"每次来月经小腹都疼","relevant":["经期疼痛就医方向"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-digestion","query":"老是胃里反酸，还拉肚子","relevant":["常见消化系统症状门诊分流"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"held-teeth","query":"智齿应该怎么拔","relevant":[],"forbidden":[]},
+  {"id":"held-insomnia","query":"失眠能不能吃安眠药","relevant":[],"forbidden":[]},
+  {"id":"held-noise","query":"急诊科旁边停车场怎么收费","relevant":[],"forbidden":[]},
+  {"id":"held-admin","query":"我想查询医院财务报销政策","relevant":[],"forbidden":[]}
+]

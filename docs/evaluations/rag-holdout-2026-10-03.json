@@ -1,0 +1,639 @@
+[ {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "胸前像被压着一样疼",
+  "id" : "held-chest",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "急性胸痛安全分流",
+        "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+        "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+        "score" : 0.19851712124966864
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=1; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "急性胸痛安全分流",
+      "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+      "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+      "lexicalRank" : 0,
+      "lexicalScore" : null,
+      "semanticRank" : 1,
+      "semanticScore" : 0.5869476,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.19851712124966864,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 2593
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "鼻子一直流水还堵得慌",
+  "id" : "held-nasal",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "流鼻涕与鼻塞的普通预问诊说明",
+        "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+        "excerpt" : "主题：流鼻涕、鼻塞、打喷嚏、鼻部症状、普通预问诊\n流鼻涕或鼻塞属于常见鼻部症状，可能出现在不同情况中；仅凭这一项症状不能判断具体原因。预问诊可以先了解持续时间、是否伴发热或其他不适，但一般健康问题不必等待完整分诊信息才能获得简短解释。休息和补充水分是常见的一般自我照护方式，本资料不提供药物、处方或诊断建议。",
+        "score" : 0.16919943065508944
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=2; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "流鼻涕与鼻塞的普通预问诊说明",
+      "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+      "excerpt" : "主题：流鼻涕、鼻塞、打喷嚏、鼻部症状、普通预问诊\n流鼻涕或鼻塞属于常见鼻部症状，可能出现在不同情况中；仅凭这一项症状不能判断具体原因。预问诊可以先了解持续时间、是否伴发热或其他不适，但一般健康问题不必等待完整分诊信息才能获得简短解释。休息和补充水分是常见的一般自我照护方式，本资料不提供药物、处方或诊断建议。",
+      "lexicalRank" : 0,
+      "lexicalScore" : null,
+      "semanticRank" : 1,
+      "semanticScore" : 0.6614718,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.16919943065508944,
+      "kept" : true,
+      "reason" : "selected"
+    }, {
+      "title" : "流鼻涕与鼻塞的普通预问诊说明",
+      "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+      "excerpt" : "如果症状持续不缓解、明显加重，或出现发热等伴随情况，宜向线下医疗人员咨询。若同时出现胸痛、严重呼吸困难、意识异常等危险信号，应立即寻求急诊帮助，不继续普通门诊推荐。",
+      "lexicalRank" : 0,
+      "lexicalScore" : null,
+      "semanticRank" : 2,
+      "semanticScore" : 0.6227665,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.14534052929521865,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    } ],
+    "elapsedMs" : 425
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "最近总是咳嗽，能咳出痰",
+  "id" : "held-cough",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "呼吸系统症状门诊分流",
+        "source" : "https://www.pumch.cn/department_huxnk.html | https://www.who.int/tools/covid-19-clinical-care-pathway",
+        "excerpt" : "主题：咳嗽,咳痰,喘息,胸闷,哮喘,呼吸内科,呼吸困难\n咳嗽、咳痰、喘息、反复胸闷等稳定的呼吸道症状，可优先咨询呼吸内科，由医生结合病程、既往史和必要检查进行评估。严重或快速加重的呼吸困难、口唇发紫、意识混乱、无法完整说话等属于紧急信号，不适用普通门诊推荐，应立即寻求急救。导诊建议仅帮助选择就诊入口，不构成疾病诊断。",
+        "score" : 0.19382711468027078
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=1; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "呼吸系统症状门诊分流",
+      "source" : "https://www.pumch.cn/department_huxnk.html | https://www.who.int/tools/covid-19-clinical-care-pathway",
+      "excerpt" : "主题：咳嗽,咳痰,喘息,胸闷,哮喘,呼吸内科,呼吸困难\n咳嗽、咳痰、喘息、反复胸闷等稳定的呼吸道症状，可优先咨询呼吸内科，由医生结合病程、既往史和必要检查进行评估。严重或快速加重的呼吸困难、口唇发紫、意识混乱、无法完整说话等属于紧急信号，不适用普通门诊推荐，应立即寻求急救。导诊建议仅帮助选择就诊入口，不构成疾病诊断。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 2.9752701960425734,
+      "semanticRank" : 1,
+      "semanticScore" : 0.55403304,
+      "fusedScore" : 0.03278688524590164,
+      "rerankScore" : 0.19382711468027078,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 401
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "感觉天旋地转而且恶心",
+  "id" : "held-dizzy",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "头晕、眩晕与恶心的导诊信息",
+        "source" : "https://www.pumch.cn/detail/13499.html | https://www.nhc.gov.cn/jkj/c100063/202109/fe3b5805d4a147c799701d641a57c75e.shtml",
+        "excerpt" : "主题：头晕,眩晕,恶心,呕吐,神经内科,耳鼻喉科,脑卒中\n头晕有不同表现，例如旋转感、站立不稳或快要晕倒；旋转性眩晕可伴恶心和呕吐。相关原因可能涉及神经科、耳鼻喉科、心内科等，单凭一句症状无法确诊。导诊应先询问开始时间、是否突然发生、持续时间、是否与转头或起身有关，以及是否出现行走不稳、单侧肢体无力、口角歪斜或说话不清。若出现突发神经功能异常、剧烈头痛、意识改变等，应立即急诊评估。没有明确危险信号但持续或反复发作时，可先由神经内科或全科进行初步评估。",
+        "score" : 0.28643449327119924
+      }, {
+        "title" : "常见消化系统症状门诊分流",
+        "source" : "https://www.pumch.cn/department_ims/doctor/detail/4192.html | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+        "excerpt" : "主题：腹痛,反酸,恶心,呕吐,腹泻,便秘,消化不良,消化内科,消化道出血\n反复反酸、消化不良、慢性或轻度腹痛、腹泻、便秘等稳定症状可优先咨询消化内科。持续呕吐伴脱水、中重度或迅速加重的腹痛、呕血或黑便、严重疼痛伴大汗、意识改变等情况需要更紧急的评估。对于胸痛同时出现恶心、呕吐和大汗者，不能简单归为消化问题，应优先排查高危胸痛。",
+        "score" : 0.17626905779777022
+      }, {
+        "title" : "急性胸痛安全分流",
+        "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+        "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+        "score" : 0.1527222903059098
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=3; selected=3; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "头晕、眩晕与恶心的导诊信息",
+      "source" : "https://www.pumch.cn/detail/13499.html | https://www.nhc.gov.cn/jkj/c100063/202109/fe3b5805d4a147c799701d641a57c75e.shtml",
+      "excerpt" : "主题：头晕,眩晕,恶心,呕吐,神经内科,耳鼻喉科,脑卒中\n头晕有不同表现，例如旋转感、站立不稳或快要晕倒；旋转性眩晕可伴恶心和呕吐。相关原因可能涉及神经科、耳鼻喉科、心内科等，单凭一句症状无法确诊。导诊应先询问开始时间、是否突然发生、持续时间、是否与转头或起身有关，以及是否出现行走不稳、单侧肢体无力、口角歪斜或说话不清。若出现突发神经功能异常、剧烈头痛、意识改变等，应立即急诊评估。没有明确危险信号但持续或反复发作时，可先由神经内科或全科进行初步评估。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 1.8712434943502825,
+      "semanticRank" : 1,
+      "semanticScore" : 0.71752584,
+      "fusedScore" : 0.03278688524590164,
+      "rerankScore" : 0.28643449327119924,
+      "kept" : true,
+      "reason" : "selected"
+    }, {
+      "title" : "常见消化系统症状门诊分流",
+      "source" : "https://www.pumch.cn/department_ims/doctor/detail/4192.html | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+      "excerpt" : "主题：腹痛,反酸,恶心,呕吐,腹泻,便秘,消化不良,消化内科,消化道出血\n反复反酸、消化不良、慢性或轻度腹痛、腹泻、便秘等稳定症状可优先咨询消化内科。持续呕吐伴脱水、中重度或迅速加重的腹痛、呕血或黑便、严重疼痛伴大汗、意识改变等情况需要更紧急的评估。对于胸痛同时出现恶心、呕吐和大汗者，不能简单归为消化问题，应优先排查高危胸痛。",
+      "lexicalRank" : 2,
+      "lexicalScore" : 1.7874298078157376,
+      "semanticRank" : 2,
+      "semanticScore" : 0.45293757,
+      "fusedScore" : 0.03225806451612903,
+      "rerankScore" : 0.17626905779777022,
+      "kept" : true,
+      "reason" : "selected"
+    }, {
+      "title" : "急性胸痛安全分流",
+      "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+      "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+      "lexicalRank" : 3,
+      "lexicalScore" : 1.3358209522952675,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015873015873015872,
+      "rerankScore" : 0.1527222903059098,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 329
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "摔倒后胳膊变形，怀疑骨折",
+  "id" : "held-injury",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "疑似四肢骨折的就医分流",
+        "source" : "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+        "excerpt" : "主题：骨折、摔断、外伤、骨科、急诊\n摔伤后如果怀疑手臂或手腕骨折，应尽快接受线下医疗评估；仅凭描述不能确认骨折，通常需要检查。若骨头穿出皮肤、伤口大量出血、肢体明显变形，或受伤肢体麻木，应立即寻求急诊帮助。普通模拟预约不能替代及时就医。",
+        "score" : 0.48446984694791856
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=1; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "疑似四肢骨折的就医分流",
+      "source" : "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+      "excerpt" : "主题：骨折、摔断、外伤、骨科、急诊\n摔伤后如果怀疑手臂或手腕骨折，应尽快接受线下医疗评估；仅凭描述不能确认骨折，通常需要检查。若骨头穿出皮肤、伤口大量出血、肢体明显变形，或受伤肢体麻木，应立即寻求急诊帮助。普通模拟预约不能替代及时就医。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 8.517869041700019,
+      "semanticRank" : 1,
+      "semanticScore" : 0.74797523,
+      "fusedScore" : 0.03278688524590164,
+      "rerankScore" : 0.48446984694791856,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 360
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "喉咙疼，吞口水也不舒服",
+  "id" : "held-throat",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "咽喉疼痛就医方向",
+        "source" : "https://www.nhs.uk/symptoms/sore-throat/",
+        "excerpt" : "主题：嗓子疼、喉咙痛、咽痛、呼吸内科\n嗓子疼或咽痛可先通过全科、呼吸相关门诊等入口咨询，具体科室以当地医院设置为准。若出现呼吸困难、无法吞咽、流涎或症状迅速加重，应立即寻求急诊帮助。系统不根据咽痛自行判断病因。",
+        "score" : 0.3349457618617385
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=4; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "咽喉疼痛就医方向",
+      "source" : "https://www.nhs.uk/symptoms/sore-throat/",
+      "excerpt" : "主题：嗓子疼、喉咙痛、咽痛、呼吸内科\n嗓子疼或咽痛可先通过全科、呼吸相关门诊等入口咨询，具体科室以当地医院设置为准。若出现呼吸困难、无法吞咽、流涎或症状迅速加重，应立即寻求急诊帮助。系统不根据咽痛自行判断病因。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 2.4466988750687304,
+      "semanticRank" : 1,
+      "semanticScore" : 0.66207355,
+      "fusedScore" : 0.03278688524590164,
+      "rerankScore" : 0.3349457618617385,
+      "kept" : true,
+      "reason" : "selected"
+    }, {
+      "title" : "急性胸痛安全分流",
+      "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+      "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+      "lexicalRank" : 2,
+      "lexicalScore" : 1.678353588911311,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.09946304509847881,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "流鼻涕与鼻塞的普通预问诊说明",
+      "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+      "excerpt" : "主题：流鼻涕、鼻塞、打喷嚏、鼻部症状、普通预问诊\n流鼻涕或鼻塞属于常见鼻部症状，可能出现在不同情况中；仅凭这一项症状不能判断具体原因。预问诊可以先了解持续时间、是否伴发热或其他不适，但一般健康问题不必等待完整分诊信息才能获得简短解释。休息和补充水分是常见的一般自我照护方式，本资料不提供药物、处方或诊断建议。",
+      "lexicalRank" : 0,
+      "lexicalScore" : null,
+      "semanticRank" : 2,
+      "semanticScore" : 0.45414352,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.1396052522502804,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "脑卒中早期识别与转运",
+      "source" : "https://www.ndcpa.gov.cn/jbkzzx/c100009/common/content/content_1838095804822040576.html",
+      "excerpt" : "主题：脑卒中,中风,面瘫,口角歪斜,肢体无力,言语障碍,意识障碍,急诊\n可用“中风120”辅助识别疑似脑卒中：观察面部是否不对称，检查双侧手臂或腿部是否出现一侧无力，并留意是否听不懂或说不清。出现突发面部歪斜、单侧肢体无力、言语理解或表达异常时，应立即拨打120并尽快转运至具备卒中救治能力的医院，不能等待普通门诊预约，也不要自行喂药。",
+      "lexicalRank" : 3,
+      "lexicalScore" : 1.5719912027450353,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015873015873015872,
+      "rerankScore" : 0.005949579483329656,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    } ],
+    "elapsedMs" : 394
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "每次来月经小腹都疼",
+  "id" : "held-period",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "经期疼痛就医方向",
+        "source" : "https://www.nhs.uk/symptoms/period-pain/",
+        "excerpt" : "主题：痛经、经期腹痛、妇科\n经期疼痛可向全科或妇科咨询。若疼痛比平时明显加重、影响日常活动，或伴有周期与出血情况变化，应及时接受线下评估。患者自述的痛经不等于已经确定具体疾病，线上系统不提供诊断。",
+        "score" : 0.24273721692748151
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=1; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "经期疼痛就医方向",
+      "source" : "https://www.nhs.uk/symptoms/period-pain/",
+      "excerpt" : "主题：痛经、经期腹痛、妇科\n经期疼痛可向全科或妇科咨询。若疼痛比平时明显加重、影响日常活动，或伴有周期与出血情况变化，应及时接受线下评估。患者自述的痛经不等于已经确定具体疾病，线上系统不提供诊断。",
+      "lexicalRank" : 0,
+      "lexicalScore" : null,
+      "semanticRank" : 1,
+      "semanticScore" : 0.64484227,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.24273721692748151,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 442
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 1.0,
+  "recallAt3" : 1.0,
+  "query" : "老是胃里反酸，还拉肚子",
+  "id" : "held-digestion",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ {
+        "title" : "常见消化系统症状门诊分流",
+        "source" : "https://www.pumch.cn/department_ims/doctor/detail/4192.html | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+        "excerpt" : "主题：腹痛,反酸,恶心,呕吐,腹泻,便秘,消化不良,消化内科,消化道出血\n反复反酸、消化不良、慢性或轻度腹痛、腹泻、便秘等稳定症状可优先咨询消化内科。持续呕吐伴脱水、中重度或迅速加重的腹痛、呕血或黑便、严重疼痛伴大汗、意识改变等情况需要更紧急的评估。对于胸痛同时出现恶心、呕吐和大汗者，不能简单归为消化问题，应优先排查高危胸痛。",
+        "score" : 0.23202452428699857
+      } ],
+      "grounded" : true,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=1; selected=1; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "常见消化系统症状门诊分流",
+      "source" : "https://www.pumch.cn/department_ims/doctor/detail/4192.html | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+      "excerpt" : "主题：腹痛,反酸,恶心,呕吐,腹泻,便秘,消化不良,消化内科,消化道出血\n反复反酸、消化不良、慢性或轻度腹痛、腹泻、便秘等稳定症状可优先咨询消化内科。持续呕吐伴脱水、中重度或迅速加重的腹痛、呕血或黑便、严重疼痛伴大汗、意识改变等情况需要更紧急的评估。对于胸痛同时出现恶心、呕吐和大汗者，不能简单归为消化问题，应优先排查高危胸痛。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 2.9415992646013716,
+      "semanticRank" : 1,
+      "semanticScore" : 0.6056231,
+      "fusedScore" : 0.03278688524590164,
+      "rerankScore" : 0.23202452428699857,
+      "kept" : true,
+      "reason" : "selected"
+    } ],
+    "elapsedMs" : 395
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 0.0,
+  "recallAt3" : 0.0,
+  "query" : "智齿应该怎么拔",
+  "id" : "held-teeth",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ ],
+      "grounded" : false,
+      "message" : "HYBRID_QDRANT_NO_CANDIDATES; candidates=0; selected=0; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_NO_CANDIDATES",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "EMPTY",
+    "candidates" : [ ],
+    "elapsedMs" : 390
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 0.0,
+  "recallAt3" : 0.0,
+  "query" : "失眠能不能吃安眠药",
+  "id" : "held-insomnia",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ ],
+      "grounded" : false,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=6; selected=0; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "疑似四肢骨折的就医分流",
+      "source" : "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+      "excerpt" : "主题：骨折、摔断、外伤、骨科、急诊\n摔伤后如果怀疑手臂或手腕骨折，应尽快接受线下医疗评估；仅凭描述不能确认骨折，通常需要检查。若骨头穿出皮肤、伤口大量出血、肢体明显变形，或受伤肢体麻木，应立即寻求急诊帮助。普通模拟预约不能替代及时就医。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 1.0129713521215056,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.0060415735814895455,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "急性胸痛安全分流",
+      "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+      "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+      "lexicalRank" : 2,
+      "lexicalScore" : 0.7056318634320464,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.005926796691036981,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "常见消化系统症状门诊分流",
+      "source" : "https://www.pumch.cn/department_ims/doctor/detail/4192.html | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+      "excerpt" : "主题：腹痛,反酸,恶心,呕吐,腹泻,便秘,消化不良,消化内科,消化道出血\n反复反酸、消化不良、慢性或轻度腹痛、腹泻、便秘等稳定症状可优先咨询消化内科。持续呕吐伴脱水、中重度或迅速加重的腹痛、呕血或黑便、严重疼痛伴大汗、意识改变等情况需要更紧急的评估。对于胸痛同时出现恶心、呕吐和大汗者，不能简单归为消化问题，应优先排查高危胸痛。",
+      "lexicalRank" : 3,
+      "lexicalScore" : 0.6837842757617444,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015873015873015872,
+      "rerankScore" : 0.006029998401664387,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "基础急救评估原则",
+      "source" : "https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured",
+      "excerpt" : "主题：ABCDE,气道,呼吸,循环,意识改变,创伤,急诊\n对急性患病或受伤者应按气道、呼吸、循环、神经功能和全身暴露的顺序快速识别时间敏感问题。线上导诊不能替代现场生命体征监测和医务人员评估；一旦描述提示气道受阻、严重呼吸问题、休克、意识改变或重大创伤，应优先触发紧急就医提示，并在转运交接时保留症状、发生时间和变化过程。",
+      "lexicalRank" : 4,
+      "lexicalScore" : 0.6837842757617444,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015625,
+      "rerankScore" : 0.006006913310615648,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "脑卒中早期识别与转运",
+      "source" : "https://www.ndcpa.gov.cn/jbkzzx/c100009/common/content/content_1838095804822040576.html",
+      "excerpt" : "主题：脑卒中,中风,面瘫,口角歪斜,肢体无力,言语障碍,意识障碍,急诊\n可用“中风120”辅助识别疑似脑卒中：观察面部是否不对称，检查双侧手臂或腿部是否出现一侧无力，并留意是否听不懂或说不清。出现突发面部歪斜、单侧肢体无力、言语理解或表达异常时，应立即拨打120并尽快转运至具备卒中救治能力的医院，不能等待普通门诊预约，也不要自行喂药。",
+      "lexicalRank" : 5,
+      "lexicalScore" : 0.6609138199604845,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015384615384615385,
+      "rerankScore" : 0.006029998401664387,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "流鼻涕与鼻塞的普通预问诊说明",
+      "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+      "excerpt" : "主题：流鼻涕、鼻塞、打喷嚏、鼻部症状、普通预问诊\n流鼻涕或鼻塞属于常见鼻部症状，可能出现在不同情况中；仅凭这一项症状不能判断具体原因。预问诊可以先了解持续时间、是否伴发热或其他不适，但一般健康问题不必等待完整分诊信息才能获得简短解释。休息和补充水分是常见的一般自我照护方式，本资料不提供药物、处方或诊断建议。",
+      "lexicalRank" : 6,
+      "lexicalScore" : 0.6494806068843312,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015151515151515152,
+      "rerankScore" : 0.00597244825582377,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    } ],
+    "elapsedMs" : 382
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 0.0,
+  "recallAt3" : 0.0,
+  "query" : "急诊科旁边停车场怎么收费",
+  "id" : "held-noise",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ ],
+      "grounded" : false,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=8; selected=0; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "急诊预检分诊与红旗症状",
+      "source" : "https://www.who.int/tools/triage | https://wjw.beijing.gov.cn/zwgk_20040/ylws/201912/t20191216_1242338.html",
+      "excerpt" : "主题：急诊,红旗症状,严重呼吸困难,意识障碍,休克,高危胸痛\n急诊预检应优先判断病情紧急程度，而不是在线给出疾病诊断。严重呼吸困难、无法保护气道、循环灌注异常、昏睡或意识障碍、疑似急性脑卒中、类似心源性的胸痛、严重疼痛伴大汗等情况需要立即或优先救治。线上导诊发现这些信号时，应停止普通门诊号源推荐，提示拨打当地急救电话或立即前往急诊。症状轻微且生命体征稳定者才适合继续普通门诊科室匹配。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 2.546344492290767,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.11356817100899605,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "疑似四肢骨折的就医分流",
+      "source" : "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+      "excerpt" : "主题：骨折、摔断、外伤、骨科、急诊\n摔伤后如果怀疑手臂或手腕骨折，应尽快接受线下医疗评估；仅凭描述不能确认骨折，通常需要检查。若骨头穿出皮肤、伤口大量出血、肢体明显变形，或受伤肢体麻木，应立即寻求急诊帮助。普通模拟预约不能替代及时就医。",
+      "lexicalRank" : 2,
+      "lexicalScore" : 0.6209280158032434,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.13699755403274544,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "急性胸痛安全分流",
+      "source" : "https://www.nhc.gov.cn/xcs/c100122/202411/81a60171b43d43ff98cc6110d65a4136.shtml | https://www.who.int/news-room/fact-sheets/detail/heart-attack",
+      "excerpt" : "主题：胸痛,胸闷,大汗,冷汗,呼吸困难,心肌梗死,急诊\n胸痛原因很多，导诊系统不能仅凭描述诊断。初发或剧烈胸痛、压迫或紧缩感、活动后加重，尤其伴大汗、冷汗、呼吸困难、恶心呕吐、头晕或疼痛向肩背下颌放射时，应按高危信号处理并尽快呼叫急救。系统不应建议患者自行服药来替代急诊评估，也不应继续推荐普通门诊号源。",
+      "lexicalRank" : 3,
+      "lexicalScore" : 0.591408208644073,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015873015873015872,
+      "rerankScore" : 0.12348437177840194,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "流鼻涕与鼻塞的普通预问诊说明",
+      "source" : "https://www.nhs.uk/conditions/common-cold/ | https://medlineplus.gov/ency/article/003049.htm",
+      "excerpt" : "如果症状持续不缓解、明显加重，或出现发热等伴随情况，宜向线下医疗人员咨询。若同时出现胸痛、严重呼吸困难、意识异常等危险信号，应立即寻求急诊帮助，不继续普通门诊推荐。",
+      "lexicalRank" : 4,
+      "lexicalScore" : 0.49591606138550504,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015625,
+      "rerankScore" : 0.005836519116524904,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "咽喉疼痛就医方向",
+      "source" : "https://www.nhs.uk/symptoms/sore-throat/",
+      "excerpt" : "主题：嗓子疼、喉咙痛、咽痛、呼吸内科\n嗓子疼或咽痛可先通过全科、呼吸相关门诊等入口咨询，具体科室以当地医院设置为准。若出现呼吸困难、无法吞咽、流涎或症状迅速加重，应立即寻求急诊帮助。系统不根据咽痛自行判断病因。",
+      "lexicalRank" : 5,
+      "lexicalScore" : 0.48139329241308765,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015384615384615385,
+      "rerankScore" : 0.008141030018035735,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "基础急救评估原则",
+      "source" : "https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured",
+      "excerpt" : "主题：ABCDE,气道,呼吸,循环,意识改变,创伤,急诊\n对急性患病或受伤者应按气道、呼吸、循环、神经功能和全身暴露的顺序快速识别时间敏感问题。线上导诊不能替代现场生命体征监测和医务人员评估；一旦描述提示气道受阻、严重呼吸问题、休克、意识改变或重大创伤，应优先触发紧急就医提示，并在转运交接时保留症状、发生时间和变化过程。",
+      "lexicalRank" : 6,
+      "lexicalScore" : 0.41914394982343933,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.015151515151515152,
+      "rerankScore" : 0.11903966303584461,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "脑卒中早期识别与转运",
+      "source" : "https://www.ndcpa.gov.cn/jbkzzx/c100009/common/content/content_1838095804822040576.html",
+      "excerpt" : "主题：脑卒中,中风,面瘫,口角歪斜,肢体无力,言语障碍,意识障碍,急诊\n可用“中风120”辅助识别疑似脑卒中：观察面部是否不对称，检查双侧手臂或腿部是否出现一侧无力，并留意是否听不懂或说不清。出现突发面部歪斜、单侧肢体无力、言语理解或表达异常时，应立即拨打120并尽快转运至具备卒中救治能力的医院，不能等待普通门诊预约，也不要自行喂药。",
+      "lexicalRank" : 7,
+      "lexicalScore" : 0.405124889253315,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.014925373134328358,
+      "rerankScore" : 0.08468200919868307,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "头晕、眩晕与恶心的导诊信息",
+      "source" : "https://www.pumch.cn/detail/13499.html | https://www.nhc.gov.cn/jkj/c100063/202109/fe3b5805d4a147c799701d641a57c75e.shtml",
+      "excerpt" : "主题：头晕,眩晕,恶心,呕吐,神经内科,耳鼻喉科,脑卒中\n头晕有不同表现，例如旋转感、站立不稳或快要晕倒；旋转性眩晕可伴恶心和呕吐。相关原因可能涉及神经科、耳鼻喉科、心内科等，单凭一句症状无法确诊。导诊应先询问开始时间、是否突然发生、持续时间、是否与转头或起身有关，以及是否出现行走不稳、单侧肢体无力、口角歪斜或说话不清。若出现突发神经功能异常、剧烈头痛、意识改变等，应立即急诊评估。没有明确危险信号但持续或反复发作时，可先由神经内科或全科进行初步评估。",
+      "lexicalRank" : 8,
+      "lexicalScore" : 0.3556632812068762,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.014705882352941176,
+      "rerankScore" : 0.005881487803521509,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    } ],
+    "elapsedMs" : 405
+  },
+  "forbiddenHit" : false
+}, {
+  "unanswerableFalsePositive" : false,
+  "reciprocalRank" : 0.0,
+  "recallAt3" : 0.0,
+  "query" : "我想查询医院财务报销政策",
+  "id" : "held-admin",
+  "report" : {
+    "retrieval" : {
+      "evidence" : [ ],
+      "grounded" : false,
+      "message" : "HYBRID_QDRANT_RERANKED; candidates=2; selected=0; retrieval relevance does not prove answer support"
+    },
+    "mode" : "HYBRID_QDRANT_RERANKED",
+    "semanticStatus" : "READY",
+    "rerankStatus" : "OK",
+    "candidates" : [ {
+      "title" : "咽喉疼痛就医方向",
+      "source" : "https://www.nhs.uk/symptoms/sore-throat/",
+      "excerpt" : "主题：嗓子疼、喉咙痛、咽痛、呼吸内科\n嗓子疼或咽痛可先通过全科、呼吸相关门诊等入口咨询，具体科室以当地医院设置为准。若出现呼吸困难、无法吞咽、流涎或症状迅速加重，应立即寻求急诊帮助。系统不根据咽痛自行判断病因。",
+      "lexicalRank" : 1,
+      "lexicalScore" : 1.8679326815209982,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.01639344262295082,
+      "rerankScore" : 0.005836519116524904,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    }, {
+      "title" : "脑卒中早期识别与转运",
+      "source" : "https://www.ndcpa.gov.cn/jbkzzx/c100009/common/content/content_1838095804822040576.html",
+      "excerpt" : "主题：脑卒中,中风,面瘫,口角歪斜,肢体无力,言语障碍,意识障碍,急诊\n可用“中风120”辅助识别疑似脑卒中：观察面部是否不对称，检查双侧手臂或腿部是否出现一侧无力，并留意是否听不懂或说不清。出现突发面部歪斜、单侧肢体无力、言语理解或表达异常时，应立即拨打120并尽快转运至具备卒中救治能力的医院，不能等待普通门诊预约，也不要自行喂药。",
+      "lexicalRank" : 2,
+      "lexicalScore" : 1.5719912027450353,
+      "semanticRank" : 0,
+      "semanticScore" : null,
+      "fusedScore" : 0.016129032258064516,
+      "rerankScore" : 0.005904099567803819,
+      "kept" : false,
+      "reason" : "below_rerank_threshold"
+    } ],
+    "elapsedMs" : 421
+  },
+  "forbiddenHit" : false
+} ]

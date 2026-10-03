@@ -45,7 +45,7 @@ HTTP 请求 → api → application → domain 接口
 
 1. **规则管结构**：`TriageSafetyPolicy.assess` 给出风险和命中规则；`RuleBasedTriageEngine.triage` 决定结构化科室、医生和风险，模型只生成文字。`TriageConversationService.send` 在追问或分诊前检查危险信号。
 2. **grounded / EVIDENCE_BLOCKED**：`RuleBasedTriageEngine.clarificationPrompt/triage` 在检索无依据时不调用模型，改用拒答与人工导诊提示；`OptionalNarrationModel.guide/explain` 对空证据再次拒绝。
-3. **检索阈值**：`HospitalToolExecutor.execute` 使用 `ai.retrieval.min-score`；`HybridKnowledgeCatalog.retrieve` 使用 `ai.retrieval.semantic-min-score`。配置位于 `application.yml`。阈值不能验证模型每句话的真实性。
+3. **检索阈值**：`HospitalToolExecutor.execute` 传入 `ai.retrieval.min-score` 作为 BM25 门槛；`HybridKnowledgeCatalog.inspect` 使用 `ai.retrieval.semantic-min-score` 筛选 Qdrant 候选，再以单一 RRF 融合排名；`BailianReranker.rank` 使用 `ai.rerank.min-score` 筛选最终片段。配置位于 `application.yml` 与 `application-rag-live.yml`。各分数不可互换，也不能验证模型每句话的真实性。`rag-live` 下依赖失败会阻断证据返回，不伪装成成功的完整检索。
 4. **UNSAFE_OUTPUT**：`OptionalNarrationModel.validate` 以 `UNSAFE_OUTPUT` 正则拦截部分确定性诊断与用药表达，不是完整医学安全分类器。
 5. **药品句过滤**：`OptionalNarrationModel.removeMedicationDirections` 移除涉及处方、用药或剂量的句子；过滤后仍可能有遗漏。
 6. **SAFETY_RULE 不可覆盖**：`RuleBasedTriageEngine.triage` 对紧急情况直接生成 `SAFETY_RULE` 回答，不调用 LLM；`SimulationBookingService.book` 再次阻止普通预约。

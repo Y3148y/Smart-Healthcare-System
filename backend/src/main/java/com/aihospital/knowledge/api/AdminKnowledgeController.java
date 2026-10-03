@@ -25,7 +25,7 @@ public class AdminKnowledgeController {
         guard.require(auth, "ADMIN"); return knowledge.documents();
     }
     @GetMapping("/runtime") public Map<String,String> runtime(@RequestHeader(value = "Authorization", required = false) String auth) {
-        guard.require(auth, "ADMIN"); return Map.of("mode", knowledge.retrievalMode());
+        guard.require(auth, "ADMIN"); return knowledge.runtimeDetails();
     }
     @PostMapping public KnowledgeDocument add(@RequestBody Map<String, String> body,
             @RequestHeader(value = "Authorization", required = false) String auth) {
@@ -55,6 +55,11 @@ public class AdminKnowledgeController {
     @GetMapping("/search") public List<Evidence> search(@RequestParam(defaultValue = "") String q,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.search(q);
+    }
+    @GetMapping("/search/details") public Object searchDetails(@RequestParam(defaultValue = "") String q,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN");
+        return knowledge.retrievalDetails(q);
     }
     @PostMapping("/{id}/approve") public KnowledgeDocument approve(@PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String auth) {

@@ -25,6 +25,16 @@ ai:
   retrieval:
     min-score: ${AI_RETRIEVAL_MIN_SCORE:0.28}
     semantic-min-score: ${AI_SEMANTIC_MIN_SCORE:0.45}
+    candidate-limit: ${AI_RETRIEVAL_CANDIDATE_LIMIT:20}
+    rrf-k: ${AI_RETRIEVAL_RRF_K:60}
+    require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:false}
+    require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:false}
+  rerank:
+    url: ${AI_RERANK_URL:}
+    api-key: ${AI_RERANK_API_KEY:${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}}
+    model: ${AI_RERANK_MODEL:}
+    min-score: ${AI_RERANK_MIN_SCORE:0.5}
+    timeout-seconds: ${AI_RERANK_TIMEOUT_SECONDS:12}
   mode: ${AI_MODE:demo} # demo | openai-compatible
   demo-auth-enabled: ${AI_DEMO_AUTH_ENABLED:true}
   base-url: ${AI_BASE_URL:}
@@ -33,6 +43,7 @@ ai:
   timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
   max-tokens: ${AI_MAX_TOKENS:4096}
   embedding-model: ${AI_EMBEDDING_MODEL:}
+  embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:10}
   embedding-api-key: ${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}
   embedding-base-url: ${AI_EMBEDDING_BASE_URL:${AI_BASE_URL:}}
   qdrant-url: ${AI_QDRANT_URL:http://127.0.0.1:6333}

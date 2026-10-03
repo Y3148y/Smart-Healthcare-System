@@ -141,7 +141,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
         HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve",
-                java.util.Map.of("query", safety.removeNegatedRedFlags(text) + " " + departments));
+                java.util.Map.of("query", safety.removeNegatedRedFlags(text)));
         Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
@@ -189,12 +189,14 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         .toList();
             }
         }
-        String retrievalQuery = safety.removeNegatedRedFlags(text) + " " + department + (emergency ? " 急诊 红旗症状" : "");
-        HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
-        Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
+        String retrievalQuery = safety.removeNegatedRedFlags(text);
+        HospitalToolExecutor.Execution retrievalExecution = emergency ? null
+                : toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
+        Retrieval retrieval = emergency ? new Retrieval(List.of(), false, "安全规则直接接管，未检索医学资料")
+                : retrievalExecution.data() instanceof Retrieval found
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
-        trace.add(retrievalExecution.trace());
+        if (retrievalExecution != null) trace.add(retrievalExecution.trace());
         if (!emergency) {
             HospitalToolExecutor.Execution departmentExecution = toolExecutor.execute("department_search", java.util.Map.of("department", department));
             trace.add(departmentExecution.trace());

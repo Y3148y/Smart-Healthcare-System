@@ -11,7 +11,9 @@
 | `triage/**` 的安全规则、`backend/src/main/resources/safety-rules.json` | GPT（`caf8d69` 交接；其他 triage 任务仍需单独交接） |
 | `booking/**`、`catalog/**`、`observation/**` | opencode（主会话，本文件维护者） |
 | 安全规则相关 `*Test.java` | GPT（`caf8d69` 交接）；其他测试仍归 opencode |
-| `frontend/src/features/triage/**` | opencode（主会话） |
+| `frontend/src/features/triage/**` | GPT（仅本轮患者端提示压缩，用户直接指派；其他前端任务仍归 opencode） |
+| `frontend/src/style.css` 的分诊样式 | GPT（仅本轮页面遮挡修复；用户直接指派） |
+| `knowledge/**`、RAG 检索测试/配置及分诊中的检索 query 构建 | GPT（2026-10-02 用户确认完全接手；以 opencode 的 6b28485 为基线，RAG 共享文件统一单写；不修改 tools/knowledge-sync 与其文档） |
 | `docs/HANDOVER_TRIAGE_SAFETY_2026-10-02.md`、`docs/KNOWN_ISSUES_PRECLINICAL.md`、`docs/D4_*.md` | opencode（主会话） |
 | `tools/knowledge-sync/**`、`docs/KNOWLEDGE_SOURCES.md`、`docs/KNOWLEDGE_PIPELINE.md`、`docs/BUSINESS_KNOWLEDGE_INVENTORY.md`、`.gitignore` 的 knowledge-sync 三行 | 另一个 opencode 实例 |
 | Q1–Q6 裁定、临床措辞与出处裁定 | GPT（规则代码写入权按上述交接范围） |
@@ -37,7 +39,9 @@
 | 第三人 / 既往 / 跨轮事件隔离 | 待 GPT 裁定 | 需按主体与时间归属改造，属 Stage 2 |
 | 孕产否定形式覆盖不全（`并非可能怀孕`） | 待 GPT 裁定 | `(?<!不)` 只覆盖紧邻的「不」 |
 | A2 辅助模式入数据与红点漏检 | GPT | 已提交 `8649a6b`；P7，隔离构建 90/90 绿，待独立复核 |
-| 无皮疹食物相关气道组合 | GPT | 已实施于工作树；P8，隔离构建 93/93 绿，待独立复核 |
+| 无皮疹食物相关气道组合 | GPT | 已提交 `5b1572d`；P8，隔离构建 93/93 绿，待独立复核 |
+| 胸部疼痛漏警、页面常驻提示压缩 | GPT | 本轮未提交，独立复核待完成；擅加的鼻部→全科映射、评分调整和知识文案已按用户纠正撤回，科室能力缺失不得靠新增症状硬编码补齐 |
+| RAG 重设计：BM25 + embedding/Qdrant + 融合重排 + 评测 | GPT | 2026-10-03 真实百炼/Qdrant/rerank 与 8092 问诊接口已验证；离线 105 通过、1 外部用例跳过，前端构建通过。精度、LLM 未报告≠已否认措辞、患者端切换和独立复核仍未完成；详见 RAG_REDESIGN_2026-10-02.md |
 | `RuleBasedTriageEngine:77`「第二十一条」条号 | opencode | 待降级为只引文件号+文意 |
 
 ### 已终止的待裁定项

@@ -31,9 +31,11 @@ npm run dev -- --host 127.0.0.1 --port 5188
 - `POST /api/triage/sessions/{id}/human-review`、`GET/PATCH /api/admin/human-reviews`：提交、查看与处理人工导诊申请队列。
 - `/api/admin/*`：知识库、工具中心和 AI 调用观测。
 
-`docker compose up -d` 可启动 MySQL 与 Qdrant；当前默认不依赖它们。Qdrant 向量检索链路已于 2026-09-30 本机实测联调（含停服降级与恢复），MySQL 此阶段尚未在本机实例上完成联调（配置位于 `backend/src/main/resources/application-mysql.yml`）。可通过 `AI_MODE=openai-compatible`、`AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` 启用兼容模型；`AI_MAX_TOKENS` 可调整单次输出预算（默认 4096，非实际消耗量）。密钥只应放在进程环境变量中。配置 `AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY`、`AI_EMBEDDING_BASE_URL` 和 `AI_QDRANT_URL` 后可启用 Qdrant 向量检索；未配置时使用本地医学词和字符向量检索。当前工具仍连接演示医院数据，不代表真实 HIS 接入或完整 MCP Agent 编排。
+`docker compose up -d` 可启动 MySQL 与 Qdrant；默认离线配置不依赖它们。MySQL 此阶段尚未在本机实例上完成联调（配置位于 `backend/src/main/resources/application-mysql.yml`）。可通过 `AI_MODE=openai-compatible`、`AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` 启用兼容模型；`AI_MAX_TOKENS` 可调整单次输出预算（默认 4096，非实际消耗量）。密钥只允许通过进程环境变量注入。当前工具仍连接演示医院数据，不代表真实 HIS 接入或完整 MCP Agent 编排。
 
-模型回答会携带最近最多 5 个用户轮次的会话消息（历史合计不超过 4000 字符）；演示模式不调用外部模型。检索阈值可用 `AI_RETRIEVAL_MIN_SCORE`（默认 0.28）与 `AI_SEMANTIC_MIN_SCORE`（默认 0.45）调整。新上传知识需要管理员批准才会参与检索；批准后尝试增量更新 Qdrant，外部索引失败则回退本地检索。资料及审批状态目前只保存在内存，服务重启会丢失。
+当前默认检索为通用字符 n-gram BM25，不靠逐症状扩充词表；完整路径为 **BM25 + 百炼 embedding/Qdrant → 单一 RRF 融合 → 百炼 rerank → 引用片段**。配置 `AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY`、`AI_EMBEDDING_BASE_URL`、`AI_QDRANT_URL` 及 `AI_RERANK_MODEL`、`AI_RERANK_URL` 后可启用外部检索。使用 `rag-live` profile 时强制要求两项服务配置，依赖失败不发布未经重排的候选。`scripts/start-rag-live.ps1` 使用独立验证数据库和 8092 端口，不改写既有会话。真实百炼/Qdrant 评测与未解决问题见 [RAG 改造记录](docs/RAG_REDESIGN_2026-10-02.md)。
+
+模型回答会携带最近最多 5 个用户轮次的会话消息（历史合计不超过 4000 字符）；演示对话模型不调用外部 LLM，检索依赖是否调用外部服务由检索配置单独决定。`AI_RETRIEVAL_MIN_SCORE`（默认 0.28）现在是 BM25 原始分门槛，`AI_SEMANTIC_MIN_SCORE`（默认 0.45）是向量相似度门槛；不同分值不可混用。`AI_RERANK_MIN_SCORE` 在默认配置为 0.5，`rag-live` 为小样本评测后暂定的 0.15，均不是医学可信概率。新上传知识需要管理员批准才会参与检索；批准后尝试增量更新 Qdrant，失败时默认配置允许明确标识的本地降级，`rag-live` 不返回检索依据。资料及审批状态目前只保存在内存，服务重启会丢失。
 
 仅凭未映射的鼻部症状和挂号意图，不再生成全科可预约医生；`待补充信息` 的分诊版本也不能预约。此次处置一致性修正见 [D4 修复记录](docs/D4_DISPOSITION_CONSISTENCY_2026-10-02.md)，旧行为的历史记录见 [鼻部症状挂号问题记录](docs/INCIDENT_NASAL_BOOKING_2026-10-01.md)。
 

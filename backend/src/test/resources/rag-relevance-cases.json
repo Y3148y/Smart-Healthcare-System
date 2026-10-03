@@ -1,0 +1,14 @@
+[
+  {"id":"chest-colloquial","query":"我胸口痛","relevant":["急性胸痛安全分流"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"chest-standard","query":"胸痛","relevant":["急性胸痛安全分流"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"nasal-standard","query":"流鼻涕","relevant":["流鼻涕与鼻塞的普通预问诊说明"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"nasal-colloquial","query":"流鼻水","relevant":["流鼻涕与鼻塞的普通预问诊说明"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"nasal-blocked","query":"鼻塞","relevant":["流鼻涕与鼻塞的普通预问诊说明"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"respiratory","query":"咳嗽有痰","relevant":["呼吸系统症状门诊分流"],"forbidden":["经期疼痛就医方向"]},
+  {"id":"dizziness","query":"头晕想吐","relevant":["头晕、眩晕与恶心的导诊信息"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"fracture","query":"摔伤后怀疑手臂骨折","relevant":["疑似四肢骨折的就医分流"],"forbidden":["经期疼痛就医方向"]},
+  {"id":"throat","query":"嗓子疼","relevant":["咽喉疼痛就医方向"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"period","query":"痛经","relevant":["经期疼痛就医方向"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"digestion","query":"反酸腹泻","relevant":["常见消化系统症状门诊分流"],"forbidden":["疑似四肢骨折的就医分流"]},
+  {"id":"unanswerable","query":"火星建筑材料价格","relevant":[],"forbidden":[]}
+]
