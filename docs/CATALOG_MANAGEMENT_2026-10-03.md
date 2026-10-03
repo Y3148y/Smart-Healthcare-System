@@ -3,6 +3,7 @@
 ## 已实现
 
 - 管理端 `adminPage=catalog`：新增/编辑/启停科室、医生，维护医生的一个当前日期、时段、总容量与模拟费用；不提供物理删除，不建设完整排班引擎。
+- 导航入口统一置于左侧「导诊业务管理」，与人工导诊申请同组；不再在每页内容顶部插入单独跳转按钮。目录页有选中高亮与 aria-current。
 - `catalog_department` / `catalog_doctor` 数据库持久化；原演示目录仅为初次空库种子。已有目录不会被启动初始化覆盖。
 - 管理员接口 `/api/admin/catalog/departments`、`/doctors` 支持 GET/POST；对应 `/{id}` 支持 PUT。均要求 ADMIN；患者不能访问。目录输入校验在 application Service，MyBatis 执行 SQL，目录 adapter 实现现有 DoctorDirectory 接口。
 - 患者查询、医院工具与分诊医生白名单使用 Primary 的持久化目录；停用医生、停用科室或过期号源不进入患者可约目录。挂号页科室筛选从目录生成，不再写死列表。

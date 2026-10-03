@@ -10,8 +10,21 @@ defineEmits<{ addKnowledge: []; approveKnowledge:[id:string]; toggleTool: [tool:
 </script>
 
 <template>
-  <section class="admin-shell"><aside class="admin-side"><b>⌁ AI 智慧医院管理平台</b><a :class="{on:page==='dashboard'}" :href="adminRoute('dashboard')">⌂ 系统首页</a><p>AI 能力管理</p><a :class="{on:page==='knowledge'}" :href="adminRoute('knowledge')">▤ 医学知识库</a><a :class="{on:page==='retrieval'}" :href="adminRoute('retrieval')">⌕ 检索调试</a><a :class="{on:page==='tools'}" :href="adminRoute('tools')">⚙ Agent 工具中心</a><a :class="{on:page==='observe'}" :href="adminRoute('observe')">◉ AI 运行观测</a><a :class="{on:page==='reviews'}" :href="adminRoute('reviews')">☏ 人工导诊申请</a><a :href="patientRoute('home')">← 返回患者端</a></aside><div v-if="!ready" class="admin-content" role="status">正在加载管理会话…</div><div v-else class="admin-content">
-    <div class="admin-toolbar"><a class="mini" :href="adminRoute('catalog')">科室 / 医生 / 号源管理</a></div>
+  <section class="admin-shell">
+    <aside class="admin-side">
+      <b>⌁ AI 智慧医院管理平台</b>
+      <a :class="{on:page==='dashboard'}" :href="adminRoute('dashboard')">⌂ 系统首页</a>
+      <p>导诊业务管理</p>
+      <a :class="{on:page==='catalog'}" :aria-current="page==='catalog'?'page':undefined" :href="adminRoute('catalog')">▦ 科室 / 医生 / 号源管理</a>
+      <a :class="{on:page==='reviews'}" :href="adminRoute('reviews')">☏ 人工导诊申请</a>
+      <p>AI 能力管理</p>
+      <a :class="{on:page==='knowledge'}" :href="adminRoute('knowledge')">▤ 医学知识库</a>
+      <a :class="{on:page==='retrieval'}" :href="adminRoute('retrieval')">⌕ 检索调试</a>
+      <a :class="{on:page==='tools'}" :href="adminRoute('tools')">⚙ Agent 工具中心</a>
+      <a :class="{on:page==='observe'}" :href="adminRoute('observe')">◉ AI 运行观测</a>
+      <a :href="patientRoute('home')">← 返回患者端</a>
+    </aside>
+    <div v-if="!ready" class="admin-content" role="status">正在加载管理会话…</div><div v-else class="admin-content">
     <CatalogPage v-if="page==='catalog'" />
     <KnowledgePage v-else-if="page==='knowledge'" />
     <RetrievalDebugPage v-else-if="page==='retrieval'" />
