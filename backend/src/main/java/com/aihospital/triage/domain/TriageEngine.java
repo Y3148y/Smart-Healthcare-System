@@ -17,6 +17,8 @@ public interface TriageEngine {
     default boolean requiresReview(String symptoms) { return assessSafety(symptoms).humanReviewRecommended(); }
     /** True when the dialogue needs a material fact before creating a booking recommendation. */
     boolean needsClarification(String symptoms);
+    /** Current request controls intent; accumulated symptoms still control safety and routing. */
+    default boolean needsClarification(String symptoms,String currentRequest){return needsClarification(symptoms);}
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
     TriageResult triage(String sessionId, String symptoms, String patient, List<NarrationModel.Turn> history);

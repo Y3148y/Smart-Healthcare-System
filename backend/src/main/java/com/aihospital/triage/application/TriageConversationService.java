@@ -86,7 +86,7 @@ public class TriageConversationService {
         // patient with suspected facial swelling to first say how long it has been delays the
         // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
         if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
-                && triageEngine.needsClarification(combined)) {
+                && triageEngine.needsClarification(combined,content)) {
             TriageEngine.Guidance guidance = triageEngine.clarificationPrompt(combined, history);
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
                     guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures()));

@@ -8,6 +8,7 @@ import com.aihospital.shared.model.Models.*;
 import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageEngine;
+import com.aihospital.triage.domain.CurrentRequestIntent;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
 import com.aihospital.triage.infrastructure.llm.StructuredDecisionModel;
 import com.aihospital.tools.application.HospitalToolExecutor;
@@ -45,8 +46,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
     @Override public boolean requiresImmediateCare(String symptoms) { return safety.requiresImmediateCare(symptoms); }
 
-    private static final Pattern DIAGNOSIS_OR_PRESCRIPTION_INTENT = Pattern.compile(
-            "(开药|开处方|处方|开方|买药|确诊|诊断一下|能治吗|怎么治疗|用什么药|是不是.{0,10}(病|炎|感染)|(?:胃|肠|肺|肝|肾|胆|胰|心|脑|血|甲|乳)[^，。？！,.?!]{0,6}(病|炎|感染|癌|结石|息肉))");
     private static final String PRESCRIPTION_REFUSAL = "本演示系统不提供诊断、处方或药物建议，亦不能自动生成治疗方案。"
             + "你希望判断就医方向或生成预约，请补充最主要的不适、持续时间和变化；"
             + "如果需要人工协助，可在会话页选择“需要人工导诊？提交申请”（演示系统仅记录申请，不保证实时响应）。";
@@ -58,20 +57,23 @@ public class RuleBasedTriageEngine implements TriageEngine {
      * fracture needs prompt offline assessment.
      */
     @Override public boolean needsClarification(String symptoms) {
+        return needsClarification(symptoms,symptoms);
+    }
+
+    @Override public boolean needsClarification(String symptoms,String currentRequest) {
         if (requiresImmediateCare(symptoms)) return false;
-        if (hasDiagnosisOrPrescriptionIntent(symptoms)) return true;
+        if (hasDiagnosisOrPrescriptionIntent(currentRequest)) return true;
         // 「明显出血」量级不明，既不该升级急症，也不该落到普通分诊或预约。走确定性追问，
         // 服务据此置「待补充信息」，而该处置按 D5 不可预约。
         if (safety.requiresBleedingClarification(symptoms)) return true;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
         if (candidates.isEmpty()) return true;
-        if (possibleFracture(symptoms) || hasBookingIntent(symptoms)) return false;
+        if (possibleFracture(symptoms) || hasBookingIntent(currentRequest)) return false;
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
 
     private boolean hasDiagnosisOrPrescriptionIntent(String text) {
-        if (text == null || text.isBlank()) return false;
-        return DIAGNOSIS_OR_PRESCRIPTION_INTENT.matcher(text).find();
+        return CurrentRequestIntent.restricted(text);
     }
 
     /**
@@ -132,7 +134,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                     "UR-BLEEDING-UNCLEAR-001", 0, 0, elapsedMillis(started), true, List.of()));
             return new Guidance(prompt, "CLARIFICATION", 0, 0, 0);
         }
-        if (hasDiagnosisOrPrescriptionIntent(text)) {
+        if (hasDiagnosisOrPrescriptionIntent(CurrentRequestIntent.latest(history,text))) {
             NarrationModel.Answer answer = prescriptionRefusal();
             recordComplianceRefusal(started, "患者", List.of());
             return new Guidance(answer.text(), answer.status(), 0, 0, 0);
@@ -165,7 +167,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 ? found : safety.assess(text);
         boolean emergency = safetyAssessment.stopRoutineFlow();
         trace.add(symptomExecution.trace());
-        if (!emergency && hasDiagnosisOrPrescriptionIntent(text))
+        if (!emergency && hasDiagnosisOrPrescriptionIntent(CurrentRequestIntent.latest(history,text)))
             return prescriptionRefusalResult(callStarted, sessionId, user, safetyAssessment, trace);
         List<DepartmentCandidate> candidates = emergency ? List.of() : candidatesFor(text);
         String department = emergency ? "急诊科" : candidates.size() > 1 || candidates.isEmpty()
