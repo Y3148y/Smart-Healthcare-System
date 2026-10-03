@@ -70,9 +70,14 @@ public class MybatisTriageStore implements TriageStore {
                 string(row, "title"), string(row, "id"), string(row, "content"), "患者自述",
                 dateTime(row, "created_at"))).toList();
     }
-    @Override public String appendMessage(String sessionId, String role, String content) {
+    @Override @Transactional public String appendMessage(String sessionId, String role, String content) {
+        // Allocate insertion order under a database row lock, independent of clock precision/UUID.
+        if (mapper.lockMessageSession(sessionId) == null)
+            throw new IllegalArgumentException("Session does not exist");
+        long sequence = mapper.nextMessageSequence(sessionId);
         String id = UUID.randomUUID().toString();
         mapper.insertMessage(id, sessionId, role, content, LocalDateTime.now());
+        mapper.insertMessageOrder(id, sessionId, sequence);
         return id;
     }
     @Override @Transactional public String appendAssistantMessage(String sessionId, String content,

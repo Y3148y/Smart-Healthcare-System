@@ -23,6 +23,15 @@ CREATE TABLE IF NOT EXISTS triage_message_provenance (
   FOREIGN KEY (message_id) REFERENCES triage_message(id)
 );
 
+CREATE TABLE IF NOT EXISTS triage_message_order (
+  message_id VARCHAR(64) PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL,
+  sequence_number BIGINT NOT NULL,
+  UNIQUE (session_id, sequence_number),
+  FOREIGN KEY (message_id) REFERENCES triage_message(id),
+  FOREIGN KEY (session_id) REFERENCES triage_session(id)
+);
+
 CREATE TABLE IF NOT EXISTS triage_assessment (
   id VARCHAR(64) PRIMARY KEY,
   session_id VARCHAR(64) NOT NULL,

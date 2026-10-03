@@ -23,8 +23,18 @@ public interface TriageMapper {
     @Insert("INSERT INTO triage_eligibility(session_id,confirmed_at) VALUES(#{sessionId},#{confirmedAt})")
     int insertEligibility(@Param("sessionId") String sessionId, @Param("confirmedAt") LocalDateTime confirmedAt);
 
-    @Select("SELECT m.id,m.role,m.content,m.created_at,p.meta_json FROM triage_message m LEFT JOIN triage_message_provenance p ON p.message_id=m.id WHERE m.session_id=#{sessionId} ORDER BY m.created_at,m.id")
+    @Select("SELECT m.id,m.role,m.content,m.created_at,p.meta_json FROM triage_message m LEFT JOIN triage_message_provenance p ON p.message_id=m.id LEFT JOIN triage_message_order o ON o.message_id=m.id WHERE m.session_id=#{sessionId} ORDER BY CASE WHEN o.sequence_number IS NULL THEN 0 ELSE 1 END,o.sequence_number,m.created_at,CASE WHEN m.role='USER' THEN 0 ELSE 1 END,m.id")
     List<Map<String, Object>> messages(@Param("sessionId") String sessionId);
+
+    @Select("SELECT id FROM triage_session WHERE id=#{sessionId} FOR UPDATE")
+    String lockMessageSession(@Param("sessionId") String sessionId);
+
+    @Select("SELECT COALESCE(MAX(sequence_number),0)+1 FROM triage_message_order WHERE session_id=#{sessionId}")
+    long nextMessageSequence(@Param("sessionId") String sessionId);
+
+    @Insert("INSERT INTO triage_message_order(message_id,session_id,sequence_number) VALUES(#{messageId},#{sessionId},#{sequence})")
+    int insertMessageOrder(@Param("messageId") String messageId, @Param("sessionId") String sessionId,
+                           @Param("sequence") long sequence);
 
     @Select("SELECT a.version_number,a.result_json,a.created_at,anchor.assistant_message_id FROM triage_assessment a LEFT JOIN triage_assessment_anchor anchor ON anchor.assessment_id=a.id WHERE a.session_id=#{sessionId} ORDER BY a.version_number")
     List<Map<String, Object>> assessments(@Param("sessionId") String sessionId);

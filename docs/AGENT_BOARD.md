@@ -9,7 +9,8 @@
 | 范围 | Owner |
 | --- | --- |
 | `triage/**` 的安全规则、`backend/src/main/resources/safety-rules.json` | GPT（`caf8d69` 交接；其他 triage 任务仍需单独交接） |
-| `booking/**`、`catalog/**`、`observation/**` | opencode（主会话，本文件维护者） |
+| `catalog/**`、轻量患者资料新模块、会话排序持久化及对应前端/测试 | GPT（2026-10-03 用户明确统一交接；opencode 暂停这些范围） |
+| `booking/**`、`observation/**` | opencode（本轮共享接口调整需先协调；不覆盖在制品） |
 | 安全规则相关 `*Test.java` | GPT（`caf8d69` 交接）；其他测试仍归 opencode |
 | `frontend/src/features/triage/**` | GPT（仅本轮患者端提示压缩，用户直接指派；其他前端任务仍归 opencode） |
 | `frontend/src/style.css` 的分诊样式 | GPT（仅本轮页面遮挡修复；用户直接指派） |
@@ -48,6 +49,7 @@
 | `RuleBasedTriageEngine:77`「第二十一条」条号 | opencode | 待降级为只引文件号+文意 |
 | 百炼重排切换 qwen3.7-text-rerank | GPT | 真实开发/留出集与当前 5188 页面路径通过，阈值 0.5，运行服务已重启；glm-5.3 仍 Arrearage、全量回归仍有既有会话排序失败，未宣称全绿。详见 RERANK_MODEL_SWITCH_2026-10-03.md；待独立复核 |
 | 聊天业务空间地址修正 | GPT | 已使用用户提供地址重启当前后端，glm-5.3 两轮真实问答 LIVE，记住两天病程；检索与后台页面复测通过。科室匹配、回答质量与已有消息排序仍需检查；见 CHAT_WORKSPACE_FIX_2026-10-03.md，待独立复核 |
+| 轻量产品改造 | GPT | 用户已明确交接 catalog、患者资料新模块、会话排序与对应前端/测试，opencode 暂停这些范围。先修持久化消息顺序，后补数据管理和患者资料；README 与 LIGHTWEIGHT_DELIVERY_PLAN.md 记录边界与分阶段进度，不宣称全部完成 |
 
 ### 已终止的待裁定项
 
