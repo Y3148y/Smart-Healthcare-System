@@ -2,47 +2,40 @@ package com.aihospital.triage.api;
 
 import com.aihospital.shared.security.RoleGuard;
 import com.aihospital.triage.domain.TriageRecords.HumanReview;
-import com.aihospital.triage.infrastructure.mybatis.TriageMapper;
-import org.springframework.http.HttpStatus;
+import com.aihospital.review.application.HumanReviewService;
+import com.aihospital.review.domain.ReviewRecords.Summary;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-import static com.aihospital.shared.infrastructure.mybatis.RowValues.*;
 
 @RestController
 @RequestMapping("/api/admin/human-reviews")
 public class AdminHumanReviewController {
     private final RoleGuard guard;
-    private final TriageMapper mapper;
+    private final HumanReviewService service;
 
-    public AdminHumanReviewController(RoleGuard guard, TriageMapper mapper) {
+    public AdminHumanReviewController(RoleGuard guard, HumanReviewService service) {
         this.guard = guard;
-        this.mapper = mapper;
+        this.service = service;
     }
 
     @GetMapping public List<HumanReview> list(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");
-        return mapper.humanReviews().stream().map(this::fromRow).toList();
+        return service.all();
     }
 
     @PatchMapping("/{id}") public HumanReview change(@PathVariable String id, @RequestBody StatusChange request,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");
-        if (request == null || !("ACCEPTED".equals(request.status()) || "CLOSED".equals(request.status())))
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态只可设为 ACCEPTED 或 CLOSED");
-        if (mapper.updateHumanReview(id, request.status()) != 1)
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请不存在或已处理");
-        return mapper.humanReviews().stream().filter(row -> id.equals(string(row, "id")))
-                .map(this::fromRow).findFirst().orElseThrow();
+        return service.change(id,request==null?null:request.status());
     }
 
-    private HumanReview fromRow(Map<String, Object> row) {
-        return new HumanReview(string(row, "id"), string(row, "session_id"), string(row, "patient_id"),
-                string(row, "reason"), string(row, "status"), dateTime(row, "created_at"));
-    }
+    @GetMapping("/{id}/summary") public Summary summary(@PathVariable String id,
+            @RequestHeader(value="Authorization",required=false)String auth){guard.require(auth,"ADMIN");return service.summary(id);}
+    @ExceptionHandler(ResponseStatusException.class) public org.springframework.http.ResponseEntity<Map<String,String>> rejected(ResponseStatusException ex){return org.springframework.http.ResponseEntity.status(ex.getStatusCode()).body(Map.of("message",ex.getReason()==null?"请求被拒绝":ex.getReason()));}
+
     private record StatusChange(String status) {}
 }

@@ -79,7 +79,7 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
       <HomePage v-if="page==='home'" :display-name="displayName" :route="patientRoute" />
       <TriagePage v-else-if="page==='triage'" :sessions="sessions" :initial-symptom="params.get('symptom') || ''" :booking-running="bookingRunning" @book="book" @updated="loadPatient" @notify="showToast" />
       <BookingPage v-else-if="page==='booking'" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
-      <VisitsPage v-else-if="page==='visits'" :visits="visits" :timeline="timeline" />
+      <VisitsPage v-else-if="page==='visits' && patientReady" :visits="visits" :timeline="timeline" />
       <ProfilePage v-else-if="page==='profile' && patientReady" />
       <p v-else-if="page==='profile'" role="status">正在验证身份…</p>
     </template>

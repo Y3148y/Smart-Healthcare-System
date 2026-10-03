@@ -49,6 +49,9 @@ public class MybatisTriageStore implements TriageStore {
                 string(row, "reason"), string(row, "status"), dateTime(row, "created_at"));
     }
     @Override @Transactional public HumanReview createHumanReview(String sessionId, String patient, String reason, LocalDateTime now) {
+        mapper.lockMessageSession(sessionId);
+        HumanReview existing=humanReview(sessionId);
+        if(existing!=null)return existing;
         String id = UUID.randomUUID().toString();
         mapper.insertHumanReview(id, sessionId, patient, reason, now);
         return new HumanReview(id, sessionId, patient, reason, "PENDING", now);

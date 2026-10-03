@@ -11,6 +11,7 @@
 | `triage/**` 的安全规则、`backend/src/main/resources/safety-rules.json` | GPT（`caf8d69` 交接；其他 triage 任务仍需单独交接） |
 | `catalog/**`、轻量患者资料新模块、会话排序持久化及对应前端/测试 | GPT（2026-10-03 用户明确统一交接；opencode 暂停这些范围） |
 | `booking/**`、`observation/**` | opencode（本轮共享接口调整需先协调；不覆盖在制品） |
+| 人工导诊接口/服务/持久化与对应前端/测试 | GPT（2026-10-03 用户明确交接，opencode 暂停这些范围；不扩展到 booking/observation） |
 | 安全规则相关 `*Test.java` | GPT（`caf8d69` 交接）；其他测试仍归 opencode |
 | `frontend/src/features/triage/**` | GPT（仅本轮患者端提示压缩，用户直接指派；其他前端任务仍归 opencode） |
 | `frontend/src/style.css` 的分诊样式 | GPT（仅本轮页面遮挡修复；用户直接指派） |
@@ -59,6 +60,8 @@
 - 是否给 11 条第一步规则加紧邻否定保护 —— 已由 GPT 裁定 3 解决，落地于 `cd397c2`
 
 ## 4. 共享资源冲突
+
+人工导诊闭环由 GPT 完成：患者本人申请列表、申请关联摘要、受理后关闭、重复提交保护。JDK17全量126项零失败、1外部跳过；前端构建和5188真实接口浏览器闭环通过，模型状态LIVE。见 HUMAN_REVIEW_FLOW_2026-10-03.md，独立复核待完成。
 
 患者本人基础资料由 GPT 完成：本人 GET/PUT、MyBatis 持久化、版本冲突及统一患者导航；JDK17全量122项零失败、1外部跳过，前端构建与浏览器验证通过。不默认允许管理员浏览，不自动注入模型。见 PATIENT_PROFILE_2026-10-03.md；独立复核待完成。
 
