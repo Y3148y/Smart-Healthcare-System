@@ -64,6 +64,12 @@ public class TriageConversationService {
     }
 
     public Conversation send(String id, String patient, String text) {
+        return send(id,patient,text,null);
+    }
+
+    public Conversation send(String id,String patient,String text,
+            java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress) {
+        java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates=progress==null?stage->{}:progress;
         Session session = requireOwner(id, patient);
         if ("紧急提示".equals(session.status()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "紧急会话不能继续普通分诊，请立即寻求线下帮助");
@@ -82,12 +88,14 @@ public class TriageConversationService {
         List<String> patientTexts = current.messages().stream().filter(message -> "USER".equals(message.role()))
                 .map(Message::content).toList();
         String combined = patientTexts.stream().collect(Collectors.joining("。"));
+        updates.accept(com.aihospital.triage.domain.TriageProgress.SAFETY_CHECK);
         // A flagged disposition must not be swallowed by a clarification question: asking a
         // patient with suspected facial swelling to first say how long it has been delays the
         // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
         if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
                 && triageEngine.needsClarification(combined,content)) {
-            TriageEngine.Guidance guidance = triageEngine.clarificationPrompt(combined, history);
+            TriageEngine.Guidance guidance = progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
+            updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
                     guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures()));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
@@ -96,7 +104,7 @@ public class TriageConversationService {
 
         final TriageResult result;
         try {
-            result = withCurrentAvailability(triageEngine.triage(id, combined, patient, history));
+            result = withCurrentAvailability(progress==null?triageEngine.triage(id,combined,patient,history):triageEngine.triage(id, combined, patient, history,updates));
         } catch (RuntimeException ex) {
             update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
             throw ex;
@@ -106,6 +114,7 @@ public class TriageConversationService {
         // "see a doctor today" signal to 待补充信息 and hid it from the session. A flagged
         // disposition is reported even when nothing could be grounded, with grounded=false so
         // the UI still shows that the reasoning is not evidence-backed.
+        updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
         if (!result.grounded() && !result.safetyAssessment().humanReviewRecommended()) {
             store.appendAssistantMessage(id, result.summary(), provenance(result));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);

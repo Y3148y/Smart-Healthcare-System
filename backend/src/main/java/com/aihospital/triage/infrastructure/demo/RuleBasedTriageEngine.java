@@ -9,6 +9,7 @@ import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.CurrentRequestIntent;
+import com.aihospital.triage.domain.TriageProgress;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
 import com.aihospital.triage.infrastructure.llm.StructuredDecisionModel;
 import com.aihospital.tools.application.HospitalToolExecutor;
@@ -122,6 +123,10 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     @Override public Guidance clarificationPrompt(String text, List<NarrationModel.Turn> history) {
+        return clarificationPrompt(text,history,stage->{});
+    }
+    @Override public Guidance clarificationPrompt(String text,List<NarrationModel.Turn> history,
+            java.util.function.Consumer<TriageProgress> progress) {
         long started = System.nanoTime();
         // 未经临床审核: 追问内容按裁定列出部位、量、持续情况与伴随表现。固定文案而非模型
         // 生成，因为这是安全分流的一部分，不该由模型改写措辞。
@@ -142,12 +147,14 @@ public class RuleBasedTriageEngine implements TriageEngine {
         List<DepartmentCandidate> candidates = candidatesFor(text);
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
+        progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
         HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve",
                 java.util.Map.of("query", safety.removeNegatedRedFlags(text)));
         Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
         String fallback = guidedFallback(text, candidates, evidence, history);
+        progress.accept(TriageProgress.ANSWER_GENERATION);
         NarrationModel.Answer answer = retrieval.grounded() ? narration.guide(text, departments,
                 evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history)
                 : narration.guideGeneral(text, fallback, history);
@@ -160,6 +167,10 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     @Override public TriageResult triage(String sessionId, String text, String user, List<NarrationModel.Turn> history) {
+        return triage(sessionId,text,user,history,stage->{});
+    }
+    @Override public TriageResult triage(String sessionId,String text,String user,List<NarrationModel.Turn> history,
+            java.util.function.Consumer<TriageProgress> progress) {
         long callStarted = System.nanoTime();
         List<ToolTrace> trace = new ArrayList<>();
         HospitalToolExecutor.Execution symptomExecution = toolExecutor.execute("symptom_tag_search", java.util.Map.of("query", text));
@@ -174,6 +185,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 ? "全科医学科" : candidates.get(0).department();
         int structuredConfidence = -1;
         if (!emergency && candidates.size() > 1 && structuredDecisions.enabled()) {
+            progress.accept(TriageProgress.ANSWER_GENERATION);
             long decisionStarted = System.nanoTime();
             StructuredDecisionModel.Proposal proposal = structuredDecisions.propose(text, candidates, history);
             calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "结构化分诊决策", user,
@@ -192,6 +204,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
             }
         }
         String retrievalQuery = safety.removeNegatedRedFlags(text);
+        if(!emergency)progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
         HospitalToolExecutor.Execution retrievalExecution = emergency ? null
                 : toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
         Retrieval retrieval = emergency ? new Retrieval(List.of(), false, "安全规则直接接管，未检索医学资料")
@@ -205,6 +218,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         }
         Doctor doctor = null;
         if (!emergency) {
+            progress.accept(TriageProgress.SCHEDULE_LOOKUP);
             HospitalToolExecutor.Execution scheduleExecution = toolExecutor.execute("doctor_schedule_search", java.util.Map.of("department", department));
             trace.add(scheduleExecution.trace());
             if (scheduleExecution.data() instanceof List<?> slots)
@@ -218,6 +232,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if (needsFeverCaveat(text, safetyAssessment)) safetyTip = safetyTip + " " + FEVER_CAVEAT;
         String fallback = fallbackAnswer(department, emergency, candidates);
         boolean grounded = emergency || retrieval.grounded();
+        if(!emergency)progress.accept(TriageProgress.ANSWER_GENERATION);
         NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
                 : !grounded ? narration.guideGeneral(text,
                         "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或在会话页申请人工导诊。", history)

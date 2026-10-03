@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
-import { api } from '../../api'
+import { api, streamResult } from '../../api'
 import AssessmentCard from './components/AssessmentCard.vue'
 import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
 
@@ -8,8 +8,6 @@ const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRu
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],updated:[],notify:[message:string]}>()
 const question=ref(''), activeConversation=ref<Conversation|null>(null), eligible=ref(false)
 const pendingMessage=ref(''), triage=ref<Result|null>(null), triageStatus=ref(''), triageRunning=ref(false)
-const waitSeconds=ref(0)
-let waitTimer:number|undefined
 const sessionList=ref<ChatSession[]>(props.sessions)
 watch(()=>props.sessions,value=>sessionList.value=value)
 onMounted(()=>{if(props.initialSymptom)question.value=props.initialSymptom})
@@ -47,11 +45,11 @@ async function startTriage(){
   const content=normalizeUserText(question.value)
   if(!content)return
   const previousUserCount=activeConversation.value?.messages.filter(message=>message.role==='USER').length||0
-  question.value='';triageRunning.value=true;waitSeconds.value=0;triageStatus.value='正在检查危险信号…';pendingMessage.value=content
-  waitTimer=window.setInterval(()=>{waitSeconds.value++;if(waitSeconds.value>=2)triageStatus.value=`正在检索知识并等待回答，已等待 ${waitSeconds.value} 秒…`},1000)
+  question.value='';triageRunning.value=true;triageStatus.value='正在提交请求…';pendingMessage.value=content
   try{
     if(!activeConversation.value)activeConversation.value=await api<Conversation>('/triage/sessions',{method:'POST',body:JSON.stringify({adultConfirmed:eligible.value,forSelfConfirmed:eligible.value,notPregnantConfirmed:eligible.value})})
-    const result=await api<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns`,{method:'POST',body:JSON.stringify({content})})
+    const stages:Record<string,string>={ACCEPTED:'请求已接收',SAFETY_CHECK:'正在检查危险信号…',KNOWLEDGE_RETRIEVAL:'正在检索知识依据…',ANSWER_GENERATION:'正在生成并校验回答…',SCHEDULE_LOOKUP:'正在查询模拟号源…',SAVING:'正在保存本轮结果…'}
+    const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content},stage=>{triageStatus.value=stages[stage]||'正在处理…'})
     applyConversation(result)
     triageStatus.value=triage.value?'分诊建议已生成':'等待您补充信息'
     sessionList.value=await api<ChatSession[]>('/triage/sessions')
@@ -69,7 +67,7 @@ async function startTriage(){
     }
     if(!saved)question.value=content
     emit('notify',saved?'症状已保存；本次分析未完成，请补充信息后重试':`分诊失败：${e?.message||'请检查后端服务'}`)
-  }finally{if(waitTimer!==undefined)window.clearInterval(waitTimer);waitTimer=undefined;pendingMessage.value='';triageRunning.value=false}
+  }finally{pendingMessage.value='';triageRunning.value=false}
 }
 async function openConversation(id:string){
   if(triageRunning.value)return

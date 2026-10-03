@@ -22,7 +22,7 @@ async function refreshDemoToken():Promise<boolean> {
   })().finally(()=>{demoRefresh=null})
   return demoRefresh
 }
-export async function api<T>(path:string, init:RequestInit = {}):Promise<T> {
+async function authenticatedResponse(path:string, init:RequestInit = {}):Promise<Response> {
   const headers = new Headers(init.headers)
   // Explicit UTF-8 prevents Chinese symptom descriptions being decoded with a legacy code page.
   if (!headers.has('Content-Type') && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json; charset=UTF-8')
@@ -41,5 +41,35 @@ export async function api<T>(path:string, init:RequestInit = {}):Promise<T> {
     const details=await response.json().catch(()=>({message:''}))
     throw new Error(details.message||`HTTP ${response.status}${response.status===401?'：登录已失效':''}`)
   }
-  return response.json() as Promise<T>
+  return response
+}
+export async function api<T>(path:string, init:RequestInit = {}):Promise<T> {
+  return (await authenticatedResponse(path,init)).json() as Promise<T>
+}
+
+export async function streamResult<T>(path:string, body:unknown, onStage:(stage:string)=>void):Promise<T> {
+  const response=await authenticatedResponse(path,{method:'POST',headers:{Accept:'text/event-stream'},body:JSON.stringify(body)})
+  if(!response.headers.get('Content-Type')?.includes('text/event-stream')||!response.body)throw new Error('状态连接不可用，请刷新会话核对')
+  const reader=response.body.getReader(),decoder=new TextDecoder('utf-8')
+  let buffer='',result:T|undefined,received=false
+  function consume(){
+    buffer=buffer.replace(/\r\n/g,'\n')
+    let end:number
+    while((end=buffer.indexOf('\n\n'))>=0){
+      const frame=buffer.slice(0,end);buffer=buffer.slice(end+2)
+      const lines=frame.split('\n'),event=lines.find(l=>l.startsWith('event:'))?.slice(6).trim()
+      const data=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n')
+      if(!data)continue
+      const value=JSON.parse(data)
+      if(event==='failure')throw new Error(value.message||'处理未完成，请刷新会话核对')
+      if(event==='status')onStage(value.stage)
+      if(event==='result'){result=value as T;received=true}
+    }
+  }
+  try{
+    while(true){const chunk=await reader.read();if(chunk.done)break;buffer+=decoder.decode(chunk.value,{stream:true});if(buffer.length>2000000)throw new Error('状态数据过大，请刷新会话');consume()}
+    buffer+=decoder.decode();consume()
+    if(!received)throw new Error('状态连接中断，请刷新会话核对已保存的内容')
+    return result as T
+  }catch(error){await reader.cancel().catch(()=>{});throw error}finally{reader.releaseLock()}
 }
