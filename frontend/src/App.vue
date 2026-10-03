@@ -18,7 +18,7 @@ const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), login
 const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), reviews=ref<HumanReview[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null), knowledgeRuntime=ref<any>(null)
 const bookingRunning=ref(false), toast=ref('')
 const adminReady=ref(false)
-const depts=['全部','消化内科','心血管内科','呼吸内科','骨科','神经内科','妇科']
+const depts=computed(()=>['全部',...new Set(doctors.value.map(d=>d.department))])
 const isAdmin=computed(()=>role.value==='ADMIN')
 const nav=[['home','首页'],['triage','智能预问诊'],['booking','预约挂号'],['visits','我的就诊']]
 const showToast=(text:string)=>{toast.value=text;setTimeout(()=>toast.value='',2600)}

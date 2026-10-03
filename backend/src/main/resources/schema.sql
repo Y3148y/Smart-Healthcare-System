@@ -86,6 +86,23 @@ CREATE TABLE IF NOT EXISTS sim_slot (
   PRIMARY KEY (doctor_id, slot_date)
 );
 
+CREATE TABLE IF NOT EXISTS catalog_department (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(80) NOT NULL UNIQUE,
+  enabled BOOLEAN NOT NULL
+);
+CREATE TABLE IF NOT EXISTS catalog_doctor (
+  id VARCHAR(64) PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  title VARCHAR(80) NOT NULL,
+  department_id VARCHAR(64) NOT NULL,
+  enabled BOOLEAN NOT NULL,
+  slot_date VARCHAR(10) NOT NULL,
+  period VARCHAR(16) NOT NULL,
+  fee INT NOT NULL,
+  FOREIGN KEY (department_id) REFERENCES catalog_department(id)
+);
+
 CREATE TABLE IF NOT EXISTS sim_appointment (
   id VARCHAR(64) PRIMARY KEY,
   patient_id VARCHAR(128) NOT NULL,

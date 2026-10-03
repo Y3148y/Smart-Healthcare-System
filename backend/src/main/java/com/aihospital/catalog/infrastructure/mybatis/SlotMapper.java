@@ -18,7 +18,7 @@ public interface SlotMapper {
     @Select("SELECT remaining FROM sim_slot WHERE doctor_id=#{doctorId} AND slot_date=#{slotDate}")
     Integer remaining(@Param("doctorId") String doctorId, @Param("slotDate") String slotDate);
 
-    @Update("UPDATE sim_slot SET remaining=remaining-1 WHERE doctor_id=#{doctorId} AND slot_date=#{slotDate} AND remaining>0")
+    @Update("UPDATE sim_slot SET remaining=remaining-1 WHERE doctor_id=#{doctorId} AND slot_date=#{slotDate} AND remaining>0 AND EXISTS (SELECT 1 FROM catalog_doctor d JOIN catalog_department p ON p.id=d.department_id WHERE d.id=#{doctorId} AND d.slot_date=#{slotDate} AND d.enabled=true AND p.enabled=true)")
     int decrementAvailableSlot(@Param("doctorId") String doctorId, @Param("slotDate") String slotDate);
 
     @Update("UPDATE sim_slot SET remaining=#{remaining} WHERE doctor_id=#{doctorId} AND slot_date=#{slotDate}")
