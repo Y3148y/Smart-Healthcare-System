@@ -1,9 +1,9 @@
 # Explicit opt-in. Fails configuration validation instead of silently running a lexical-only service.
 ai:
   rerank:
-    # Development-set calibration, checked on a separate small engineering holdout.
-    # Not a probability or a clinical threshold; see docs/RAG_REDESIGN_2026-10-02.md.
-    min-score: ${AI_RERANK_MIN_SCORE:0.15}
+    # qwen3.7-text-rerank: checked on development and small held-out engineering samples.
+    # Not a probability or a clinical threshold; see docs/RERANK_MODEL_SWITCH_2026-10-03.md.
+    min-score: ${AI_RERANK_MIN_SCORE:0.5}
   retrieval:
     require-semantic: true
     require-rerank: true

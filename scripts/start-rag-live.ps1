@@ -3,7 +3,7 @@ param(
     [int]$Port = 8092,
     [string]$EmbeddingModel = 'qwen3.7-text-embedding',
     [string]$EmbeddingBaseUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    [string]$RerankModel = 'gte-rerank-v2',
+    [string]$RerankModel = 'qwen3.7-text-rerank',
     [string]$RerankUrl = 'https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank',
     [string]$ChatModel = 'glm-5.3'
 )

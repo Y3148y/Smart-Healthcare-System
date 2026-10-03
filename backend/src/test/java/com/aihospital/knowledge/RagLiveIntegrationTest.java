@@ -25,9 +25,9 @@ class RagLiveIntegrationTest {
         ReflectionTestUtils.setField(index, "collection", env("AI_QDRANT_COLLECTION", "ai_hospital_knowledge_v2"));
         var reranker = new BailianReranker(json);
         ReflectionTestUtils.setField(reranker, "key", key);
-        ReflectionTestUtils.setField(reranker, "model", env("AI_RERANK_MODEL", "gte-rerank-v2"));
+        ReflectionTestUtils.setField(reranker, "model", env("AI_RERANK_MODEL", "qwen3.7-text-rerank"));
         ReflectionTestUtils.setField(reranker, "url", env("AI_RERANK_URL", "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"));
-        ReflectionTestUtils.setField(reranker, "minimum", Double.parseDouble(env("AI_RERANK_MIN_SCORE", "0.15")));
+        ReflectionTestUtils.setField(reranker, "minimum", Double.parseDouble(env("AI_RERANK_MIN_SCORE", "0.5")));
         var catalog = new HybridKnowledgeCatalog(new InMemoryKnowledgeCatalog(), index, reranker);
         ReflectionTestUtils.setField(catalog, "requireSemantic", true);
         ReflectionTestUtils.setField(catalog, "requireRerank", true);

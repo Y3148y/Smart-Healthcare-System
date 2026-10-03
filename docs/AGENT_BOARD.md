@@ -46,6 +46,7 @@
 | 后台知识管理、检索调试、AI 运行观测 | GPT | 功能已实现并在 5188 浏览器流程验证，前端 build 与四项后台测试通过；全量复验暴露已有会话排序失败，修复交接待用户答复。百炼 rerank 当前 HTTP_400:Arrearage，后台如实显示依赖阻断。独立复核待完成，见 ADMIN_AI_WORKSPACE_2026-10-03.md |
 | 后台知识管理、检索调试、AI 运行观测 | GPT | 功能已实现并在 5188 浏览器流程验证，前端 build 与四项后台测试通过；全量复验暴露已有会话排序失败，修复交接待用户答复。百炼 rerank 当前 HTTP_400:Arrearage，后台如实显示依赖阻断。独立复核待完成，见 ADMIN_AI_WORKSPACE_2026-10-03.md |
 | `RuleBasedTriageEngine:77`「第二十一条」条号 | opencode | 待降级为只引文件号+文意 |
+| 百炼重排切换 qwen3.7-text-rerank | GPT | 真实开发/留出集与当前 5188 页面路径通过，阈值 0.5，运行服务已重启；glm-5.3 仍 Arrearage、全量回归仍有既有会话排序失败，未宣称全绿。详见 RERANK_MODEL_SWITCH_2026-10-03.md；待独立复核 |
 
 ### 已终止的待裁定项
 
