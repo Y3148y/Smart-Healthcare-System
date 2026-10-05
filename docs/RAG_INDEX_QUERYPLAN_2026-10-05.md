@@ -95,7 +95,7 @@ JDK17、无AI_*，隔离副本执行mvn clean test -q -DforkCount=0：236项，2
 - `tools/knowledge-sync` 抓取来源快照、哈希与变化，不会把网页自动发布进语料。RAG 运行语料是仓库内人工整理的 11 篇 Markdown；当前应用读取后只提取标题/来源/主题/正文并做有限换行与空白处理，不是自动网页清洗流水线。
 - 运行时管理员只读端点返回 11 篇 READY 文档、共 12 个片段；Qdrant collection count 也为 12。逐项对照运行时详情与 Qdrant scroll payload 后，已检查的标题、source、excerpt 精确一致；没有发现这些样本发生跨文档 point 错配。点 ID 是 source/title/excerpt 与 embedding 配置的确定性 UUID，不含独立 chunk ID 或知识版本字段。
 - 后续以脚本逐项对比全部 payload：runtime segments=12、Qdrant points=12、精确匹配 12、missing=0、extra=0。实际片段字符长度 82–227，中位数 159；当前这批语料没有任何片段超过 300 字。因此 420 字上限/60 字重叠的长文切分路径未在当前线上语料实际触发，无法用本次运行样本证明长文切分质量。
-- 运行中 collection 状态为 green、optimizer ok，向量维度 1024、Cosine；配置含 HNSW `m=16`、`ef_construct=100`、`full_scan_threshold=10000`。当前仅 12 points，低于 full-scan 阈值，故本批查询由 Qdrant 全扫描处理；没有证据表明 HNSW 构建/参数导致错召回。应用代码只显式传维度与距离，HNSW 其余值来自 Qdrant collection 配置/默认值。
+- 运行中 collection 状态为 green、optimizer ok，向量维度 1024、Cosine；配置含 HNSW `m=16`、`ef_construct=100`、`full_scan_threshold=10000`。当前仅 12 points，向量数据量远低于 10000 KB 阈值，故本批查询由 Qdrant 全扫描处理；没有证据表明 HNSW 构建/参数导致错召回。本次核查时该 collection 由旧代码创建，参数来自 Qdrant 配置/默认值；本批新增配置只作用于之后新建的 collection，不会自动 patch 正在使用的 collection。
 - 更正胸痛结果判读：消化系统片段正文明确含“胸痛同时出现恶心、呕吐和大汗时不能简单归为消化问题”的提醒；它虽非胸痛主资料，但属于相关的鉴别提醒，不能仅凭标题判为无关召回。
 - 更正长查询归因：之前对照调用管理员 `/search/details`，该接口把 query 原样交给检索，不执行患者端 `CurrentRequestIntent.medicalRetrievalQuery` 清理。因此该长句结果只能说明原始检索对通用措辞敏感，不能证明患者端实际发出的查询也包含这些通用词。
 - 头痛/偏头痛方面，当前语料没有专门的偏头痛资料；头晕片段正文确有“剧烈头痛”红旗内容，故它对急症提示有局部相关性，但不能充当一般偏头痛问答或分诊依据。`头痛` 的 rerank 0.509 仅略过 0.5 阈值，体现的是相关性粒度/边界需要评测，尚不足以定为索引损坏。
@@ -152,3 +152,9 @@ JDK17、无AI_*，隔离副本执行mvn clean test -q -DforkCount=0：236项，2
 ### 离线索引构建批次验证
 
 JDK17、无 `AI_*` 环境变量，在隔离副本执行完整 `mvn clean test -q -DforkCount=0`：252 项，251 通过、1 个 opt-in 外部服务用例跳过，0 失败/错误。新增 3 个测试覆盖语料指纹顺序稳定与内容变更、清单不包含片段正文、索引失败时不发布清单。前端未因本批改动；隔离 `npm run build` 已通过。测试使用本地替身验证控制流，没有调用百炼、Qdrant 或患者在线接口，也没有重启 8081。
+
+### 新建 collection 的 HNSW 参数
+
+`QdrantSemanticIndex.ensureCollection` 对新建 collection 显式传入 `hnsw_config`：`m=16`、`ef_construct=100`、`full_scan_threshold=10000 KB`；三项可分别由 `ai.qdrant.hnsw.m`、`ai.qdrant.hnsw.ef-construct`、`ai.qdrant.hnsw.full-scan-threshold-kb` 覆盖。数值与 Qdrant 文档示例的默认配置相同，不是本项目评测调参结果；在线 search 不额外指定 `hnsw_ef`。已存在 collection 不会被此逻辑自动更新，以避免应用启动/请求时触发后台重建。Qdrant 对小于 dense `full_scan_threshold` 的 segment 可直接全扫描；因此当前小语料走全扫描是预期行为，HNSW 图索引需要达到索引条件并由优化器完成。该设置只影响查询性能/召回折中，不能修正语料缺失或内容不相关。参考 [Qdrant indexing](https://qdrant.tech/documentation/manage-data/indexing/) 与 [collection 创建 API](https://api.qdrant.tech/master/api-reference/collections/create-collection)。
+
+本项在隔离 JDK17 副本重跑完整 `mvn clean test -q -DforkCount=0`：253 项，252 通过、1 个 opt-in 外部服务用例跳过，0 失败/错误；`QdrantSemanticIndexTest` 两项均通过，验证默认值及属性覆盖。未调用外部 embedding/Qdrant，也未改正在运行的 collection。

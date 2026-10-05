@@ -32,6 +32,9 @@ public class QdrantSemanticIndex {
     @Value("${ai.embedding-base-url:}") private String embeddingBaseUrl = "";
     @Value("${ai.qdrant-url:http://127.0.0.1:6333}") private String qdrantUrl;
     @Value("${ai.qdrant-collection:ai_hospital_knowledge_v1}") private String collection;
+    @Value("${ai.qdrant.hnsw.m:16}") private int hnswM = 16;
+    @Value("${ai.qdrant.hnsw.ef-construct:100}") private int hnswEfConstruct = 100;
+    @Value("${ai.qdrant.hnsw.full-scan-threshold-kb:10000}") private int hnswFullScanThresholdKb = 10000;
     private volatile boolean indexed;
     private volatile String status = "NOT_CONFIGURED";
     private volatile Set<String> activePointIds = Set.of();
@@ -151,8 +154,12 @@ public class QdrantSemanticIndex {
             return;
         }
         if (code != 404) throw new IllegalStateException("Qdrant collection check returned HTTP " + code);
+        if (hnswM < 2 || hnswEfConstruct < 1 || hnswFullScanThresholdKb < 0)
+            throw new IllegalStateException("Invalid Qdrant HNSW configuration");
         request("PUT", qdrantUrl + "/collections/" + collection,
-                Map.of("vectors", Map.of("size", dimensions, "distance", "Cosine")), false);
+                Map.of("vectors", Map.of("size", dimensions, "distance", "Cosine"),
+                        "hnsw_config", Map.of("m", hnswM, "ef_construct", hnswEfConstruct,
+                                "full_scan_threshold", hnswFullScanThresholdKb)), false);
     }
 
     private JsonNode request(String method, String url, Object body, boolean embeddingRequest) throws Exception {

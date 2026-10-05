@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -20,6 +21,7 @@ class QdrantSemanticIndexTest {
     @Test
     void configuredSemanticIndexCreatesCollectionAndReturnsCitedChunk() throws Exception {
         var upsertedTitles = new CopyOnWriteArrayList<String>();
+        var collectionConfig = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/embeddings", exchange -> {
             var body = new ObjectMapper().readTree(exchange.getRequestBody());
@@ -31,8 +33,11 @@ class QdrantSemanticIndexTest {
             }
             respond(exchange, 200, response.append("]}").toString());
         });
-        server.createContext("/collections/ai_hospital_knowledge_v1", exchange ->
-                respond(exchange, "GET".equals(exchange.getRequestMethod()) ? 404 : 200, "{\"result\":true}"));
+        server.createContext("/collections/ai_hospital_knowledge_v1", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod()))
+                collectionConfig.set(new ObjectMapper().readTree(exchange.getRequestBody()));
+            respond(exchange, "GET".equals(exchange.getRequestMethod()) ? 404 : 200, "{\"result\":true}");
+        });
         server.createContext("/collections/ai_hospital_knowledge_v1/points", exchange -> {
             var request = new ObjectMapper().readTree(exchange.getRequestBody());
             for (var point : request.path("points")) upsertedTitles.add(point.path("payload").path("title").asText());
@@ -53,6 +58,10 @@ class QdrantSemanticIndexTest {
             ReflectionTestUtils.setField(index, "collection", "ai_hospital_knowledge_v1");
             assertTrue(index.ensureIndexed(List.of(new Evidence("呼吸资料", "https://www.who.int/tools/triage",
                     "咳嗽需要结合症状判断就医方向", 1))));
+            assertNotNull(collectionConfig.get());
+            assertEquals(16, collectionConfig.get().path("hnsw_config").path("m").asInt());
+            assertEquals(100, collectionConfig.get().path("hnsw_config").path("ef_construct").asInt());
+            assertEquals(10000, collectionConfig.get().path("hnsw_config").path("full_scan_threshold").asInt());
             var hits = index.search("咳嗽", 3, 0.5);
             assertEquals(1, hits.size());
             assertEquals("呼吸资料", hits.get(0).title());
@@ -68,6 +77,39 @@ class QdrantSemanticIndexTest {
             int beforeRepeat = upsertedTitles.size();
             assertTrue(index.ensureIndexed(local.approvedCorpus()));
             assertEquals(beforeRepeat, upsertedTitles.size(), "重复审批或检索不得重复 upsert 相同 point id");
+        } finally { server.stop(0); }
+    }
+
+    @Test
+    void newCollectionUsesExplicitConfiguredHnswParameters() throws Exception {
+        var collectionConfig = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> respond(exchange, 200,
+                "{\"data\":[{\"index\":0,\"embedding\":[1.0,0.0]}]}"));
+        server.createContext("/collections/index-config-test", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod()))
+                collectionConfig.set(new ObjectMapper().readTree(exchange.getRequestBody()));
+            respond(exchange, "GET".equals(exchange.getRequestMethod()) ? 404 : 200, "{\"result\":true}");
+        });
+        server.createContext("/collections/index-config-test/points", exchange -> respond(exchange, 200, "{\"result\":true}"));
+        server.start();
+        try {
+            QdrantSemanticIndex index = new QdrantSemanticIndex(new ObjectMapper());
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            ReflectionTestUtils.setField(index, "model", "test-embedding");
+            ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+            ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+            ReflectionTestUtils.setField(index, "qdrantUrl", base);
+            ReflectionTestUtils.setField(index, "collection", "index-config-test");
+            ReflectionTestUtils.setField(index, "hnswM", 24);
+            ReflectionTestUtils.setField(index, "hnswEfConstruct", 160);
+            ReflectionTestUtils.setField(index, "hnswFullScanThresholdKb", 2048);
+
+            assertTrue(index.ensureIndexed(List.of(new Evidence("测试资料", "https://source.invalid", "测试片段", 1))));
+            var hnsw = collectionConfig.get().path("hnsw_config");
+            assertEquals(24, hnsw.path("m").asInt());
+            assertEquals(160, hnsw.path("ef_construct").asInt());
+            assertEquals(2048, hnsw.path("full_scan_threshold").asInt());
         } finally { server.stop(0); }
     }
 
