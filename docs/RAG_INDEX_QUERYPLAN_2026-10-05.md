@@ -8,7 +8,7 @@ Owner：GPT；属于原改造方案C的部分实施，不代表C完成。
 
 | 阶段 | 已实现并可验证 | 缺口 / 边界 | 判断 |
 | --- | --- | --- | --- |
-| 离线语料与索引 | 仓库内 11 篇手工整理 Markdown；按段落/标题形成运行片段；Qdrant 有 12 个点且与运行片段 payload 逐项精确匹配 12/12。knowledge-sync 可抓取来源快照、哈希、差异和改写提案；不会自动发布语料。 | 抓取抽取是 HTML 粗清洗，可能含导航残留；没有自动正文清洗/去重/切分质量验收/医学审校流水线。语料审批与目录当前在内存。Qdrant embedding/upsert 在在线查询或审批时按需执行，不是可复现的独立离线构建/发布任务。BM25 索引是进程内快照，不落盘。当前片段 82–227 字，420 字/60 字重叠的长片段路径未被现有线上语料触发。 | 部分具备；尚未形成离线生产链路。 |
+| 离线语料与索引 | 仓库内 11 篇手工整理 Markdown；按段落/标题形成运行片段；Qdrant 有 12 个点且与运行片段 payload 逐项精确匹配 12/12。knowledge-sync 可抓取来源快照、哈希、差异和改写提案；不会自动发布语料。新增 opt-in `KnowledgeIndexBuildRunner` 可重复触发当前已批准语料的 embedding/upsert，并原子输出不含正文/密钥的稳定指纹清单。 | 抓取抽取是 HTML 粗清洗，可能含导航残留；没有自动正文清洗/去重/切分质量验收/医学审校流水线。语料审批与目录当前在内存。没有语料版本库、索引蓝绿发布/别名切换及回滚。BM25 索引是进程内快照，不落盘。当前片段 82–227 字，420 字/60 字重叠的长片段路径未被现有线上语料触发。 | 部分具备；有可重复构建入口，但尚非受版本与发布治理的离线流水线。 |
 | 在线检索服务 | 患者请求由 Java 工作流显式调用本地检索执行器；活动链路是 BM25 + Qdrant 向量召回 → RRF → 百炼 rerank。required 依赖失败时可阻断，避免把依赖故障伪装成无资料。Qdrant collection 当前 Cosine/1024、配置有 HNSW；12 个点低于 `full_scan_threshold=10000`，实际由全扫描处理。 | 资料/审批不是持久化发布制；向量点没有独立 chunk/version 标识，当前对照正确不代表版本治理已完成。进程内检索事件最近最多 100 条且主要记模式、状态、候选数、耗时，不能构成完整患者逐轮 Trace，也不是长期审计日志。患者回答的采用依据另有有限快照，但不等于完整链路追踪。 | 在线功能存在，运行观测与版本运营仍是演示/原型程度。 |
 | 评估与回归 | BM25、RRF、Qdrant upsert、rerank 失败关闭等组件单测覆盖。离线冻结开发集 12 条（11 条有答案）已对 legacy/BM25 对比；本轮将 BM25 的 Recall@3≥10/11、禁止资料=0、库外误召回=0 设为本地门禁。`RagLiveIntegrationTest` 有 12 条开发与 12 条 holdout 合成查询，可显式调用真实 embedding/Qdrant/rerank 并计算 Recall@3、MRR、forbidden hit，结果写 `backend/target/rag-live.json`。 | 实时集成测试需 `AI_RAG_LIVE_TEST=true` 与真实服务/密钥，普通 `mvn test` 默认跳过。2026-10-03 已有真实百炼报告：开发集 11/11 有答案查询首位命中，留出集 8/8 首位命中，禁止资料与库外误召回均为 0；本轮把这些已测基线接入 live 门禁。样本是工程主题标注，不是独立临床审核集；16 条主题基线也不是临床 gold set。 | 有本地 BM25 回归门禁及 live 混合检索质量门禁；仍缺独立内容审核、更大样本与临床验证。 |
 
@@ -22,7 +22,7 @@ Owner：GPT；属于原改造方案C的部分实施，不代表C完成。
 
 ### 判断与补齐顺序
 
-所以对“离线阶段、在线阶段和评估阶段做了没有”的准确回答是：在线链路已有可运行实现；离线有来源留痕和代码级切分/按需建索引，但没有独立、可版本化、可重复发布的 corpus/index build；评估已有真实小样本报告、冻结的开发/保留数据及本轮新增的工程回归门禁，但数据未经过临床审核，覆盖量也小。三阶段都不能说已完整工程化。
+所以对“离线阶段、在线阶段和评估阶段做了没有”的准确回答是：在线链路已有可运行实现；离线具备来源留痕、代码级切分和可重复触发的当前语料 Qdrant 构建入口，但尚无语料版本库、审核发布制、别名切换/回滚或完整清洗审校流水线；评估已有真实小样本报告、冻结的开发/保留数据及工程回归门禁，但数据未经过临床审核，覆盖量也小。三阶段都不能说已完整工程化。
 
 下一步应先修正评估事实源和建立分层标签（主证据 / 安全交叉提醒 / 仅词面相关 / 不相关 / 无答案），再冻结经复核的开发集与 holdout，为候选召回和最终 rerank 分别定义 Recall@K、MRR、误选率及无答案误报门槛；随后将固定语料版本、chunk 配置、embedding 模型版本、索引构建结果和评估报告绑定成可追溯发布记录。最后再根据这些指标决定是否调整切分、query 处理或融合，而不是凭单条结果改阈值。医学内容的相关性和安全口径仍需有资质人员审核，工程标签不能替代临床验证。
 
@@ -34,6 +34,24 @@ Owner：GPT；属于原改造方案C的部分实施，不代表C完成。
 - `CurrentRequestIntent.medicalRetrievalQuery`：已接入两条患者医学检索入口，移除明确的预约/挂号与就诊方向问句成分，保留余下当前轮文本。风险评估、科室路由和预约判断仍读取原文。纯业务意图输入保留原文，未建立症状同义词表，没有新增症状分诊规则。
 - `Bm25IndexTest`：独立数学分数断言、排序、快照隔离、内容修订与撤销失效。
 - `QueryPlanTest`：当前问题不拼接历史、否定/主体/时间原文保留、来源ID、窗口和输入边界。
+
+## 2026-10-05 离线 Qdrant 构建入口（增量实现）
+
+新增 `KnowledgeIndexBuildRunner`，只有显式设置 `ai.knowledge.offline-index.enabled=true` 才会执行。它读取与在线患者检索相同的已批准语料，调用同一个 `KnowledgeCatalog.syncIndex()` / `QdrantSemanticIndex` embedding 与幂等 upsert 路径；索引失败或索引数量不一致时以失败退出，不发布构建清单。成功后以原子文件替换写出 `target/knowledge-index-manifest.json`。清单只包含集合名、embedding 模型名、语料 SHA-256、片段数和已索引片段数，不写正文、API key 或患者数据；语料顺序不影响指纹，正文/来源变化会改变指纹。
+
+示例（PowerShell；密钥只设置在进程环境变量，不写命令行或文件）：
+
+```powershell
+$env:JAVA_HOME = 'E:\JDK17\jdk-17.0.1'
+$env:AI_DB_URL = 'jdbc:h2:mem:rag-index'
+# 在本机已有安全环境中设置 AI_EMBEDDING_API_KEY；不要把密钥写进文档或仓库。
+$env:AI_EMBEDDING_MODEL = 'qwen3.7-text-embedding'
+$env:AI_QDRANT_URL = 'http://127.0.0.1:6333'
+$env:AI_QDRANT_COLLECTION = 'ai_hospital_knowledge_v2'
+mvn -f backend/pom.xml '-Dspring-boot.run.arguments=--spring.main.web-application-type=none,--ai.knowledge.offline-index.enabled=true' spring-boot:run
+```
+
+这是可重复触发的离线 embedding/upsert 入口，但尚不是完整的语料发布系统：输入仍是仓库内手工整理 Markdown 与当前内存审批结果；网页抓取清洗、去重/切分质量审校、医院/租户级语料版本、Qdrant 别名原子切换与回滚、撤回时物理清理旧 point 均未实现。构建成功清单仅证明这次输入集合已送入索引适配器，不代表召回质量或医学内容通过审核。
 
 ## 验证
 
@@ -130,3 +148,7 @@ JDK17、无AI_*，隔离副本执行mvn clean test -q -DforkCount=0：236项，2
 - 新增 [test-rag-answer-guard-live.cjs](../scripts/test-rag-answer-guard-live.cjs)，只使用合成患者文本；输出诊断字段，不打印回答原文，不创建预约或修改目录/知识源。遇到外部检索依赖不可用会报告“无法验收命中”，不会误判为语料缺失。
 
 本轮JDK17隔离后端副本 `mvn clean test -DforkCount=0` 最终245项：244通过、1项外部测试跳过、0失败/错误（48类）。前端隔离构建通过；`git diff --check` 通过。由于运行中的 IDEA 占用原 `backend/target/classes`，未覆盖或停止服务。以上最新分类及安全兜底改动尚未由8081进程加载，须按原方式重启后继续真实百炼/Qdrant复验。真实检索质量仍未完成评测，不能据此宣称RAG已修好。
+
+### 离线索引构建批次验证
+
+JDK17、无 `AI_*` 环境变量，在隔离副本执行完整 `mvn clean test -q -DforkCount=0`：252 项，251 通过、1 个 opt-in 外部服务用例跳过，0 失败/错误。新增 3 个测试覆盖语料指纹顺序稳定与内容变更、清单不包含片段正文、索引失败时不发布清单。前端未因本批改动；隔离 `npm run build` 已通过。测试使用本地替身验证控制流，没有调用百炼、Qdrant 或患者在线接口，也没有重启 8081。
