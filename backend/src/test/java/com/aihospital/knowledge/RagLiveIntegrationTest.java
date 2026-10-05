@@ -35,21 +35,33 @@ class RagLiveIntegrationTest {
         String dataset = env("AI_RAG_DATASET", "rag-relevance-cases.json");
         assertTrue(Set.of("rag-relevance-cases.json", "rag-holdout-cases.json").contains(dataset));
         var cases = json.readTree(getClass().getResourceAsStream("/" + dataset));
+        assertNotNull(cases, "RAG evaluation dataset is missing");
+        assertEquals(12, cases.size(), "The frozen engineering dataset must not silently shrink or grow");
         List<Map<String, Object>> rows = new ArrayList<>();
+        List<RagQualityGate.Sample> qualitySamples = new ArrayList<>();
+        Set<String> sampleIds = new HashSet<>();
         for (var sample : cases) {
+            String id = sample.path("id").asText();
+            assertFalse(id.isBlank(), "Every frozen RAG case needs a stable id");
+            assertTrue(sampleIds.add(id), "Duplicate RAG evaluation id: " + id);
             String query = sample.path("query").asText();
             var report = catalog.inspect(query, 3, 0.28);
             Set<String> relevant = new HashSet<>(), forbidden = new HashSet<>();
             sample.path("relevant").forEach(n -> relevant.add(n.asText()));
             sample.path("forbidden").forEach(n -> forbidden.add(n.asText()));
+            assertTrue(Collections.disjoint(relevant, forbidden), "Conflicting RAG labels for case: " + id);
             List<String> titles = report.retrieval().evidence().stream().map(e -> e.title()).distinct().toList();
             double rr = 0;
             for (int i = 0; i < titles.size(); i++) if (relevant.contains(titles.get(i))) { rr = 1.0 / (i + 1); break; }
             double recall = relevant.isEmpty() ? 0 : (double) titles.stream().filter(relevant::contains).count() / relevant.size();
-            rows.add(Map.of("id", sample.path("id").asText(), "query", query, "report", report,
+            boolean forbiddenHit = titles.stream().anyMatch(forbidden::contains);
+            boolean unanswerableFalsePositive = relevant.isEmpty() && !titles.isEmpty();
+            rows.add(Map.of("id", id, "query", query, "report", report,
                     "recallAt3", recall, "reciprocalRank", rr,
-                    "forbiddenHit", titles.stream().anyMatch(forbidden::contains),
-                    "unanswerableFalsePositive", relevant.isEmpty() && !titles.isEmpty()));
+                    "forbiddenHit", forbiddenHit,
+                    "unanswerableFalsePositive", unanswerableFalsePositive));
+            qualitySamples.add(new RagQualityGate.Sample(id, !relevant.isEmpty(),
+                    recall, rr, forbiddenHit, unanswerableFalsePositive));
             // Persist completed samples even if a later provider call fails. Never persist credentials.
             json.writerWithDefaultPrettyPrinter().writeValue(Path.of("target/rag-live.json").toFile(), rows);
         }
@@ -57,6 +69,17 @@ class RagLiveIntegrationTest {
             var report = (HybridKnowledgeCatalog.Report) r.get("report");
             return report.mode().equals("HYBRID_QDRANT_RERANKED") || report.mode().equals("HYBRID_QDRANT_NO_CANDIDATES");
         }), "One or more samples did not execute the required live retrieval path; see target/rag-live.json");
+        var qualitySummary = RagQualityGate.summarize(qualitySamples);
+        json.writerWithDefaultPrettyPrinter().writeValue(Path.of("target/rag-live-summary.json").toFile(),
+                Map.of("dataset", dataset, "sampleCount", qualitySummary.samples(),
+                        "answerableSamples", qualitySummary.answerableSamples(),
+                        "meanRecallAt3Answerable", qualitySummary.meanRecallAt3(),
+                        "meanMrrAnswerable", qualitySummary.meanMrr(),
+                        "forbiddenHits", qualitySummary.forbiddenHits(),
+                        "unanswerableFalsePositives", qualitySummary.unanswerableFalsePositives(),
+                        "gateFailures", qualitySummary.failures()));
+        assertTrue(qualitySummary.failures().isEmpty(), () -> "RAG engineering quality gate failed: "
+                + String.join("; ", qualitySummary.failures()) + ". See target/rag-live.json and target/rag-live-summary.json");
     }
     private static String env(String name, String fallback) { return System.getenv().getOrDefault(name, fallback); }
 }

@@ -74,6 +74,10 @@ opencode 的 `RUNNY_NOSE` 常量为 U+6D41 U+9F3B U+6C34（流鼻水），注释
 
 复现：JDK17 设置 JAVA_HOME，清空 AI_* 后执行 `mvn clean test -q -DforkCount=0`；前端 `npm run build`。真实接口另设 `AI_RAG_LIVE_TEST=true`、`AI_EMBEDDING_API_KEY`，执行 `mvn test -q -DforkCount=0 -Dtest=RagLiveIntegrationTest`。用 `AI_RAG_DATASET=rag-holdout-cases.json` 选择保留集。全套离线测试中真实接口用例应跳过，不能将跳过计为通过。真实用例的断言检查依赖链是否调用成功，相关性指标另见报告，不把接口成功等同质量通过。
 
+## 2026-10-05 质量门禁增量
+
+此前的 live 测试确实只断言依赖链模式，虽然已生成指标报告，但检索质量不影响测试退出码。本轮增加 `RagQualityGate`：对上述已测冻结工程集逐条要求有答案查询的 Recall@3=1、MRR=1，禁止资料与无答案误召回为 0；并为门禁本身添加正反单元测试。同时 `RagRelevanceBaselineTest` 将原生 Java BM25 对冻结开发集的最低工程回归设为 Recall@3 至少 10/11、禁止资料与库外误召回为 0。门槛来自 2026-10-03 测量，不是临床阈值。全量默认测试仍跳过外部 live 调用；运行 opt-in 测试才会触发真实 embedding/Qdrant/rerank，失败详情写到 target/rag-live.json。
+
 本轮未声称完成：全面的 LLM 回答级验收、患者端部署切换、完整医学知识库存、临床审核、知识抓取自动更新或真实医院预约。审批状态仍在内存；现有会话历史 query 聚合仍沿用原逻辑，跨轮事件隔离未在本轮改动。
 
 ## 全量回归与真实问诊接口补验

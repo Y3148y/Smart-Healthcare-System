@@ -30,6 +30,16 @@ class RagRelevanceBaselineTest {
         json.writerWithDefaultPrettyPrinter().writeValue(Path.of("target/rag-baseline.json").toFile(), rows);
         assertEquals(24, rows.size());
         assertTrue(rows.stream().allMatch(r -> Double.isFinite((double) r.get("reciprocalRank"))));
+        var bm25Rows = rows.stream().filter(r -> "bm25".equals(r.get("route"))).toList();
+        long answerable = bm25Rows.stream().filter(r -> Boolean.TRUE.equals(r.get("answerable"))).count();
+        long retrieved = bm25Rows.stream().filter(r -> Boolean.TRUE.equals(r.get("answerable")))
+                .filter(r -> ((Number) r.get("recallAt3")).doubleValue() > 0).count();
+        assertEquals(11, answerable, "Frozen engineering set contract changed; review labels before updating gate");
+        assertTrue(retrieved >= 10, "BM25 Recall@3 fell below the measured engineering baseline of 10/11");
+        assertTrue(bm25Rows.stream().noneMatch(r -> Boolean.TRUE.equals(r.get("forbiddenHit"))),
+                "BM25 selected a document explicitly labeled forbidden");
+        assertTrue(bm25Rows.stream().noneMatch(r -> Boolean.TRUE.equals(r.get("unanswerableFalsePositive"))),
+                "BM25 returned evidence for the frozen unanswerable query");
     }
     private Map<String, Object> row(String id, String route, String query, List<Evidence> hits,
                                     Set<String> relevant, Set<String> forbidden) {
@@ -37,7 +47,7 @@ class RagRelevanceBaselineTest {
         double rr = 0; int rank = 0;
         for (String title : titles) { rank++; if (relevant.contains(title)) { rr = 1.0 / rank; break; } }
         double recall = relevant.isEmpty() ? 0 : (double) titles.stream().filter(relevant::contains).count() / relevant.size();
-        return Map.of("id", id, "route", route, "query", query, "hits", hits,
+        return Map.of("id", id, "route", route, "query", query, "answerable", !relevant.isEmpty(), "hits", hits,
                 "recallAt3", recall, "reciprocalRank", rr,
                 "forbiddenHit", titles.stream().anyMatch(forbidden::contains),
                 "unanswerableFalsePositive", relevant.isEmpty() && !hits.isEmpty());
