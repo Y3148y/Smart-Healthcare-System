@@ -11,6 +11,25 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void reusesLexicalIndexUntilApprovedCorpusChanges() {
+        var local = new InMemoryKnowledgeCatalog();
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.status()).thenReturn("READY");
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
+                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "READY"));
+        var catalog = new HybridKnowledgeCatalog(local, semantic);
+        catalog.inspect("流鼻涕", 3, 0.28);
+        Object first = ReflectionTestUtils.getField(catalog, "lexicalIndex");
+        catalog.inspect("胸痛", 3, 0.28);
+        assertSame(first, ReflectionTestUtils.getField(catalog, "lexicalIndex"));
+
+        var pending = catalog.addDocument("测试新资料", "新的测试内容");
+        catalog.approveDocument(pending.id());
+        catalog.inspect("新的测试内容", 3, 0.28);
+        assertNotSame(first, ReflectionTestUtils.getField(catalog, "lexicalIndex"));
+    }
+
     @Test void mergesBothRoutesBeforeTruncationAndReranksAgainstOriginalQuery() {
         var local = new InMemoryKnowledgeCatalog();
         var semantic = mock(QdrantSemanticIndex.class);

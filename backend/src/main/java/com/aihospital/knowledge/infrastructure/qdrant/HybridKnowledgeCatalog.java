@@ -26,6 +26,11 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.retrieval.require-semantic:false}") private boolean requireSemantic;
     @Value("${ai.retrieval.require-rerank:false}") private boolean requireRerank;
     private volatile String lastMode = "NOT_QUERIED";
+    private volatile Bm25Retriever.Index lexicalIndex;
+    private synchronized Bm25Retriever.Index lexicalIndex(List<Evidence> corpus) {
+        if (lexicalIndex == null || !lexicalIndex.matches(corpus)) lexicalIndex = Bm25Retriever.index(corpus);
+        return lexicalIndex;
+    }
     private final java.util.Deque<RetrievalEvent> events = new java.util.ArrayDeque<>();
     public record RetrievalEvent(String id, java.time.Instant time, String mode, String semanticStatus,
                                  String rerankStatus, int candidates, int selected, long elapsedMs) {}
@@ -94,7 +99,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         long start = System.nanoTime();
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
         var corpus = local.approvedCorpus();
-        List<Evidence> lexical = Bm25Retriever.search(query, corpus, depth, minimumScore);
+        List<Evidence> lexical = lexicalIndex(corpus).search(query, depth, minimumScore);
         boolean indexed = semantic.ensureIndexed(corpus);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
                 : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
