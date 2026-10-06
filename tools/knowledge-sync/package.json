@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "sources": "node cli.mjs sources",
     "fetch": "node cli.mjs fetch",
     "diff": "node cli.mjs diff",

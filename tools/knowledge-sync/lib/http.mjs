@@ -9,7 +9,7 @@
  *  - a body we cannot parse as HTML is reported as `manual` rather than silently skipped.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CACHE_DIR } from './registry.mjs';
 
@@ -37,25 +37,26 @@ async function throttle(url) {
 }
 
 /** Minimal robots.txt reader: longest-match Disallow for `*` and for our agent token. */
-async function robotsAllows(url) {
+export async function robotsAllows(url, request = fetch) {
   const target = new URL(url);
   const origin = `${target.protocol}//${target.host}`;
   let text = robotsCache.get(origin);
   if (text === undefined) {
     const cached = cachePath('robots', `${target.host}.txt`);
-    if (existsSync(cached)) {
-      text = readFileSync(cached, 'utf8');
-    } else {
+    // Old disk snapshots may contain a failed request cached as an empty file.
+    // Revalidate once per process instead of treating those files as permission.
+    {
       try {
         await throttle(origin + '/robots.txt');
-        const response = await fetch(origin + '/robots.txt', {
+        const response = await request(origin + '/robots.txt', {
           headers: { 'user-agent': USER_AGENT },
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          redirect: 'error',
         });
-        text = response.ok ? await response.text() : '';
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        text = await response.text();
       } catch (error) {
-        text = '';
-        console.warn(`  robots.txt 无法读取（${target.host}）：${error.message}；按允许处理并记录待复核`);
+        throw new Error(`ROBOTS_UNAVAILABLE (${target.host}): ${error.message}`);
       }
       mkdirSync(cachePath('robots'), { recursive: true });
       writeFileSync(cached, text ?? '', 'utf8');
@@ -78,8 +79,11 @@ export function parseRobots(text) {
     const field = line.slice(0, separator).trim().toLowerCase();
     const value = line.slice(separator + 1).trim();
     if (field === 'user-agent') {
-      if (current.length > 0) groups.push(current);
-      current = [];
+      if (current.some((rule) => rule.field !== 'user-agent')) {
+        groups.push(current);
+        current = [];
+      }
+      current.push({ field, value: value.toLowerCase() });
       continue;
     }
     if (field === 'disallow' || field === 'allow') current.push({ field, value });
@@ -89,28 +93,29 @@ export function parseRobots(text) {
 }
 
 function longestMatch(rules, path) {
-  let blocked = -1;
+  let best = -1;
+  let blocked = false;
   for (const rule of rules) {
     if (rule.value === '') continue; // "Disallow:" with empty value allows everything
-    if (path.startsWith(rule.value) && rule.value.length > blocked) {
-      if (rule.field === 'allow') return -1;
-      blocked = rule.value.length;
+    const anchored = rule.value.endsWith('$');
+    const pattern = (anchored ? rule.value.slice(0, -1) : rule.value)
+      .split('*').map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
+    const specificity = Buffer.byteLength(rule.value.replace(/[\*$]/g, ''));
+    if (new RegExp(`^${pattern}${anchored ? '$' : ''}`).test(path)
+        && (specificity > best || (specificity === best && rule.field === 'allow'))) {
+      best = specificity;
+      blocked = rule.field === 'disallow';
     }
   }
   return blocked;
 }
 
 export function isDisallowed(groups, path) {
-  for (const group of groups) {
-    const agents = group.filter((rule) => rule.field === 'user-agent');
-    const rules = group.filter((rule) => rule.field !== 'user-agent');
-    if (agents.length === 0 || rules.length === 0) continue;
-    const names = agents.map((rule) => rule.value);
-    if (names.includes(AGENT_TOKEN) || names.includes('*')) {
-      if (longestMatch(rules, path) >= 0) return true;
-    }
-  }
-  return false;
+  const specific = groups.filter((group) => group.some((rule) =>
+    rule.field === 'user-agent' && rule.value === AGENT_TOKEN));
+  const selected = specific.length ? specific : groups.filter((group) =>
+    group.some((rule) => rule.field === 'user-agent' && rule.value === '*'));
+  return longestMatch(selected.flat().filter((rule) => rule.field !== 'user-agent'), path);
 }
 
 export function sha256(buffer) {
@@ -144,7 +149,9 @@ export async function fetchSource(source, previous) {
   try {
     allowed = await robotsAllows(source.url);
   } catch (error) {
+    result.status = 'robots-unavailable';
     result.note = `robots 检查失败：${error.message}`;
+    return result;
   }
   if (!allowed) {
     result.status = 'blocked-by-robots';
@@ -163,13 +170,13 @@ export async function fetchSource(source, previous) {
   let response;
   try {
     await throttle(source.url);
-    response = await fetch(source.url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    response = await fetch(source.url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), redirect: 'error' });
   } catch (firstError) {
     // 只重试一次：连接超时在跨境线路上很常见，但绝不连发。
     try {
       await sleep(3000);
       await throttle(source.url);
-      response = await fetch(source.url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+      response = await fetch(source.url, { headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), redirect: 'error' });
     } catch {
       result.status = 'unreachable';
       result.note = `请求失败：${firstError.message}${firstError.cause?.code ? ` (${firstError.cause.code})` : ''}`;
