@@ -28,7 +28,8 @@ class RagLiveIntegrationTest {
         ReflectionTestUtils.setField(reranker, "model", env("AI_RERANK_MODEL", "qwen3.7-text-rerank"));
         ReflectionTestUtils.setField(reranker, "url", env("AI_RERANK_URL", "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"));
         ReflectionTestUtils.setField(reranker, "minimum", Double.parseDouble(env("AI_RERANK_MIN_SCORE", "0.5")));
-        var catalog = new HybridKnowledgeCatalog(new InMemoryKnowledgeCatalog(), index, reranker);
+        var local = new InMemoryKnowledgeCatalog();
+        var catalog = new HybridKnowledgeCatalog(local, index, reranker);
         ReflectionTestUtils.setField(catalog, "requireSemantic", true);
         ReflectionTestUtils.setField(catalog, "requireRerank", true);
         catalog.validateConfiguration();
@@ -85,6 +86,11 @@ class RagLiveIntegrationTest {
             return report.mode().equals("HYBRID_QDRANT_RERANKED") || report.mode().equals("HYBRID_QDRANT_NO_CANDIDATES");
         }), "One or more samples did not execute the required live retrieval path; see target/rag-live.json");
         var qualitySummary = RagQualityGate.summarize(qualitySamples);
+        var corpus = local.approvedCorpus();
+        var indexManifest = KnowledgeIndexBuildManifest.create(
+                env("AI_QDRANT_COLLECTION", "ai_hospital_knowledge_v2"),
+                env("AI_EMBEDDING_MODEL", "qwen3.7-text-embedding"), local.chunkingProfile(), corpus,
+                index.indexedCount(corpus), index.collectionConfiguration());
         json.writerWithDefaultPrettyPrinter().writeValue(Path.of("target/rag-live-summary.json").toFile(),
                 Map.of("dataset", dataset, "sampleCount", qualitySummary.samples(),
                         "answerableSamples", qualitySummary.answerableSamples(),
@@ -92,7 +98,12 @@ class RagLiveIntegrationTest {
                         "meanMrrAnswerable", qualitySummary.meanMrr(),
                         "forbiddenHits", qualitySummary.forbiddenHits(),
                         "unanswerableFalsePositives", qualitySummary.unanswerableFalsePositives(),
-                        "gateFailures", qualitySummary.failures()));
+                        "gateFailures", qualitySummary.failures(),
+                        "indexManifest", indexManifest,
+                        "retrievalSettings", Map.of("bm25MinimumScore", 0.28, "semanticMinimumScore", 0.45,
+                                "rrfK", 60, "candidateLimit", 20, "finalK", 3,
+                                "rerankMinimumScore", Double.parseDouble(env("AI_RERANK_MIN_SCORE", "0.5")),
+                                "rerankModel", env("AI_RERANK_MODEL", "qwen3.7-text-rerank"))));
         assertTrue(qualitySummary.failures().isEmpty(), () -> "RAG engineering quality gate failed: "
                 + String.join("; ", qualitySummary.failures()) + ". See target/rag-live.json and target/rag-live-summary.json");
     }

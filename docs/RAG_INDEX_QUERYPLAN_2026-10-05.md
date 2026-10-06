@@ -169,4 +169,6 @@ JDK17、无 `AI_*` 环境变量，在隔离副本执行完整 `mvn clean test -q
 
 `RagLiveIntegrationTest` 的每条合成样本现在同时输出 BM25 候选、Qdrant 候选、RRF 排序候选与最终 selected 的 Recall@K、MRR、候选数及显式 unrelated-control 命中。这样可以区分“词法/向量都没召回”“候选召回了但融合排序靠后”“候选正确但最终选择变化”等故障层，而不只看最终结果。当前资料集原有 `relevant` / `forbidden` 标题标签暂分别视为预期工程主题标题 / 显式无关对照，指标只作诊断，未给候选阶段新增质量阈值。
 
+`target/rag-live-summary.json` 同时写入该次评估的 index manifest 与明确的 BM25/向量阈值、RRF-k、候选数、最终 K、rerank 模型/门槛；它们用于将结果绑定到语料哈希、分块策略和实际 collection 参数。报告不写 API key。普通未启用 live 环境时该产物不会生成，不能将旧 summary 当成当前运行健康状态。
+
 这不是分级医学相关性标注：目前没有经临床审阅的“主证据 / 安全交叉提醒 / 仅词面相关”标签；`unanswerable` 仍是工程样本的无答案用例，不代表全面覆盖现实患者问题。阶段指标只有在 `AI_RAG_LIVE_TEST=true` 时才会从真实检索调用生成，本批本地测试仅验证计算语义，不访问百炼或 Qdrant。
