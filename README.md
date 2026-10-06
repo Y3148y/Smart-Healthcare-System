@@ -83,4 +83,4 @@ npm run build
 | scripts/ | 启动与专项验证 |
 | docs/ | 架构、方案、验收和历史故障记录 |
 
-从 [文档导航](docs/README.md) 阅读架构、计划和验证记录。历史报告只反映当时版本，不代表当前默认配置或当前验收状态。
+技术说明只保留 [架构与业务边界](docs/ARCHITECTURE.md) 和 [RAG 设计与验证](docs/RAG.md)。运行与功能范围以本页为入口，公开提交规则见 [贡献说明](CONTRIBUTING.md)。

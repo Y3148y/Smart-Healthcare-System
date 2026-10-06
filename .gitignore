@@ -29,3 +29,8 @@ tools/knowledge-sync/node_modules/
 /docs/archive/
 /docs/design/
 /docs/evaluations/
+
+# Public technical documents use a small explicit allowlist.
+/docs/*
+!/docs/ARCHITECTURE.md
+!/docs/RAG.md
