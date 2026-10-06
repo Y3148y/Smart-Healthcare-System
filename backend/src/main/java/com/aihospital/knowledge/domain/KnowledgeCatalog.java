@@ -11,6 +11,10 @@ public interface KnowledgeCatalog {
                           String indexStatus, int indexedChunks, String indexNote) {}
     List<KnowledgeDocument> documents();
     KnowledgeDocument addDocument(String title, String body);
+    default KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata metadata) {
+        throw new UnsupportedOperationException("Structured knowledge import is unavailable");
+    }
+    default KnowledgeMetadata documentMetadata(String id) { return null; }
     KnowledgeDocument approveDocument(String id);
     Retrieval retrieve(String query, int maxResults, double minimumScore);
     default List<Evidence> search(String query) { return retrieve(query, 5, 0.28).evidence(); }

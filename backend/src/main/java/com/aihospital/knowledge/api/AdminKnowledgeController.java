@@ -46,6 +46,20 @@ public class AdminKnowledgeController {
         guard.require(auth, "ADMIN");
         return knowledge.addDocument(body.getOrDefault("title", "未命名知识资料"), body.getOrDefault("body", ""));
     }
+    public record ImportDocument(String title, String body,
+            com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {}
+    @PostMapping("/documents") public KnowledgeDocument importDocument(@RequestBody ImportDocument request,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN");
+        return knowledge.addDocument(request.title(), request.body(), request.metadata());
+    }
+    @GetMapping("/{id}/metadata") public Map<String, Object> metadata(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN");
+        var metadata = knowledge.documentMetadata(id);
+        return metadata == null ? Map.of("status", "LEGACY_UNKNOWN", "clinicalReview", "NOT_REVIEWED")
+                : Map.of("status", "DECLARED", "clinicalReview", "NOT_REVIEWED", "metadata", metadata);
+    }
     @PostMapping("/upload") public KnowledgeDocument upload(@RequestParam("file") MultipartFile file,
             @RequestHeader(value = "Authorization", required = false) String auth) throws IOException {
         guard.require(auth, "ADMIN");

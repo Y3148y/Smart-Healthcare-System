@@ -49,12 +49,17 @@ class AdminKnowledgeWorkflowTest {
     @Test void adminEndpointsRejectPatientAndUnauthenticatedRequests() throws Exception {
         String patient = "Bearer " + jwt.issue("张三", "PATIENT");
         for (String path : new String[]{"/api/admin/knowledge/kd101/details", "/api/admin/knowledge/search/details?q=咳嗽",
-                "/api/admin/knowledge/retrieval-events", "/api/admin/knowledge/runtime"}) {
+                "/api/admin/knowledge/retrieval-events", "/api/admin/knowledge/runtime",
+                "/api/admin/knowledge/kd101/metadata", "/api/admin/knowledge/kd101/chunks"}) {
             mvc.perform(get(path)).andExpect(status().isUnauthorized());
             mvc.perform(get(path).header("Authorization", patient)).andExpect(status().isForbidden());
         }
         mvc.perform(post("/api/admin/knowledge/index/sync")).andExpect(status().isUnauthorized());
         mvc.perform(post("/api/admin/knowledge/index/sync").header("Authorization", patient)).andExpect(status().isForbidden());
+        mvc.perform(post("/api/admin/knowledge/documents").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/admin/knowledge/documents").contentType("application/json").content("{}")
+                .header("Authorization", patient)).andExpect(status().isForbidden());
     }
 
     @Test void debugProducesRequestLocalCandidatesAndBoundedMetadataWithoutPatientText() throws Exception {

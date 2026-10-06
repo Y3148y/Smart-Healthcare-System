@@ -136,3 +136,9 @@ CREATE TABLE IF NOT EXISTS knowledge_document (
   created_at TIMESTAMP NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_document_metadata (
+  document_id VARCHAR(64) PRIMARY KEY,
+  metadata_json LONGTEXT NOT NULL,
+  FOREIGN KEY (document_id) REFERENCES knowledge_document(id)
+);

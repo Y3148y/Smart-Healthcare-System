@@ -6,6 +6,7 @@ import com.aihospital.shared.model.Models.KnowledgeDocument;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import com.aihospital.knowledge.domain.KnowledgeChunk;
 import com.aihospital.knowledge.domain.MarkdownChunker;
+import com.aihospital.knowledge.domain.KnowledgeMetadata;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -42,6 +43,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
             "流鼻涕", "鼻塞", "打喷嚏", "鼻部症状");
     private final Map<String, KnowledgeDocument> documents = new ConcurrentHashMap<>();
     private final Map<String, String> sources = new ConcurrentHashMap<>();
+    private final Map<String, KnowledgeMetadata> metadata = new ConcurrentHashMap<>();
     private final Map<String, List<Chunk>> chunks = new ConcurrentHashMap<>();
 
     public InMemoryKnowledgeCatalog() {
@@ -57,14 +59,19 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     }
     public synchronized List<StoredKnowledgeDocument> persistedDocuments() {
         return documents.values().stream().map(document -> new StoredKnowledgeDocument(document.id(), document.title(),
-                document.body(), sources.get(document.id()), document.status(), document.chunks(), document.updatedAt())).toList();
+                document.body(), sources.get(document.id()), document.status(), document.chunks(), document.updatedAt(),
+                metadata.get(document.id()))).toList();
     }
 
     public synchronized void restorePersistedDocuments(List<StoredKnowledgeDocument> storedDocuments) {
         if (storedDocuments == null || storedDocuments.isEmpty())
             throw new IllegalArgumentException("Persistent knowledge catalog must not be empty");
+        if (storedDocuments.stream().anyMatch(stored -> "READY".equals(stored.status())
+                && stored.metadata() != null && !stored.metadata().mayPublish()))
+            throw new IllegalStateException("Published knowledge has unresolved usage permission");
         documents.clear();
         sources.clear();
+        metadata.clear();
         chunks.clear();
         for (StoredKnowledgeDocument stored : storedDocuments) {
             if (stored.id() == null || stored.id().isBlank() || stored.title() == null || stored.title().isBlank()
@@ -76,6 +83,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
                     stored.chunkCount(), stored.status(), stored.updatedAt());
             documents.put(stored.id(), document);
             sources.put(stored.id(), stored.source());
+            if (stored.metadata() != null) metadata.put(stored.id(), stored.metadata());
             if ("READY".equals(stored.status())) {
                 List<Chunk> indexed = chunk(stored.id(), stored.title(), stored.body(), stored.source());
                 documents.put(stored.id(), new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
@@ -89,12 +97,13 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         KnowledgeDocument document = documents.get(id);
         if (document == null) throw new IllegalArgumentException("知识资料不存在");
         return new StoredKnowledgeDocument(document.id(), document.title(), document.body(), sources.get(id),
-                document.status(), document.chunks(), document.updatedAt());
+                document.status(), document.chunks(), document.updatedAt(), metadata.get(id));
     }
 
     public synchronized void removeAfterPersistenceFailure(String id) {
         documents.remove(id);
         sources.remove(id);
+        metadata.remove(id);
         chunks.remove(id);
     }
     public String chunkingProfile() {
@@ -116,11 +125,25 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return new DocumentDetail(document, source, segments, "READY".equals(document.status())
                 ? "NOT_CHECKED" : "NOT_APPROVED", 0, "片段预览不等于已进入向量索引；待审核资料不参与患者检索。");
     }
-    @Override public KnowledgeDocument addDocument(String title, String body) { return add(title, body, "管理员录入/本地上传"); }
+    @Override public KnowledgeDocument addDocument(String title, String body) {
+        return add(title, body, "管理员录入/本地上传", false);
+    }
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata supplied) {
+        if (supplied == null) throw new IllegalArgumentException("Structured knowledge metadata is required");
+        KnowledgeDocument document = add(title, body, supplied.sourceLabel(), false);
+        metadata.put(document.id(), supplied);
+        return document;
+    }
+    @Override public synchronized KnowledgeMetadata documentMetadata(String id) {
+        if (!documents.containsKey(id)) throw new IllegalArgumentException("知识资料不存在");
+        return metadata.get(id);
+    }
 
     @Override public synchronized KnowledgeDocument approveDocument(String id) {
         KnowledgeDocument existing = documents.get(id);
         if (existing == null) throw new IllegalArgumentException("知识资料不存在");
+        if (metadata.containsKey(id) && !metadata.get(id).mayPublish())
+            throw new IllegalArgumentException("Knowledge usage permission must be resolved before approval");
         if ("READY".equals(existing.status())) return existing;
         String source = sources.get(id);
         List<Chunk> indexed = chunk(id, existing.title(), existing.body(), source);
@@ -131,12 +154,12 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return approved;
     }
 
-    private KnowledgeDocument add(String title, String body, String source) {
+    private KnowledgeDocument add(String title, String body, String source, boolean bundledSeed) {
         if (title == null || title.isBlank() || body == null || body.isBlank() || title.length() > 160 || body.length() > 100_000)
             throw new IllegalArgumentException("知识资料标题或正文无效");
         String id = "kd" + java.util.UUID.randomUUID();
         List<Chunk> indexed = chunk(id, title, body, source);
-        boolean approvedSource = source.startsWith("https://");
+        boolean approvedSource = bundledSeed;
         KnowledgeDocument document = new KnowledgeDocument(id, title, body, indexed.size(),
                 approvedSource ? "READY" : "PENDING_REVIEW", LocalDateTime.now());
         documents.put(id, document);
@@ -260,7 +283,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
                 String body = markdown.lines().filter(line -> !line.startsWith("# ") && !line.startsWith("来源：")
                         && !line.startsWith("补充来源：") && !line.startsWith("主题："))
                         .reduce("", (left, line) -> left + (left.isBlank() ? "" : "\n") + line).trim();
-                add(title, topics.isBlank() ? body : "主题：" + topics + "\n" + body, source);
+                add(title, topics.isBlank() ? body : "主题：" + topics + "\n" + body, source, true);
             }
         } catch (IOException ex) { throw new IllegalStateException("加载内置医学知识资料失败", ex); }
     }

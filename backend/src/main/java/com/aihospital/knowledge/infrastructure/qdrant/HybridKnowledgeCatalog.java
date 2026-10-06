@@ -88,6 +88,16 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body) {
         KnowledgeDocument document = local.addDocument(title, body);
+        return persistNewDocument(document);
+    }
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body,
+            com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
+        return persistNewDocument(local.addDocument(title, body, metadata));
+    }
+    @Override public com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {
+        return local.documentMetadata(id);
+    }
+    private KnowledgeDocument persistNewDocument(KnowledgeDocument document) {
         if (documentStore != null) {
             try { documentStore.insert(local.persistedDocument(document.id())); }
             catch (RuntimeException failure) { local.removeAfterPersistenceFailure(document.id()); throw failure; }
