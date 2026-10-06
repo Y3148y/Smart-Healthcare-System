@@ -30,7 +30,13 @@ export function collectCitations(rulesJson) {
 }
 
 export function checkCitations(rulesJson, registry) {
-  const byId = new Map(registry.sources.map((source) => [source.id, source]));
+  const byId = new Map();
+  for (const source of registry.sources) {
+    for (const id of [source.id, ...(source.aliases ?? [])]) {
+      if (byId.has(id)) throw new Error(`Duplicate source ID or alias: ${id}`);
+      byId.set(id, source);
+    }
+  }
   const grouped = new Map();
   for (const row of collectCitations(rulesJson)) {
     const key = `${row.code}::${row.id}`;

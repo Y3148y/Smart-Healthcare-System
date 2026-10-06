@@ -32,6 +32,10 @@ class HybridRetrievalPipelineTest {
 
     @Test void mergesBothRoutesBeforeTruncationAndReranksAgainstOriginalQuery() {
         var local = new InMemoryKnowledgeCatalog();
+        // Deliberate second candidate: do not depend on a seed document splitting
+        // into multiple tiny paragraphs for the pre-truncation fusion contract.
+        var additional = local.addDocument("融合测试资料", "流鼻涕测试候选，用于验证截断前融合，不是医学语料。");
+        local.approveDocument(additional.id());
         var semantic = mock(QdrantSemanticIndex.class);
         var reranker = mock(BailianReranker.class);
         var nasal = local.approvedCorpus().stream().filter(e -> e.title().contains("流鼻涕")).findFirst().orElseThrow();

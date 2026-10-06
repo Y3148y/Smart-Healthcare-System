@@ -14,6 +14,24 @@
   },
   "sources": [
     {
+      "id": "nhs-dental-abscess",
+      "name": "NHS Dental abscess",
+      "publisher": "NHS",
+      "jurisdiction": "英国",
+      "url": "https://www.nhs.uk/conditions/dental-abscess/",
+      "type": "公众信息",
+      "licenseNote": "许可待核对：NHS条款及OGL例外、署名要求；不自动发布患者语料。",
+      "permissionStatus": "pending",
+      "covers": "牙源性感染的就医提示；不能单凭面部肿胀确诊牙脓肿。",
+      "targetDoc": "",
+      "fetchMode": "auto",
+      "status": "verified",
+      "reviewCycleDays": 90,
+      "priority": "P0",
+      "targetRag": false,
+      "notes": "2026-10-06核对官方页面，用于修复出处登记，不证明中文规则词表已经临床核验。"
+    },
+    {
       "id": "nhs-migraine",
       "name": "NHS Migraine",
       "publisher": "NHS",
@@ -538,6 +556,7 @@
     },
     {
       "id": "nhs-pregnancy-stomach-pain",
+      "aliases": ["nhs-stomach-pain-pregnancy"],
       "name": "NHS Stomach pain in pregnancy",
       "publisher": "NHS England",
       "jurisdiction": "英国",
@@ -555,19 +574,20 @@
     },
     {
       "id": "cdc-hearher-maternal-warning-signs",
+      "aliases": ["cdc-maternal-warning-signs"],
       "name": "CDC Hear Her — maternal warning signs（孕产危险信号）",
       "publisher": "US Centers for Disease Control and Prevention",
       "jurisdiction": "美国",
-      "url": "https://cdc.gov/hearher/maternal-warning-signs/index.html",
+      "url": "https://www.cdc.gov/hearher/maternal-warning-signs/index.html",
       "type": "公众信息",
-      "licenseNote": "美国政府作品，属公有领域；仍需标注出处。",
+      "licenseNote": "逐页许可待核对；官方页面注明名单由Alliance for Innovation on Maternal Health制定，不能仅凭gov域名宣称全部公有领域。",
       "covers": "孕产危险信号，用于 ER-PREGNANCY-001 的补充出处。",
       "targetDoc": "",
       "fetchMode": "manual",
-      "status": "toVerify",
+      "status": "verified",
       "reviewCycleDays": 180,
       "priority": "P0",
-      "notes": "2026-10-02 实测程序化请求返回 HTTP 403，工具无法核实内容与 URL 正确性。须人工在浏览器打开核对一次；若 URL 有误，则 docs/KNOWN_ISSUES_PRECLINICAL.md 中对它的引用即为悬空引用，须一并更正。核实通过后把 status 改为 verified 并把 fetchMode 改为 auto。",
+      "notes": "2026-10-06通过官方页面核对URL及孕产危险信号内容；直接抓取历史403，保持manual，不把浏览器核对等同自动抓取成功。中文规则映射仍未经临床审核。",
       "targetRag": false
     },
     {

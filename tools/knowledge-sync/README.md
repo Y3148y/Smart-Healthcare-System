@@ -13,6 +13,8 @@
 | `npm run sources` | 否 | 打印登记表摘要（优先级、抓取方式、核实状态） |
 | `npm run refs -- <commit>` | 否 | 校验两份文档引用的代码位置是否仍成立（`doc-refs.json` 里 28 条"该行必须包含的内容串"） |
 | `npm run citations` | 否 | 校验规则数据文件：① 每个 citation id 都能在 `sources.json` 找到，并盯住未核实 / `manual` / 自述占位的来源；② 五条结构不变量（零引用必须显式标 `citationGap`、`combinations` 的码必须存在、`{ref:…}` 必须可解析、规则码唯一、派生规则须声明 `condition`）。**只读，不改规则文件** |
+
+历史引用ID可通过sources条目的aliases对应到同一个真实来源，不复制登记与抓取记录；ID或别名冲突直接报错。别名不会隐藏未核实、占位或手动复核告警。目前国家急诊科指南占位引用仍未解决，citations不能宣称全通过。
 | `npm test` | 否 | 抓取工具回归测试 |
 | `npm run verify` | 否 | 旧词法检索参考检查，不代表当前在线混合检索评估 |
 | `npm run fetch -- --dry-run` | 是 | 抓取并打印结果，不写 `state.json` |

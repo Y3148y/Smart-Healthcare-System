@@ -44,11 +44,12 @@ class MarkdownChunkerTest {
     }
 
     @Test void identityIsStableButBodyOrSourceRevisionInvalidatesIt() {
-        var original = chunker.split("doc", "Title", "source", "Same paragraph\n\nSame paragraph");
-        assertEquals(original, chunker.split("doc", "Title", "source", "Same paragraph\n\nSame paragraph"));
+        String body = "## First\nSame paragraph\n## Second\nSame paragraph";
+        var original = chunker.split("doc", "Title", "source", body);
+        assertEquals(original, chunker.split("doc", "Title", "source", body));
         assertNotEquals(original.get(0).chunkId(), original.get(1).chunkId());
         assertNotEquals(original.get(0).documentVersion(),
-                chunker.split("doc", "Title", "other-source", "Same paragraph\n\nSame paragraph").get(0).documentVersion());
+                chunker.split("doc", "Title", "other-source", body).get(0).documentVersion());
         assertNotEquals(original.get(0).documentVersion(),
                 chunker.split("doc", "Title", "source", "Revised paragraph").get(0).documentVersion());
         assertEquals(MarkdownChunker.sha256(original.get(0).text()), original.get(0).contentSha256());
@@ -60,5 +61,25 @@ class MarkdownChunkerTest {
         assertEquals(1, chunks.size());
         assertEquals(List.of("Example"), chunks.get(0).sectionPath());
         assertTrue(chunks.get(0).text().contains("## literal heading"));
+    }
+
+    @Test void shortConditionListAndExceptionStayTogetherWithinSection() {
+        String body = "## Scope\nUse only if:\n\n- condition A\n\n- condition B\n\nNot suitable when C.\n## Other\nUnrelated content.";
+        var chunks = chunker.split("doc", "Title", "source", body);
+        assertEquals(2, chunks.size());
+        assertTrue(chunks.get(0).text().contains("Use only if:"));
+        assertTrue(chunks.get(0).text().contains("condition B"));
+        assertTrue(chunks.get(0).text().contains("Not suitable when C."));
+        assertFalse(chunks.get(0).text().contains("Unrelated"));
+    }
+
+    @Test void packingPreservesSourceOffsetsAndNeverExceedsWindow() {
+        String body = "## Scope\n" + ("A".repeat(130) + "\n\n").repeat(5);
+        var chunks = chunker.split("doc", "Title", "source", body);
+        assertEquals(2, chunks.size());
+        for (var chunk : chunks) {
+            assertTrue(chunk.text().codePointCount(0, chunk.text().length()) <= MarkdownChunker.MAX_LENGTH);
+            assertEquals(body.substring(body.offsetByCodePoints(0, chunk.start()), body.offsetByCodePoints(0, chunk.end())), chunk.text());
+        }
     }
 }

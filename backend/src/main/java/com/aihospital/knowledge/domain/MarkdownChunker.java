@@ -11,16 +11,18 @@ import java.util.regex.Pattern;
 
 /** Deterministic paragraph/heading splitting; no medical facts or classifications are inferred. */
 public final class MarkdownChunker {
-    public static final String VERSION = "markdown-paragraph-codepoint-v2";
+    public static final String VERSION = "markdown-section-pack-codepoint-v3";
     public static final int MAX_LENGTH = 420;
     public static final int OVERLAP = 60;
     private static final Pattern HEADING = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
+    private record Block(int start, int end, List<String> headings) {}
 
     public List<KnowledgeChunk> split(String id, String title, String source, String body) {
         if (id == null || title == null || source == null || body == null)
             throw new IllegalArgumentException("Chunk input is incomplete");
         String version = sha256(title + "\u0000" + source + "\u0000" + body);
         List<KnowledgeChunk> result = new ArrayList<>();
+        List<Block> blocks = new ArrayList<>();
         List<String> headings = new ArrayList<>();
         List<Integer> headingLevels = new ArrayList<>();
         int paragraph = -1, offset = 0;
@@ -33,7 +35,7 @@ public final class MarkdownChunker {
             boolean fenceLine = line.startsWith("```") || line.startsWith("~~~");
             var heading = HEADING.matcher(line);
             if (!fenced && heading.matches()) {
-                if (paragraph >= 0) append(result, id, version, source, body, paragraph, offset, headings);
+                if (paragraph >= 0) blocks.add(new Block(paragraph, offset, List.copyOf(headings)));
                 paragraph = -1;
                 int level = heading.group(1).length();
                 while (!headingLevels.isEmpty() && headingLevels.get(headingLevels.size() - 1) >= level) {
@@ -44,7 +46,7 @@ public final class MarkdownChunker {
                 headings.add(heading.group(2));
                 headingLevels.add(level);
             } else if (!fenced && line.isBlank()) {
-                if (paragraph >= 0) append(result, id, version, source, body, paragraph, offset, headings);
+                if (paragraph >= 0) blocks.add(new Block(paragraph, offset, List.copyOf(headings)));
                 paragraph = -1;
             } else if (paragraph < 0) paragraph = offset;
             if (fenceLine) {
@@ -54,7 +56,18 @@ public final class MarkdownChunker {
             }
             offset = newline < 0 ? body.length() : newline + 1;
         }
-        if (paragraph >= 0) append(result, id, version, source, body, paragraph, body.length(), headings);
+        if (paragraph >= 0) blocks.add(new Block(paragraph, body.length(), List.copyOf(headings)));
+        Block packed = null;
+        for (Block block : blocks) {
+            if (packed != null && packed.headings().equals(block.headings())
+                    && body.codePointCount(packed.start(), block.end()) <= MAX_LENGTH) {
+                packed = new Block(packed.start(), block.end(), packed.headings());
+            } else {
+                if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
+                packed = block;
+            }
+        }
+        if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
         return List.copyOf(result);
     }
 
