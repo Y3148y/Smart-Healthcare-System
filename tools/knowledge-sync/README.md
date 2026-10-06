@@ -21,6 +21,9 @@
 | `npm run fetch -- --cycle` | 是 | 只抓超过各自复核周期的来源 |
 | `npm run diff` | 否 | 生成差异报告到 `reports/`（只报位置与长度） |
 | `npm run proposals` | 否 | 为 new/updated 来源生成改写工作单 |
+| `npm run intake` | 否 | 从成功快照生成正文＋来源元数据的本地待审 JSON；校验原始哈希，不联网、不发布 |
+
+`reports/intake/` 含完整抽取正文及清洗告警，受 gitignore 排除，不推公开仓库。许可始终 pending，登记表的许可提示不能自动升级为 permitted；语言、主题、人群、用途等留待核校，不由脚本猜测。来源缺快照、抓取失败或哈希不符会登记 BLOCKED。审核后才提交管理员导入，审批与索引由后端负责。
 
 ## 边界
 
@@ -47,11 +50,12 @@
 
 - `InMemoryKnowledgeCatalog.java:91` 从 `ConcurrentHashMap.values()` 取流，**同分片段顺序不确定**。verify 对分数差小于 0.001 的情况会显式告警。
 - `www.nhc.gov.cn` 对程序化请求返回 **HTTP 412**（WAF）。相关来源标 `manual`，只能人工打开阅读。
-- 零依赖抽取器只处理 HTML。PDF（NHS England 易读版）与 .docx（国卫医发〔2018〕25号 附件、NMPA 通告附件）只能人工阅读。
-- HTML → 文本是粗筛：导航残留可能混进抽取正文。工作单里已标注「未经核校」，必须人工确认。
+- 抽取器只处理 HTML；PDF 与 .docx 尚需单独处理，不当作成功抽取。
+- HTML 使用锁定版本 parse5 解析，保留标题、段落、列表、表格行及复核日期。优先 main/role=main，再 article，最后 body；多区域、body 回退及表格都标记待复核。不是临床核校，也不能保证复杂页面没有导航残留。
+- 工作单不再要求按固定词表凑词、压成单块或删改原始证据。发布须提交结构化元数据并审核许可、用途和适用范围。
 - **抓取失败先看 httpStatus 再下结论**：`403`/`412` 是站点侧拦截（WAF），`unreachable`（connect timeout）是网络侧。`sdcep-spreading-infection` 曾连续两次 `UND_ERR_CONNECT_TIMEOUT`，单次重试即成功——**不可达不等于被墙**。
 - **行号断言不适合 JSON 数据文件**。在真实 `safety-rules.json` 上实测：`citations` 一词出现 17 次，按惯例选中的第 9 行其实是 `unreviewedDefault` 的说明文字，一条「第 9 行含 citations」的断言**当场假通过**；顶层插入任何字段后它又变成指向 `},` 的噪声 FAIL，而 JSON 语义毫无变化。该文件因此走 `citations` 的语义校验，不进 `doc-refs.json`。
 
 ## 依赖
 
-Node ≥ 20（用到全局 `fetch`）。**零第三方依赖**，不需要 `npm install`，不需要任何 API 密钥。
+Node ≥ 20（全局 `fetch`）；`npm ci` 安装锁文件固定的 parse5 HTML 解析器，不需要 API 密钥。解析方式见 [parse5](https://github.com/inikulin/parse5)。

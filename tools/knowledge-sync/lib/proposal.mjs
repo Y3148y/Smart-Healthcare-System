@@ -11,12 +11,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CACHE_DIR, REPORTS_DIR } from './registry.mjs';
-import { htmlToText } from './extract.mjs';
-import { MEDICAL_TERMS } from './verify.mjs';
+import { htmlToText, extractHtml } from './extract.mjs';
 
 const CHECKLIST = [
   '来源是否官方机构或公立医院？（若是商业内容、论坛或问答，直接丢弃本条）',
-  '抽取正文里是否含诊断、处方、药名或剂量？若有，删掉——本项目不输出这些。',
+  '是否包含诊断、药物或剂量等超出患者端输出范围的内容？保留原始来源证据，不改写原文；在待审内容中声明范围与排除项。',
   '是否含广告、促销、导航残留？（抽取器是粗筛，必须人工确认）',
   '这段内容对应哪个已登记缺口？写不出缺口编号就说明不需要它。',
   '是否需要补写「出现 X 应立即线下就医」的升级提示？',
@@ -36,6 +35,8 @@ export function extractSource(source) {
 
 export function buildWorksheet(source, record) {
   const text = extractSource(source);
+  const extraction = existsSync(snapshotPath(source))
+    ? extractHtml(readFileSync(snapshotPath(source), 'utf8')) : null;
   const generatedAt = new Date().toISOString();
   const header = [
     `# 改写工作单：${source.name}`,
@@ -59,6 +60,9 @@ export function buildWorksheet(source, record) {
     `| HTTP | ${record?.httpStatus ?? '-'} / ${record?.status ?? '-'} |`,
     `| sha256 | ${record?.sha256 ?? '-'} |`,
     `| 许可需复核 | 是——本表许可判断由人做，脚本不判定合规 |`,
+    `| 抽取版本 | ${extraction?.extractionVersion ?? '-'} |`,
+    `| 抽取区域 | ${extraction?.region ?? '-'} |`,
+    `| 抽取告警 | ${extraction?.warnings.join(', ') || '-'} |`,
     '',
     '## 检查清单',
     '',
@@ -66,19 +70,15 @@ export function buildWorksheet(source, record) {
     '',
     '## 待填语料正文',
     '',
-    '按仓库既有格式改写：`# 标题` / `来源：https://…` / `主题：` / 正文。每个段落控制在 400 字内，',
-    '以命中单块分块（InMemoryKnowledgeCatalog CHUNK_SIZE=420）；正文首段或末段必须写明「未经临床审核」。',
+    '保持原有标题、条件、例外、警示和段落关系。正文由后端统一切分，不为命中单块而删减必要上下文。',
+    '通过管理员知识导入提交正文和结构化元数据：来源、语言、内容类型、适用人群、排除项、证据用途、许可状态与证明。初始待审；未经临床审核。',
     '',
-    `检索词表目前只有 ${MEDICAL_TERMS.length} 个词，` +
-      '词表外的词对词法得分贡献为 0，只能靠 bigram 权重（上限约 0.38，阈值 0.28）。',
-    '所以主题与正文应尽量复用下列词语：',
-    '',
-    `> ${MEDICAL_TERMS.join('、')}`,
+    '禁止为了检索得分硬凑词或预设答案。当前在线检索为混合链路；旧 verify 词表不是语料编写规范。',
     '',
     '```markdown',
     `# ${source.name}`,
     source.url ? `来源：${source.url}` : '来源：（待补官方 URL，必须是 https:// 开头，否则该文档不会对患者可见）',
-    `主题：（从上面 ${MEDICAL_TERMS.length} 个词里挑；实在没有合适词就不要硬凑）`,
+    '主题：（忠于原文，不为召回添加无关症状或科室）',
     '',
     '（在此写改写后的短段落）',
     '```',

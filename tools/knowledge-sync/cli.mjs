@@ -6,7 +6,8 @@
  *   fetch      抓取到期/指定来源，只记录哈希与元数据（快照落在 gitignore 的 cache/）
  *   diff       对比 state.json，生成差异报告（只报位置与长度，不复制原文）
  *   proposals  为新增/变更来源生成改写工作单
- *   verify     离线复算生产检索算法，预测语料改动对召回的影响（不联网）
+ *   intake     校验快照哈希，生成本地正文与元数据待审包（不发布）
+ *   verify     旧词法检索参考检查，不代表当前在线混合链路
  *
  * 这个工具永远不写 backend/src/main/resources/knowledge/。入库必须是独立、经批准的手工提交。
  */
@@ -18,6 +19,7 @@ import { checkCitations, checkRuleInvariants, collectCitations, loadRules, rules
 import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
 import { writeWorksheets } from './lib/proposal.mjs';
+import { writeCandidates } from './lib/intake.mjs';
 import {
   DEFAULT_MIN_SCORE, MEDICAL_TERMS, OOV_GUARD_QUERIES, PINNED_CHECKS, guardOutOfVocabulary,
   loadCorpus, retrieve, vocabularyCoverage,
@@ -333,6 +335,10 @@ function commandCitations() {
 }
 
 const commands = {
+  intake: () => {
+    const results = writeCandidates(loadRegistry().sources, loadState().sources);
+    console.log(JSON.stringify(results, null, 2));
+  },
   sources: commandSources,
   fetch: commandFetch,
   diff: commandDiff,
@@ -345,7 +351,7 @@ const commands = {
 const selected = commands[command];
 if (!selected) {
   console.error(`未知命令：${command}`);
-  console.error('可用：sources | fetch | diff | proposals | verify | refs | citations');
+  console.error('可用：sources | fetch | diff | proposals | intake | verify | refs | citations');
   process.exit(2);
 }
 await selected();

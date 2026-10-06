@@ -207,7 +207,7 @@ export async function fetchSource(source, previous) {
   const contentType = (result.contentType ?? '').toLowerCase();
   if (!HTML_TYPES.some((type) => contentType.includes(type))) {
     result.status = 'manual';
-    result.note = `内容类型为 ${result.contentType || '未知'}，零依赖抽取器只处理 HTML；该源只能人工阅读。`;
+    result.note = `内容类型为 ${result.contentType || '未知'}，当前抽取器只处理 HTML；该源需单独处理。`;
     return result;
   }
 
