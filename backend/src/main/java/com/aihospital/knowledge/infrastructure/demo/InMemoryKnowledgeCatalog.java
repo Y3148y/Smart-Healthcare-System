@@ -159,6 +159,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
             throw new IllegalArgumentException("知识资料标题或正文无效");
         String id = "kd" + java.util.UUID.randomUUID();
         List<Chunk> indexed = chunk(id, title, body, source);
+        if (indexed.isEmpty()) throw new IllegalArgumentException("知识正文没有可检索内容，不能只提交标题");
         boolean approvedSource = bundledSeed;
         KnowledgeDocument document = new KnowledgeDocument(id, title, body, indexed.size(),
                 approvedSource ? "READY" : "PENDING_REVIEW", LocalDateTime.now());

@@ -38,7 +38,7 @@
 
 ## 在线检索
 
-目录同步向 point payload 写入片段溯源（文档ID/版本、片段ID、章节、位置、正文哈希与切分策略）和 embedding 模型名；在线检索与离线构建使用同一目录同步入口。同一证据文本存在于多份资料时保留多个来源片段，不凭文本臆造唯一文档。旧 point 缺少这些字段时重新 upsert；完整 payload 相同时可在重启后复用。搜索只接受请求快照的 point id 和一致 payload；这是一致性校验，不是医学相关性证明。直接调用底层 Evidence 适配器时仍允许没有溯源的兼容模式；离线清单尚未包含逐片段溯源信息。
+目录同步向 point payload 写入片段溯源（文档ID/版本、片段ID、章节、位置、正文哈希与切分策略）和 embedding 模型名；在线检索与离线构建使用同一目录同步入口。同一证据文本存在于多份资料时保留多个来源片段，不凭文本臆造唯一文档。旧 point 缺少这些字段时重新 upsert；完整 payload 相同时可在重启后复用。搜索只接受请求快照的 point id 和一致 payload；这是一致性校验，不是医学相关性证明。直接调用底层 Evidence 适配器时仍允许没有溯源的兼容模式。
 
 查询分别进入 BM25 与 Qdrant，候选经 RRF 融合，再由配置的百炼 rerank 重排。返回片段作为模型依据；相关度分数不是医学可信概率。默认配置允许标识清楚的本地降级，rag-live 要求向量与重排依赖可用。
 
@@ -49,6 +49,8 @@
 普通 JDK 17 Maven 测试覆盖本地 BM25、融合、依赖失败、幂等索引与质量门禁，不调用真实模型。RagLiveIntegrationTest 需设置 AI_RAG_LIVE_TEST=true 与本机服务凭据；冻结测试数据在 backend/src/test/resources，报告生成到 target/rag-live*.json。
 
 KnowledgeIndexBuildRunner 通过 ai.knowledge.offline-index.enabled 显式启用，输出索引构建清单，包含语料哈希、分块策略、模型及实际 collection 参数。它证明构建输入和结果可追溯，不代表医学审核。
+
+实际离线构建输出 schemaVersion=3 的清单，逐片段列出文档/版本/章节/位置/哈希与切分策略，不重复保存正文或密钥。批准语料与溯源数量不一致或ID重复时拒绝输出清单；旧 Evidence-only 工程评估调用保留 schemaVersion=2 的兼容清单。仅有 Markdown 标题、没有可检索正文的资料不允许入库。
 
 ## 尚未完成
 

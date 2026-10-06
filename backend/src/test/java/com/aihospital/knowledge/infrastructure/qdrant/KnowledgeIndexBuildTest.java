@@ -38,12 +38,34 @@ class KnowledgeIndexBuildTest {
         assertEquals(10000, first.fullScanThresholdKb());
     }
 
+    @Test void provenanceCannotDescribeDifferentOrDuplicateChunks() {
+        var corpus = List.of(new Evidence("Fixture", "https://source.invalid", "Fixture body", 1));
+        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 1024, "Cosine", 16, 100, 10000);
+        var chunks = new com.aihospital.knowledge.domain.MarkdownChunker().split("fixture", "Fixture",
+                "https://source.invalid", "Fixture body");
+        assertThrows(IllegalArgumentException.class, () -> KnowledgeIndexBuildManifest.createWithProvenance(
+                "collection", "model", "profile", corpus, 1, configuration, List.of()));
+        var unrelated = new com.aihospital.knowledge.domain.MarkdownChunker().split("fixture", "Fixture",
+                "https://source.invalid", "Different body");
+        assertThrows(IllegalArgumentException.class, () -> KnowledgeIndexBuildManifest.createWithProvenance(
+                "collection", "model", "profile", corpus, 1, configuration, unrelated));
+        assertThrows(IllegalArgumentException.class, () -> KnowledgeIndexBuildManifest.createWithProvenance(
+                "collection", "model", "profile", List.of(corpus.get(0), corpus.get(0)), 2, configuration,
+                List.of(chunks.get(0), chunks.get(0))));
+    }
+
     @Test void successfulOfflineBuildWritesOnlyNonSensitiveManifest(@TempDir Path outputDir) throws Exception {
         var corpus = List.of(new Evidence("流鼻涕资料", "https://source.invalid/nose", "本地知识正文不得写入清单", 1));
         var catalog = mock(KnowledgeCatalog.class);
         when(catalog.syncIndex()).thenReturn(Map.of("success", "true", "status", "INDEXED"));
         var local = mock(InMemoryKnowledgeCatalog.class);
         when(local.approvedCorpus()).thenReturn(corpus);
+        var document = new com.aihospital.shared.model.Models.KnowledgeDocument("fixture-doc", corpus.get(0).title(),
+                corpus.get(0).excerpt(), 1, "READY", java.time.LocalDateTime.now());
+        when(local.documents()).thenReturn(List.of(document));
+        var chunks = new com.aihospital.knowledge.domain.MarkdownChunker().split(document.id(), document.title(),
+                corpus.get(0).source(), document.body());
+        when(local.documentChunks(document.id())).thenReturn(chunks);
         when(local.chunkingProfile()).thenReturn("test-chunk-profile-v1");
         var semantic = mock(QdrantSemanticIndex.class);
         when(semantic.indexedCount(corpus)).thenReturn(1);
@@ -63,6 +85,8 @@ class KnowledgeIndexBuildTest {
         assertTrue(content.contains("chunkingProfile"));
         assertTrue(content.contains("hnswEfConstruct"));
         assertTrue(content.contains("vectorSize"));
+        assertEquals(3, new ObjectMapper().readTree(content).path("schemaVersion").asInt());
+        assertEquals(chunks.get(0).chunkId(), new ObjectMapper().readTree(content).path("chunks").get(0).path("chunkId").asText());
         assertFalse(content.contains("本地知识正文不得写入清单"));
         assertFalse(content.contains("API_KEY"));
         verify(catalog).syncIndex();
