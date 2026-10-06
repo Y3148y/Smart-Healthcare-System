@@ -21,7 +21,7 @@ Owner：GPT，用户 2026-10-03 授权。实现范围为后台页面、knowledge
 - GET `/api/admin/knowledge/retrieval-events`：最多 100 条执行摘要，包含时间、路径、阶段状态、候选/保留数和耗时。仅在进程内存保存，不保存患者问题和知识片段，也不是完整审计持久化。
 - 既有 runtime 增加 embedding/rerank 模型名称。配置已加载和最近调用状态不等于实时健康检查。
 
-INDEXED_IN_PROCESS 表示本进程曾成功 upsert 对应片段，不会直接探测 Qdrant 当前是否仍存在；未加载 embedding 时显示 NOT_CONFIGURED，待审批显示 NOT_APPROVED。资料与审批依旧内存演示。调用 Token 旧字段的 0 无法区分未返回和实际为 0，页面如实注明。
+INDEXED_IN_PROCESS 表示本进程已向 Qdrant 写入或按稳定 point ID 与完整 payload 核验过对应片段；它不是持续健康检查，也不代表页面加载时仍能连接 Qdrant。未加载 embedding 时显示 NOT_CONFIGURED，待审批显示 NOT_APPROVED。资料与审批依旧内存演示。调用 Token 旧字段的 0 无法区分未返回和实际为 0，页面如实注明。
 
 ## 验证记录
 

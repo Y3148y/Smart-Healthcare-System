@@ -48,7 +48,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         String state = !approved ? "NOT_APPROVED" : !semantic.configured() ? "NOT_CONFIGURED"
                 : count == detail.segments().size() ? "INDEXED_IN_PROCESS" : count == 0 ? "NOT_INDEXED" : "PARTIAL";
         return new DocumentDetail(detail.document(), detail.source(), detail.segments(), state, count,
-                "索引计数是本进程成功写入记录，不是 Qdrant 实时探测；资料和审批状态仍为内存演示。");
+                "索引计数是本进程已向 Qdrant 校验或成功写入的片段数，不是持续健康检查；资料和审批状态仍为内存演示。");
     }
     @Override public Map<String, String> syncIndex() {
         boolean success = semantic.ensureIndexed(local.approvedCorpus());

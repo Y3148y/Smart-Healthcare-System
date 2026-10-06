@@ -8,7 +8,7 @@ export type KnowledgeRuntime = Record<string, string>
 export const stateLabels: Record<string, string> = {
   READY: '最近检索成功', NOT_QUERIED: '尚未执行检索', NOT_CONFIGURED: '未配置', NOT_READY: '未就绪',
   INDEXED: '最近索引成功', NOT_APPROVED: '待审批', PENDING_REVIEW: '待审批', NOT_INDEXED: '尚未写入',
-  INDEXED_IN_PROCESS: '本进程已写入', PARTIAL: '部分写入', INDEX_UNAVAILABLE: '最近索引失败',
+  INDEXED_IN_PROCESS: '本进程已验证', PARTIAL: '部分写入或验证', INDEX_UNAVAILABLE: '最近索引失败',
   SEARCH_UNAVAILABLE: '最近检索失败', OK: '最近调用成功', EMPTY: '无候选，未调用', SKIPPED: '未调用',
   NOT_CHECKED: '未检查', DEPENDENCY_BLOCKED: '依赖不可用',
   selected: '保留', below_rerank_threshold: '低于重排门槛', beyond_final_top_k: '超出最终数量',
