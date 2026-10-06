@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T06:42:31.857Z",
+  "updatedAt": "2026-10-06T07:24:57.314Z",
   "note": "每源抓取结果只记录 URL、时间、HTTP 状态与 sha256。raw 快照写在 cache/（已 git 忽略），原文永不进入 git。",
   "sources": {
     "sdcep-spreading-infection": {
@@ -71,7 +71,7 @@
     "nhs-chest-pain": {
       "id": "nhs-chest-pain",
       "url": "https://www.nhs.uk/conditions/chest-pain/",
-      "fetchedAt": "2026-10-06T06:42:21.309Z",
+      "fetchedAt": "2026-10-06T07:23:51.358Z",
       "status": "unreachable",
       "httpStatus": null,
       "sha256": null,
@@ -89,6 +89,58 @@
       "httpStatus": 200,
       "sha256": "72672e21a4d164d806ed2984dd581fe6216c31628105b9354c9ae8f32bb3a31c",
       "bytes": 45801,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "nhs-sore-throat": {
+      "id": "nhs-sore-throat",
+      "url": "https://www.nhs.uk/symptoms/sore-throat/",
+      "fetchedAt": "2026-10-06T07:23:30.473Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "45b36d1dac8670ddbbb02825ba874e2e366c3518cb5cd2c4640bdc10899ceff6",
+      "bytes": 38754,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "nhs-period-pain": {
+      "id": "nhs-period-pain",
+      "url": "https://www.nhs.uk/symptoms/period-pain/",
+      "fetchedAt": "2026-10-06T07:23:35.808Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "a562344038c6f3b9681ab762df6c52c11a156117121982b77ab7b7ce3ef0d2f2",
+      "bytes": 34961,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "nhs-anaphylaxis": {
+      "id": "nhs-anaphylaxis",
+      "url": "https://www.nhs.uk/conditions/anaphylaxis",
+      "fetchedAt": "2026-10-06T07:23:41.484Z",
+      "status": "unreachable",
+      "httpStatus": null,
+      "sha256": null,
+      "bytes": null,
+      "etag": null,
+      "lastModified": null,
+      "contentType": null,
+      "note": "请求失败：fetch failed"
+    },
+    "nhs-broken-arm": {
+      "id": "nhs-broken-arm",
+      "url": "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+      "fetchedAt": "2026-10-06T07:24:51.860Z",
+      "status": "unchanged",
+      "httpStatus": 200,
+      "sha256": "fb6272575b1747b286fe987cad80cbcfcd3f999faf07f23f6d72f2b0e51ef6ac",
+      "bytes": 45253,
       "etag": null,
       "lastModified": null,
       "contentType": "text/html; charset=utf-8",
