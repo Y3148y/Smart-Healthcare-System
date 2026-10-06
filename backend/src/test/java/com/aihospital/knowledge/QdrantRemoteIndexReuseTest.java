@@ -40,7 +40,7 @@ class QdrantRemoteIndexReuseTest {
             if ("GET".equals(exchange.getRequestMethod()) && !collectionExists.get()) {
                 respond(exchange, 404, "{}");
             } else if ("GET".equals(exchange.getRequestMethod())) {
-                respond(exchange, 200, "{\"result\":{\"config\":{\"params\":{\"vectors\":{\"size\":2,\"distance\":\"Cosine\"}}}}}");
+                respond(exchange, 200, "{\"result\":{\"status\":\"green\",\"points_count\":1,\"config\":{\"params\":{\"vectors\":{\"size\":2,\"distance\":\"Cosine\"}},\"hnsw_config\":{\"m\":16,\"ef_construct\":100,\"full_scan_threshold\":10000}}}}");
             } else {
                 respond(exchange, 200, "{\"result\":true}");
             }
@@ -70,6 +70,14 @@ class QdrantRemoteIndexReuseTest {
             assertTrue(firstProcess.ensureIndexed(List.of(original)));
             assertEquals(1, embeddingCalls.get());
             assertEquals(1, upsertCalls.get());
+            var configuration = firstProcess.collectionConfiguration();
+            assertEquals("green", configuration.status());
+            assertEquals(1, configuration.pointCount());
+            assertEquals(2, configuration.vectorSize());
+            assertEquals("Cosine", configuration.distance());
+            assertEquals(16, configuration.hnswM());
+            assertEquals(100, configuration.hnswEfConstruct());
+            assertEquals(10000, configuration.fullScanThresholdKb());
 
             QdrantSemanticIndex restartedProcess = configured(json, base);
             assertTrue(restartedProcess.ensureIndexed(List.of(original)));

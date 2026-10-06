@@ -52,7 +52,8 @@ public class KnowledgeIndexBuildRunner implements ApplicationRunner {
         if (indexedCount != corpus.size())
             throw new IllegalStateException("Offline index build incomplete: indexed chunk count does not match corpus");
 
-        var manifest = KnowledgeIndexBuildManifest.create(collection, embeddingModel, corpus, indexedCount);
+        var manifest = KnowledgeIndexBuildManifest.create(collection, embeddingModel, local.chunkingProfile(),
+                corpus, indexedCount, semantic.collectionConfiguration());
         writeManifest(Path.of(manifestPath), manifest, json);
         log.info("Offline knowledge index built collection={} chunks={} corpusSha256={} manifest={}",
                 collection, manifest.chunkCount(), manifest.corpusSha256(), Path.of(manifestPath).toAbsolutePath().normalize());

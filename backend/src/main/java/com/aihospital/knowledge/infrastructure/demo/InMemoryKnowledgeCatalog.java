@@ -55,6 +55,10 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return chunks.values().stream().flatMap(List::stream)
                 .map(chunk -> new Evidence(chunk.title(), chunk.source(), chunk.text(), 1.0)).toList();
     }
+    public String chunkingProfile() {
+        return "paragraph-character-window-v1;maxChars=" + CHUNK_SIZE + ";overlapChars=" + CHUNK_OVERLAP
+                + ";split=blank-line;h2-text-retained;preferBoundary=。/；-after-120;normalize=CR-to-space-and-trim";
+    }
     @Override public synchronized DocumentDetail documentDetails(String id) {
         KnowledgeDocument document = documents.get(id);
         if (document == null) throw new IllegalArgumentException("知识资料不存在");

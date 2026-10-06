@@ -37,7 +37,7 @@ Owner：GPT；属于原改造方案C的部分实施，不代表C完成。
 
 ## 2026-10-05 离线 Qdrant 构建入口（增量实现）
 
-新增 `KnowledgeIndexBuildRunner`，只有显式设置 `ai.knowledge.offline-index.enabled=true` 才会执行。它读取与在线患者检索相同的已批准语料，调用同一个 `KnowledgeCatalog.syncIndex()` / `QdrantSemanticIndex` embedding 与幂等 upsert 路径；索引失败或索引数量不一致时以失败退出，不发布构建清单。成功后以原子文件替换写出 `target/knowledge-index-manifest.json`。清单只包含集合名、embedding 模型名、语料 SHA-256、片段数和已索引片段数，不写正文、API key 或患者数据；语料顺序不影响指纹，正文/来源变化会改变指纹。
+新增 `KnowledgeIndexBuildRunner`，只有显式设置 `ai.knowledge.offline-index.enabled=true` 才会执行。它读取与在线患者检索相同的已批准语料，调用同一个 `KnowledgeCatalog.syncIndex()` / `QdrantSemanticIndex` embedding 与幂等 upsert 路径；索引失败或索引数量不一致时以失败退出，不发布构建清单。成功后以原子文件替换写出 `target/knowledge-index-manifest.json`。schema v2 清单包含 collection、embedding 模型、实际分块策略参数、语料 SHA-256、活动片段数与已索引数，并在构建完成后从 Qdrant collection 只读取得 point count、状态、向量维度/距离和 HNSW 配置；不写正文、API key 或患者数据。collection point count 可能包含已不在当前活动语料的历史 point，不能用它替代活动片段数。语料顺序不影响指纹，正文/来源变化会改变指纹。
 
 示例（PowerShell；密钥只设置在进程环境变量，不写命令行或文件）：
 
@@ -51,7 +51,7 @@ $env:AI_QDRANT_COLLECTION = 'ai_hospital_knowledge_v2'
 mvn -f backend/pom.xml '-Dspring-boot.run.arguments=--spring.main.web-application-type=none,--ai.knowledge.offline-index.enabled=true' spring-boot:run
 ```
 
-这是可重复触发的离线 embedding/upsert 入口，但尚不是完整的语料发布系统：输入仍是仓库内手工整理 Markdown 与当前内存审批结果；网页抓取清洗、去重/切分质量审校、医院/租户级语料版本、Qdrant 别名原子切换与回滚、撤回时物理清理旧 point 均未实现。构建成功清单仅证明这次输入集合已送入索引适配器，不代表召回质量或医学内容通过审核。
+这是可重复触发的离线 embedding/upsert 入口，但尚不是完整的语料发布系统：输入仍是仓库内手工整理 Markdown 与当前内存审批结果；网页抓取清洗、去重/切分质量审校、医院/租户级语料版本、Qdrant 别名原子切换与回滚、撤回时物理清理旧 point 均未实现。构建成功清单证明这次输入集合已送入索引适配器且读取到当时的 collection 配置，不代表召回质量或医学内容通过审核。
 
 ## 验证
 

@@ -49,6 +49,30 @@ public class QdrantSemanticIndex {
     public synchronized int indexedCount(List<Evidence> corpus) {
         return (int) corpus.stream().map(this::pointId).filter(indexedPointIds::contains).count();
     }
+    public record CollectionConfiguration(String status, int pointCount, int vectorSize, String distance,
+                                          int hnswM, int hnswEfConstruct, int fullScanThresholdKb) {}
+
+    public CollectionConfiguration collectionConfiguration() throws Exception {
+        HttpRequest probe = HttpRequest.newBuilder(URI.create(qdrantUrl + "/collections/" + collection))
+                .timeout(Duration.ofSeconds(5)).GET().build();
+        HttpResponse<String> response = http.send(probe, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() != 200)
+            throw new IllegalStateException("Qdrant collection details returned HTTP " + response.statusCode());
+        JsonNode result = json.readTree(response.body()).path("result");
+        JsonNode vectors = result.path("config").path("params").path("vectors");
+        JsonNode hnsw = result.path("config").path("hnsw_config");
+        String status = result.path("status").asText();
+        String distance = vectors.path("distance").asText();
+        int pointCount = result.path("points_count").asInt(-1);
+        int vectorSize = vectors.path("size").asInt(-1);
+        int m = hnsw.path("m").asInt(-1);
+        int efConstruct = hnsw.path("ef_construct").asInt(-1);
+        int fullScanThresholdKb = hnsw.path("full_scan_threshold").asInt(-1);
+        if (status.isBlank() || pointCount < 0 || vectorSize < 1 || distance.isBlank()
+                || m < 2 || efConstruct < 1 || fullScanThresholdKb < 0)
+            throw new IllegalStateException("Qdrant collection details are incomplete");
+        return new CollectionConfiguration(status, pointCount, vectorSize, distance, m, efConstruct, fullScanThresholdKb);
+    }
 
     public synchronized boolean ensureIndexed(List<Evidence> corpus) {
         if (!configured()) { status = "NOT_CONFIGURED"; return false; }

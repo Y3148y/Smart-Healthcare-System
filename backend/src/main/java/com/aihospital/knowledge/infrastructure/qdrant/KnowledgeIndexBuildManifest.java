@@ -13,20 +13,37 @@ public record KnowledgeIndexBuildManifest(
         int schemaVersion,
         String collection,
         String embeddingModel,
+        String chunkingProfile,
         String corpusSha256,
         int chunkCount,
-        int indexedChunkCount) {
+        int indexedChunkCount,
+        int collectionPointCount,
+        String collectionStatus,
+        int vectorSize,
+        String distance,
+        int hnswM,
+        int hnswEfConstruct,
+        int fullScanThresholdKb) {
 
     public static KnowledgeIndexBuildManifest create(
-            String collection, String embeddingModel, List<Evidence> corpus, int indexedChunkCount) {
-        if (collection == null || collection.isBlank() || embeddingModel == null || embeddingModel.isBlank())
-            throw new IllegalArgumentException("Index collection and embedding model are required");
+            String collection, String embeddingModel, String chunkingProfile, List<Evidence> corpus,
+            int indexedChunkCount, QdrantSemanticIndex.CollectionConfiguration configuration) {
+        if (collection == null || collection.isBlank() || embeddingModel == null || embeddingModel.isBlank()
+                || chunkingProfile == null || chunkingProfile.isBlank() || configuration == null)
+            throw new IllegalArgumentException("Index collection, embedding model, chunk profile, and collection details are required");
         if (corpus == null || corpus.isEmpty() || corpus.stream().anyMatch(KnowledgeIndexBuildManifest::invalid))
             throw new IllegalArgumentException("Approved corpus must contain complete chunks");
         if (indexedChunkCount < 0 || indexedChunkCount > corpus.size())
             throw new IllegalArgumentException("Indexed chunk count is outside corpus bounds");
-        return new KnowledgeIndexBuildManifest(1, collection, embeddingModel,
-                fingerprint(corpus), corpus.size(), indexedChunkCount);
+        if (configuration.status() == null || configuration.status().isBlank()
+                || configuration.pointCount() < indexedChunkCount || configuration.vectorSize() < 1
+                || configuration.distance() == null || configuration.distance().isBlank() || configuration.hnswM() < 2
+                || configuration.hnswEfConstruct() < 1 || configuration.fullScanThresholdKb() < 0)
+            throw new IllegalArgumentException("Qdrant collection configuration is inconsistent with the index build");
+        return new KnowledgeIndexBuildManifest(2, collection, embeddingModel, chunkingProfile,
+                fingerprint(corpus), corpus.size(), indexedChunkCount, configuration.pointCount(), configuration.status(),
+                configuration.vectorSize(), configuration.distance(), configuration.hnswM(),
+                configuration.hnswEfConstruct(), configuration.fullScanThresholdKb());
     }
 
     private static boolean invalid(Evidence item) {

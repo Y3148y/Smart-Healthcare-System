@@ -22,15 +22,20 @@ class KnowledgeIndexBuildTest {
     @Test void corpusFingerprintIsStableAcrossOrderingAndChangesWithContent() {
         var one = new Evidence("头痛资料", "https://source.invalid/a", "头痛持续时间说明", 0);
         var two = new Evidence("胸痛资料", "https://source.invalid/b", "胸痛需要评估", 0);
-        var first = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", List.of(one, two), 2);
-        var reordered = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", List.of(two, one), 2);
-        var changed = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1",
-                List.of(one, new Evidence("胸痛资料", "https://source.invalid/b", "正文已更新", 0)), 2);
+        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 1024, "Cosine", 16, 100, 10000);
+        var first = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1", List.of(one, two), 2, configuration);
+        var reordered = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1", List.of(two, one), 2, configuration);
+        var changed = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1",
+                List.of(one, new Evidence("胸痛资料", "https://source.invalid/b", "正文已更新", 0)), 2, configuration);
 
         assertEquals(first.corpusSha256(), reordered.corpusSha256());
         assertNotEquals(first.corpusSha256(), changed.corpusSha256());
         assertEquals(64, first.corpusSha256().length());
         assertEquals(2, first.chunkCount());
+        assertEquals(2, first.schemaVersion());
+        assertEquals("section-window-v1", first.chunkingProfile());
+        assertEquals(1024, first.vectorSize());
+        assertEquals(10000, first.fullScanThresholdKb());
     }
 
     @Test void successfulOfflineBuildWritesOnlyNonSensitiveManifest(@TempDir Path outputDir) throws Exception {
@@ -39,8 +44,11 @@ class KnowledgeIndexBuildTest {
         when(catalog.syncIndex()).thenReturn(Map.of("success", "true", "status", "INDEXED"));
         var local = mock(InMemoryKnowledgeCatalog.class);
         when(local.approvedCorpus()).thenReturn(corpus);
+        when(local.chunkingProfile()).thenReturn("test-chunk-profile-v1");
         var semantic = mock(QdrantSemanticIndex.class);
         when(semantic.indexedCount(corpus)).thenReturn(1);
+        when(semantic.collectionConfiguration()).thenReturn(
+                new QdrantSemanticIndex.CollectionConfiguration("green", 1, 1024, "Cosine", 16, 100, 10000));
         var runner = new KnowledgeIndexBuildRunner(catalog, local, semantic, new ObjectMapper());
         Path manifest = outputDir.resolve("build.json");
         ReflectionTestUtils.setField(runner, "collection", "triage-v3");
@@ -52,9 +60,13 @@ class KnowledgeIndexBuildTest {
         String content = Files.readString(manifest);
         assertTrue(content.contains("corpusSha256"));
         assertTrue(content.contains("embedding-v1"));
+        assertTrue(content.contains("chunkingProfile"));
+        assertTrue(content.contains("hnswEfConstruct"));
+        assertTrue(content.contains("vectorSize"));
         assertFalse(content.contains("本地知识正文不得写入清单"));
         assertFalse(content.contains("API_KEY"));
         verify(catalog).syncIndex();
+        verify(semantic).collectionConfiguration();
     }
 
     @Test void failedIndexSyncDoesNotPublishManifest() {
@@ -64,6 +76,24 @@ class KnowledgeIndexBuildTest {
         when(local.approvedCorpus()).thenReturn(List.of(new Evidence("标题", "来源", "正文", 1)));
         var runner = new KnowledgeIndexBuildRunner(catalog, local, mock(QdrantSemanticIndex.class), new ObjectMapper());
         Path manifest = temp.resolve("not-published.json");
+        ReflectionTestUtils.setField(runner, "manifestPath", manifest.toString());
+
+        assertThrows(IllegalStateException.class, () -> runner.run(null));
+        assertFalse(Files.exists(manifest));
+    }
+
+    @Test void failedCollectionConfigurationReadDoesNotPublishManifest() throws Exception {
+        var corpus = List.of(new Evidence("标题", "https://source.invalid/a", "正文", 1));
+        var catalog = mock(KnowledgeCatalog.class);
+        when(catalog.syncIndex()).thenReturn(Map.of("success", "true", "status", "INDEXED"));
+        var local = mock(InMemoryKnowledgeCatalog.class);
+        when(local.approvedCorpus()).thenReturn(corpus);
+        when(local.chunkingProfile()).thenReturn("test-chunk-profile-v1");
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.indexedCount(corpus)).thenReturn(1);
+        when(semantic.collectionConfiguration()).thenThrow(new IllegalStateException("collection details unavailable"));
+        var runner = new KnowledgeIndexBuildRunner(catalog, local, semantic, new ObjectMapper());
+        Path manifest = temp.resolve("unverified-collection.json");
         ReflectionTestUtils.setField(runner, "manifestPath", manifest.toString());
 
         assertThrows(IllegalStateException.class, () -> runner.run(null));
