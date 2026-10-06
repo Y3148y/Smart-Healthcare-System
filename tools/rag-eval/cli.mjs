@@ -5,7 +5,9 @@ import {createHash} from 'node:crypto';
 import {validateCases, evaluateCase, summarize} from './lib.mjs';
 
 const directory = dirname(fileURLToPath(import.meta.url));
-const dataset = validateCases(JSON.parse(readFileSync(resolve(directory, 'cases.json'), 'utf8')));
+const datasetPath = resolve(directory, process.argv[2] || 'cases.json');
+if (dirname(datasetPath) !== directory) throw new Error('Evaluation dataset must be inside tools/rag-eval');
+const dataset = validateCases(JSON.parse(readFileSync(datasetPath, 'utf8')));
 const base = new URL(process.env.RAG_EVAL_BASE_URL || 'http://127.0.0.1:8081/api/');
 if (!['127.0.0.1','localhost','[::1]'].includes(base.hostname) || base.username || base.password || !['http:','https:'].includes(base.protocol))
   throw new Error('Evaluation login is restricted to the local backend');

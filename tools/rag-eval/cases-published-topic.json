@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "operator-approved-information-2026-10-06-v1",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "note": "新增一般健康科普发布后的主题覆盖检查；原seed-topic-engineering-v1保留不覆盖。标题标签依据实际发布资料，仅测检索主题，不判诊断、严重度或答案支持。",
+  "cases": [
+    {"id":"common-cold","query":"流鼻涕 鼻塞 日常照护","expectedTitle":"普通感冒：症状、照护与就医条件（一般健康科普）"},
+    {"id":"migraine","query":"偏头痛 两天","expectedTitle":"偏头痛：表现、记录与就医条件（一般健康科普）"},
+    {"id":"migraine-colloquial","query":"偏头疼两天，想了解注意事项","expectedTitle":"偏头痛：表现、记录与就医条件（一般健康科普）"},
+    {"id":"sore-throat","query":"咽痛 一周没好","expectedTitle":"咽痛：一般照护和就医条件（一般健康科普）"},
+    {"id":"period-pain","query":"痛经 比平时严重","expectedTitle":"痛经：表现、照护与就医条件（一般健康科普）"},
+    {"id":"broken-arm","query":"手腕摔伤 疑似骨折","expectedTitle":"手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"},
+    {"id":"chest-pain","query":"胸痛伴出汗气短","expectedTitle":"胸痛：立即求助与进一步评估（一般健康科普）"},
+    {"id":"anaphylaxis","query":"严重过敏 嘴唇突然肿胀 呼吸困难","expectedTitle":"严重过敏反应：危险表现与求助（一般健康科普）"},
+    {"id":"stroke","query":"单侧手臂无力 口角歪斜 言语含糊","expectedTitle":"脑卒中症状：突发异常不能等待（一般健康科普）"},
+    {"id":"dizziness","query":"头晕 周围旋转 如何注意安全","expectedTitle":"头晕：表现、安全照护与就医条件（一般健康科普）"},
+    {"id":"stomach-ache","query":"腹痛 反复发作","expectedTitle":"腹痛：就医条件与诊断边界（一般健康科普）"},
+    {"id":"cough","query":"咳嗽超过三周","expectedTitle":"咳嗽：照护、持续时间与就医条件（一般健康科普）"}
+  ]
+}
