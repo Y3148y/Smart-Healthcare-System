@@ -29,6 +29,8 @@ MyBatis Mapper 执行 SQL，默认 H2；MySQL profile 的真实联调尚未完�
 
 本人资料与聊天记录不是正式病历。没有医生工作台、真实 HIS 或医院实时人工值守。
 
+知识正文、审批状态与来源元数据通过 KnowledgeDocumentStore 端口及 MyBatis 实现保存。检索缓存从数据库重建；新增失败回滚缓存，审批写入成功后才发布。结构化资料的许可声明未解决时不能发布；声明不是临床或法律认证。MarkdownChunker 生成章节与位置溯源，BM25和Qdrant共享批准正文；Qdrant召回校验point id与payload是否符合请求快照，不证明医学适用性。
+
 ## 生成与安全边界
 
 - TriageSafetyPolicy 评估危险信号，模型不能解除风险和预约闸门。
