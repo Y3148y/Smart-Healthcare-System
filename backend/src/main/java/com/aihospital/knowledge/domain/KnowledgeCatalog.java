@@ -18,6 +18,7 @@ public interface KnowledgeCatalog {
     default Map<String, String> runtimeDetails() { return Map.of("mode", retrievalMode()); }
     default Object retrievalDetails(String query) { return retrieve(query, 3, 0.28); }
     default DocumentDetail documentDetails(String id) { throw new IllegalArgumentException("知识资料不存在"); }
+    default List<KnowledgeChunk> documentChunks(String id) { throw new IllegalArgumentException("知识资料不存在"); }
     default Map<String, String> syncIndex() { return Map.of("status", "UNSUPPORTED"); }
     default List<?> retrievalEvents() { return List.of(); }
 }

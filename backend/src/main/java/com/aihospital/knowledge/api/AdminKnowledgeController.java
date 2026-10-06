@@ -34,6 +34,10 @@ public class AdminKnowledgeController {
     @PostMapping("/index/sync") public Map<String, String> sync(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.syncIndex();
     }
+    @GetMapping("/{id}/chunks") public List<com.aihospital.knowledge.domain.KnowledgeChunk> chunks(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.documentChunks(id);
+    }
     @GetMapping("/retrieval-events") public List<?> events(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.retrievalEvents();
     }

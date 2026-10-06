@@ -23,6 +23,7 @@ class KnowledgeDocumentPersistenceTest {
         String title = "persistence-test-" + UUID.randomUUID();
         String body = "内容在进程重启后仍需存在。\n\n审核后才进入检索。";
         var pending = catalog.addDocument(title, body);
+        var previewChunks = catalog.documentChunks(pending.id());
 
         var storedPending = store.find(pending.id());
         assertNotNull(storedPending);
@@ -42,5 +43,7 @@ class KnowledgeDocumentPersistenceTest {
         rebuiltAfterApproval.restorePersistedDocuments(store.loadOrSeed(List.of()));
         assertEquals("READY", rebuiltAfterApproval.documentDetails(pending.id()).document().status());
         assertTrue(rebuiltAfterApproval.approvedCorpus().stream().anyMatch(e -> e.title().equals(title)));
+        assertEquals(previewChunks, rebuiltAfterApproval.documentChunks(pending.id()),
+                "persisted body and identity must reconstruct the same provenance after restart");
     }
 }

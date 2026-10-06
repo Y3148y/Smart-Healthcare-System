@@ -83,6 +83,9 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             throw new IllegalStateException("rag-live requires rerank configuration");
     }
     @Override public List<KnowledgeDocument> documents() { return local.documents(); }
+    @Override public List<com.aihospital.knowledge.domain.KnowledgeChunk> documentChunks(String id) {
+        return local.documentChunks(id);
+    }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body) {
         KnowledgeDocument document = local.addDocument(title, body);
         if (documentStore != null) {

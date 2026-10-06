@@ -4,6 +4,8 @@ import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.shared.model.Models.Evidence;
 import com.aihospital.shared.model.Models.KnowledgeDocument;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
+import com.aihospital.knowledge.domain.KnowledgeChunk;
+import com.aihospital.knowledge.domain.MarkdownChunker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -30,8 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Component
 public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
-    private static final int CHUNK_SIZE = 420;
-    private static final int CHUNK_OVERLAP = 60;
+    private final MarkdownChunker chunker = new MarkdownChunker();
     private static final List<String> MEDICAL_TERMS = List.of(
             "急诊", "红旗症状", "胸痛", "胸闷", "大汗", "冷汗", "呼吸困难", "意识障碍", "昏迷", "晕厥",
             "脑卒中", "中风", "口角歪斜", "肢体无力", "言语障碍", "咳嗽", "咳痰", "喘息", "哮喘",
@@ -97,8 +98,14 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         chunks.remove(id);
     }
     public String chunkingProfile() {
-        return "paragraph-character-window-v1;maxChars=" + CHUNK_SIZE + ";overlapChars=" + CHUNK_OVERLAP
-                + ";split=blank-line;h2-text-retained;preferBoundary=。/；-after-120;normalize=CR-to-space-and-trim";
+        return MarkdownChunker.VERSION + ";maxCodePoints=" + MarkdownChunker.MAX_LENGTH
+                + ";overlapCodePoints=" + MarkdownChunker.OVERLAP
+                + ";split=paragraph-and-heading;offset=source-body;normalize=CR-to-space-and-trim";
+    }
+    @Override public synchronized List<KnowledgeChunk> documentChunks(String id) {
+        KnowledgeDocument document = documents.get(id);
+        if (document == null) throw new IllegalArgumentException("知识资料不存在");
+        return chunker.split(id, document.title(), sources.get(id), document.body());
     }
     @Override public synchronized DocumentDetail documentDetails(String id) {
         KnowledgeDocument document = documents.get(id);
@@ -206,24 +213,9 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     }
 
     private List<Chunk> chunk(String documentId, String title, String body, String source) {
-        List<Chunk> result = new ArrayList<>();
-        for (String section : body.split("\\n\\s*\\n|(?=^##\\s)", -1)) {
-            String clean = normalize(section);
-            if (clean.isBlank()) continue;
-            int start = 0;
-            while (start < clean.length()) {
-                int end = Math.min(clean.length(), start + CHUNK_SIZE);
-                if (end < clean.length()) {
-                    int punctuation = Math.max(clean.lastIndexOf('。', end), clean.lastIndexOf('；', end));
-                    if (punctuation > start + 120) end = punctuation + 1;
-                }
-                String text = clean.substring(start, end).trim();
-                if (!text.isBlank()) result.add(new Chunk(documentId + "-c" + (result.size() + 1), title, source, text, ngrams(title + text)));
-                if (end >= clean.length()) break;
-                start = Math.max(start + 1, end - CHUNK_OVERLAP);
-            }
-        }
-        return result;
+        return chunker.split(documentId, title, source, body).stream()
+                .map(item -> new Chunk(item.chunkId(), title, source, item.text(), ngrams(title + item.text())))
+                .toList();
     }
 
     private Set<String> medicalTerms(String text) {
