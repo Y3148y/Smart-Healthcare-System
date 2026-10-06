@@ -2,6 +2,8 @@ package com.aihospital.knowledge;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Small, frozen engineering-regression gate derived from the measured 2026-10-03 Qwen rerank
@@ -12,10 +14,34 @@ final class RagQualityGate {
 
     record Sample(String id, boolean answerable, double recallAt3, double reciprocalRank,
                   boolean forbiddenHit, boolean unanswerableFalsePositive) {}
+    record StageMetrics(int candidateCount, double recallAtK, double meanReciprocalRank,
+                        boolean unrelatedHit) {}
     record Summary(int samples, int answerableSamples, double meanRecallAt3, double meanMrr,
                    int forbiddenHits, int unanswerableFalsePositives, List<String> failures) {}
 
     private RagQualityGate() {}
+
+    /** Diagnostics only: measures one retrieval stage against engineering title labels. */
+    static StageMetrics stageMetrics(List<String> rankedTitles, Set<String> relevant,
+                                     Set<String> unrelated, int k) {
+        List<String> titles = rankedTitles == null ? List.of() : rankedTitles.stream()
+                .filter(Objects::nonNull).distinct().toList();
+        Set<String> expected = relevant == null ? Set.of() : relevant;
+        Set<String> controls = unrelated == null ? Set.of() : unrelated;
+        int limit = Math.max(1, k);
+        List<String> top = titles.stream().limit(limit).toList();
+        long found = top.stream().filter(expected::contains).count();
+        double recall = expected.isEmpty() ? 0 : (double) found / expected.size();
+        double reciprocalRank = 0;
+        for (int i = 0; i < top.size(); i++) {
+            if (expected.contains(top.get(i))) {
+                reciprocalRank = 1.0 / (i + 1);
+                break;
+            }
+        }
+        return new StageMetrics(titles.size(), recall, reciprocalRank,
+                top.stream().anyMatch(controls::contains));
+    }
 
     static List<String> failures(List<Sample> samples) {
         List<String> failures = new ArrayList<>();

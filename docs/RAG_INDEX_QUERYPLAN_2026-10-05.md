@@ -164,3 +164,9 @@ JDK17、无 `AI_*` 环境变量，在隔离副本执行完整 `mvn clean test -q
 `QdrantSemanticIndex.ensureIndexed` 现在在调用 embedding 前，先按稳定 point ID 批量向当前 collection 读取候选点，并逐字段核对 `title/source/excerpt`。ID 与完整 payload 均相同的片段会登记为已索引并复用；缺失、ID 不同或 payload 不匹配的内容才会重新 embedding/upsert。因此服务重启后可以避免对未变更的已发布知识重复请求 embedding；文档变化仍会因内容参与 point ID 而生成新向量。读取 Qdrant 失败不会假定点存在，会维持索引不可用状态交给既有检索策略处理。撤回/修订产生的旧 point 暂不物理删除，活动语料的 ID 过滤仍阻止其成为当前证据。
 
 新增 `QdrantRemoteIndexReuseTest` 用本地 HTTP 服务验证：第一次构建 embedding/upsert 一次；模拟进程重启后精确相同语料不再调用 embedding/upsert；正文变化后才再次调用。该协议测试不访问真实 Qdrant/百炼，也不代表并发负载或线上 collection 的当前状态。
+
+### 分阶段检索评估指标
+
+`RagLiveIntegrationTest` 的每条合成样本现在同时输出 BM25 候选、Qdrant 候选、RRF 排序候选与最终 selected 的 Recall@K、MRR、候选数及显式 unrelated-control 命中。这样可以区分“词法/向量都没召回”“候选召回了但融合排序靠后”“候选正确但最终选择变化”等故障层，而不只看最终结果。当前资料集原有 `relevant` / `forbidden` 标题标签暂分别视为预期工程主题标题 / 显式无关对照，指标只作诊断，未给候选阶段新增质量阈值。
+
+这不是分级医学相关性标注：目前没有经临床审阅的“主证据 / 安全交叉提醒 / 仅词面相关”标签；`unanswerable` 仍是工程样本的无答案用例，不代表全面覆盖现实患者问题。阶段指标只有在 `AI_RAG_LIVE_TEST=true` 时才会从真实检索调用生成，本批本地测试仅验证计算语义，不访问百炼或 Qdrant。

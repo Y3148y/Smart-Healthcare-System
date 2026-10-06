@@ -56,10 +56,25 @@ class RagLiveIntegrationTest {
             double recall = relevant.isEmpty() ? 0 : (double) titles.stream().filter(relevant::contains).count() / relevant.size();
             boolean forbiddenHit = titles.stream().anyMatch(forbidden::contains);
             boolean unanswerableFalsePositive = relevant.isEmpty() && !titles.isEmpty();
+            var fusionRecords = report.candidates();
+            List<String> lexicalTitles = fusionRecords.stream().filter(c -> c.lexicalRank() > 0)
+                    .sorted(Comparator.comparingInt(HybridKnowledgeCatalog.FusionRecord::lexicalRank))
+                    .map(HybridKnowledgeCatalog.FusionRecord::title).distinct().toList();
+            List<String> semanticTitles = fusionRecords.stream().filter(c -> c.semanticRank() > 0)
+                    .sorted(Comparator.comparingInt(HybridKnowledgeCatalog.FusionRecord::semanticRank))
+                    .map(HybridKnowledgeCatalog.FusionRecord::title).distinct().toList();
+            List<String> fusedTitles = fusionRecords.stream().map(HybridKnowledgeCatalog.FusionRecord::title)
+                    .distinct().toList();
+            Map<String, RagQualityGate.StageMetrics> stageMetrics = Map.of(
+                    "bm25Candidates", RagQualityGate.stageMetrics(lexicalTitles, relevant, forbidden, 20),
+                    "qdrantCandidates", RagQualityGate.stageMetrics(semanticTitles, relevant, forbidden, 20),
+                    "rrfCandidates", RagQualityGate.stageMetrics(fusedTitles, relevant, forbidden, 20),
+                    "finalSelected", RagQualityGate.stageMetrics(titles, relevant, forbidden, 3));
             rows.add(Map.of("id", id, "query", query, "report", report,
                     "recallAt3", recall, "reciprocalRank", rr,
                     "forbiddenHit", forbiddenHit,
-                    "unanswerableFalsePositive", unanswerableFalsePositive));
+                    "unanswerableFalsePositive", unanswerableFalsePositive,
+                    "stageMetrics", stageMetrics));
             qualitySamples.add(new RagQualityGate.Sample(id, !relevant.isEmpty(),
                     recall, rr, forbiddenHit, unanswerableFalsePositive));
             // Persist completed samples even if a later provider call fails. Never persist credentials.
