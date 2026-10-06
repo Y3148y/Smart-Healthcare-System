@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "seed-topic-engineering-v1",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "note": "标签针对当前11篇批准种子资料的主题；不表示临床相关性金标准。无覆盖案例用于暴露误命中，不许可自动提高阈值或改医学规则。",
+  "cases": [
+    {"id":"emergency-red-flags","query":"严重呼吸困难 意识障碍","expectedTitle":"急诊预检分诊与红旗症状"},
+    {"id":"chest-pain","query":"胸痛","expectedTitle":"急性胸痛安全分流"},
+    {"id":"stroke-signs","query":"一侧肢体无力 口角歪斜 说不清","expectedTitle":"脑卒中早期识别与转运"},
+    {"id":"respiratory","query":"咳嗽 咳痰 喘息","expectedTitle":"呼吸系统症状门诊分流"},
+    {"id":"digestive","query":"反酸 腹泻","expectedTitle":"常见消化系统症状门诊分流"},
+    {"id":"dizziness-with-nausea","query":"头晕 眩晕 恶心","expectedTitle":"头晕、眩晕与恶心的导诊信息"},
+    {"id":"basic-first-aid","query":"休克 气道阻塞 意识改变","expectedTitle":"基础急救评估原则"},
+    {"id":"fracture","query":"手腕摔伤 疑似骨折","expectedTitle":"疑似四肢骨折的就医分流"},
+    {"id":"sore-throat","query":"咽痛 吞咽困难","expectedTitle":"咽喉疼痛就医方向"},
+    {"id":"period-pain","query":"痛经 经期腹痛","expectedTitle":"经期疼痛就医方向"},
+    {"id":"runny-nose","query":"流鼻涕 鼻塞","expectedTitle":"流鼻涕与鼻塞的普通预问诊说明"},
+    {"id":"nausea-only","query":"恶心","expectedTitle":"常见消化系统症状门诊分流"},
+    {"id":"headache-only","query":"头痛","expectedTitle":null},
+    {"id":"migraine-coverage","query":"偏头痛 两天","expectedTitle":null},
+    {"id":"runny-nose-control","query":"流鼻涕","expectedTitle":"流鼻涕与鼻塞的普通预问诊说明"},
+    {"id":"fracture-control","query":"手腕骨折","expectedTitle":"疑似四肢骨折的就医分流"}
+  ]
+}
