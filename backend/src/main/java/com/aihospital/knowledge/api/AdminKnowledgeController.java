@@ -48,6 +48,12 @@ public class AdminKnowledgeController {
     }
     public record ImportDocument(String title, String body,
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {}
+    @PutMapping("/{id}/metadata") public KnowledgeDocument correctMetadata(@PathVariable String id,
+            @RequestBody com.aihospital.knowledge.domain.KnowledgeMetadata metadata,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN");
+        return knowledge.updatePendingMetadata(id, metadata);
+    }
     @PostMapping("/documents") public KnowledgeDocument importDocument(@RequestBody ImportDocument request,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");

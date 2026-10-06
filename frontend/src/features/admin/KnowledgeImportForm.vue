@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { api } from '../../api'
 import type { KnowledgeDocument } from './types'
 
 const emit = defineEmits<{ saved: [document: KnowledgeDocument] }>()
+interface Source { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }
+interface InitialMetadata { language: string; contentKind: string; topics: string[]; population: string[];
+  exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null; sources: Source[] }
+const props = defineProps<{ documentId?: string; initialMetadata?: InitialMetadata }>()
 const busy = ref(false), error = ref('')
 const form = reactive({ title: '', body: '', sourceId: '', publisher: '', url: '',
   topics: '', population: '', exclusions: '', prerequisites: '', permissionEvidence: '',
   contentKind: 'source_extract', evidenceUse: 'general_information', confirmed: false })
 const terms = (text: string) => text.split(/[,，\n]/).map(s => s.trim()).filter(Boolean)
+onMounted(() => {
+  const initial = props.initialMetadata
+  if (!initial) return
+  const source = initial.sources[0]
+  Object.assign(form, { sourceId: source?.sourceId || '', publisher: source?.publisher || '', url: source?.url || '',
+    topics: initial.topics.join('\n'), population: initial.population.join('\n'),
+    exclusions: initial.exclusions.join('\n'), prerequisites: initial.prerequisites.join('\n'),
+    contentKind: initial.contentKind, evidenceUse: initial.evidenceUses[0] || 'general_information',
+    permissionEvidence: initial.permissionEvidence || '' })
+})
 
 async function readFile(event: Event) {
   const input = event.target as HTMLInputElement
@@ -31,17 +45,24 @@ async function submit() {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password)
       throw new Error('来源必须是无账号密码的 HTTP 或 HTTPS 链接')
     if (!form.confirmed || !form.permissionEvidence.trim()) throw new Error('请核对使用许可并填写依据')
-    if (!form.title.trim() || !form.body.trim() || !form.sourceId.trim() || !form.publisher.trim())
+    if ((!props.documentId && (!form.title.trim() || !form.body.trim())) || !form.sourceId.trim() || !form.publisher.trim())
       throw new Error('请完整填写标题、正文和来源信息')
     busy.value = true
-    const document = await api<KnowledgeDocument>('/admin/knowledge/documents', {
-      method: 'POST', body: JSON.stringify({ title: form.title.trim(), body: form.body,
-        metadata: { schemaVersion: 1, language: 'zh-CN', contentKind: form.contentKind,
+    const originalSource = props.initialMetadata?.sources[0]
+    const unchangedSource = originalSource?.url === url.href && originalSource?.sourceId === form.sourceId.trim()
+      && originalSource?.publisher === form.publisher.trim()
+    const metadata = { schemaVersion: 1, language: props.initialMetadata?.language || 'zh-CN', contentKind: form.contentKind,
           sources: [{ sourceId: form.sourceId.trim(), publisher: form.publisher.trim(), url: url.href,
-            fetchedAt: null, rawSha256: null }], topics: terms(form.topics), population: terms(form.population),
+            fetchedAt: unchangedSource ? originalSource?.fetchedAt : null,
+            rawSha256: unchangedSource ? originalSource?.rawSha256 : null }, ...(props.initialMetadata?.sources.slice(1) || [])],
+          topics: terms(form.topics), population: terms(form.population),
           exclusions: terms(form.exclusions), prerequisites: terms(form.prerequisites),
-          evidenceUses: [form.evidenceUse], permissionStatus: 'permitted',
-          permissionEvidence: form.permissionEvidence.trim() } })
+          evidenceUses: [...new Set([form.evidenceUse, ...(props.initialMetadata?.evidenceUses.slice(1) || [])])], permissionStatus: 'permitted',
+          permissionEvidence: form.permissionEvidence.trim() }
+    const document = await api<KnowledgeDocument>(props.documentId
+      ? '/admin/knowledge/' + encodeURIComponent(props.documentId) + '/metadata' : '/admin/knowledge/documents', {
+      method: props.documentId ? 'PUT' : 'POST', body: JSON.stringify(props.documentId ? metadata
+        : { title: form.title.trim(), body: form.body, metadata })
     })
     emit('saved', document)
   } catch (e: any) { error.value = e.message || '提交失败' }
@@ -51,15 +72,18 @@ async function submit() {
 
 <template>
   <section class="table-card admin-editor">
-    <h3>录入有来源的资料</h3>
+    <h3>{{ documentId ? '补正待审批资料的来源声明' : '录入有来源的资料' }}</h3>
     <p>填写实际正文与来源，提交后仍需另行审批。许可声明不代表临床审核。</p>
     <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
     <form @submit.prevent="submit">
       <fieldset :disabled="busy">
         <legend>正文与来源</legend>
-        <label>资料标题<input v-model="form.title" required maxlength="160"></label>
-        <label>读取本地 UTF-8 正文<input type="file" accept=".txt,.md" @change="readFile"></label>
-        <label>资料正文<textarea v-model="form.body" required maxlength="100000" rows="8"></textarea></label>
+        <template v-if="!documentId">
+          <label>资料标题<input v-model="form.title" required maxlength="160"></label>
+          <label>读取本地 UTF-8 正文<input type="file" accept=".txt,.md" @change="readFile"></label>
+          <label>资料正文<textarea v-model="form.body" required maxlength="100000" rows="8"></textarea></label>
+        </template>
+        <p v-else>正文保持不变。其他已登记来源保留；修改首个来源后清空它的旧采集时间与快照哈希。</p>
         <label>来源登记 ID<input v-model="form.sourceId" required maxlength="128" placeholder="填写真实来源标识"></label>
         <label>发布机构<input v-model="form.publisher" required maxlength="240"></label>
         <label>来源链接<input v-model="form.url" type="url" required maxlength="2000"></label>
@@ -73,7 +97,7 @@ async function submit() {
         </details>
         <label>使用许可依据<textarea v-model="form.permissionEvidence" required maxlength="2000" rows="3" placeholder="填写实际许可条款或授权依据，公开可访问不等于允许复制"></textarea></label>
         <label><input v-model="form.confirmed" type="checkbox" required>我已核对本次内容的使用许可；未核对时不提交</label>
-        <button class="primary" type="submit">{{ busy ? '提交中…' : '提交待审批' }}</button>
+        <button class="primary" type="submit">{{ busy ? '提交中…' : documentId ? '保存补正，保持待审批' : '提交待审批' }}</button>
       </fieldset>
     </form>
   </section>

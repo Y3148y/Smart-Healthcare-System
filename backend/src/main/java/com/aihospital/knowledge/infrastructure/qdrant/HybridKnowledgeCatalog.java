@@ -112,6 +112,13 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Override public com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {
         return local.documentMetadata(id);
     }
+    @Override public synchronized KnowledgeDocument updatePendingMetadata(String id,
+            com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
+        if (!"PENDING_REVIEW".equals(local.documentDetails(id).document().status()))
+            throw new IllegalArgumentException("Only pending knowledge metadata may be corrected");
+        if (documentStore != null) documentStore.updatePendingMetadata(id, metadata, java.time.LocalDateTime.now());
+        return local.updatePendingMetadata(id, metadata);
+    }
     private KnowledgeDocument persistNewDocument(KnowledgeDocument document) {
         if (documentStore != null) {
             try { documentStore.insert(local.persistedDocument(document.id())); }
@@ -119,7 +126,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         }
         return document;
     }
-    @Override public KnowledgeDocument approveDocument(String id) {
+    @Override public synchronized KnowledgeDocument approveDocument(String id) {
         if (documentStore != null) {
             var pending = local.documentDetails(id);
             documentStore.approve(id, pending.segments().size(), java.time.LocalDateTime.now());

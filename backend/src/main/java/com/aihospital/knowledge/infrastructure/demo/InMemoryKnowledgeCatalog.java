@@ -134,6 +134,19 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         metadata.put(document.id(), supplied);
         return document;
     }
+
+    @Override public synchronized KnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata supplied) {
+        if (supplied == null) throw new IllegalArgumentException("Knowledge metadata is required");
+        KnowledgeDocument current = documentDetails(id).document();
+        if (!"PENDING_REVIEW".equals(current.status()))
+            throw new IllegalArgumentException("Only pending knowledge metadata may be corrected");
+        sources.put(id, supplied.sourceLabel());
+        metadata.put(id, supplied);
+        KnowledgeDocument updated = new KnowledgeDocument(id, current.title(), current.body(), current.chunks(),
+                current.status(), LocalDateTime.now());
+        documents.put(id, updated);
+        return updated;
+    }
     @Override public synchronized KnowledgeMetadata documentMetadata(String id) {
         if (!documents.containsKey(id)) throw new IllegalArgumentException("知识资料不存在");
         return metadata.get(id);

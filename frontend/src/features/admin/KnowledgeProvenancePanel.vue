@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { api } from '../../api'
-const props = defineProps<{ documentId: string }>()
+import KnowledgeImportForm from './KnowledgeImportForm.vue'
+const props = defineProps<{ documentId: string; pending?: boolean }>()
+const emit = defineEmits<{ corrected: [] }>()
+const correcting = ref(false)
 interface MetadataResponse {
   status: string
   clinicalReview: string
-  metadata?: { contentKind: string; topics: string[]; population: string[]; exclusions: string[];
+  metadata?: { language: string; contentKind: string; topics: string[]; population: string[]; exclusions: string[];
     prerequisites: string[]; evidenceUses: string[]; permissionStatus: string; permissionEvidence: string | null;
     sources: { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }[] }
 }
@@ -31,6 +34,9 @@ watch(() => props.documentId, async id => {
     <h4>来源与适用范围</h4>
     <p v-if="loading" role="status">正在读取来源声明…</p>
     <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
+    <button v-if="pending && metadata" class="mini" @click="correcting = !correcting">{{ correcting ? '取消补正' : '补正来源与许可' }}</button>
+    <KnowledgeImportForm v-if="pending && correcting" :document-id="documentId" :initial-metadata="metadata?.metadata"
+      @saved="correcting = false; emit('corrected')" />
     <p v-if="metadata?.status === 'LEGACY_UNKNOWN'">旧资料没有结构化来源与适用范围声明；未知不等于已核验。</p>
     <template v-if="metadata?.metadata">
       <dl>

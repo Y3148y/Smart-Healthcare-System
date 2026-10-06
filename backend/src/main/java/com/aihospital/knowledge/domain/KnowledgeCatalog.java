@@ -15,6 +15,9 @@ public interface KnowledgeCatalog {
         throw new UnsupportedOperationException("Structured knowledge import is unavailable");
     }
     default KnowledgeMetadata documentMetadata(String id) { return null; }
+    default KnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata metadata) {
+        throw new UnsupportedOperationException("Pending metadata update is unavailable");
+    }
     KnowledgeDocument approveDocument(String id);
     Retrieval retrieve(String query, int maxResults, double minimumScore);
     default List<Evidence> search(String query) { return retrieve(query, 5, 0.28).evidence(); }

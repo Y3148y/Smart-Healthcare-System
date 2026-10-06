@@ -14,9 +14,12 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:knowledge_metadata_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE")
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class KnowledgeMetadataPersistenceTest {
     @Autowired KnowledgeCatalog catalog;
     @Autowired KnowledgeDocumentStore store;
+    @Autowired org.springframework.test.web.servlet.MockMvc mvc;
+    @Autowired com.fasterxml.jackson.databind.ObjectMapper json;
 
     private KnowledgeMetadata metadata(String permission, String proof) {
         return new KnowledgeMetadata(1, "zh-CN", "source_extract",
@@ -57,6 +60,55 @@ class KnowledgeMetadataPersistenceTest {
         var document = catalog.addDocument("Legacy fixture", "Legacy body.");
         assertNull(catalog.documentMetadata(document.id()));
         assertNull(store.find(document.id()).metadata());
+    }
+
+    @Test void pendingPermissionCanBeCorrectedWithoutChangingBodyOrPublishing() {
+        var document = catalog.addDocument("Correction fixture", "Nonmedical correction fixture body.", metadata("pending", null));
+        var corrected = metadata("permitted", "Synthetic fixture only");
+        var updated = catalog.updatePendingMetadata(document.id(), corrected);
+        assertEquals("PENDING_REVIEW", updated.status());
+        assertEquals(document.body(), updated.body());
+        assertEquals(corrected, store.find(document.id()).metadata());
+        catalog.approveDocument(document.id());
+        assertThrows(IllegalArgumentException.class, () -> catalog.updatePendingMetadata(document.id(), metadata("restricted", null)));
+        assertThrows(IllegalArgumentException.class, () -> store.updatePendingMetadata(document.id(), metadata("restricted", null), LocalDateTime.now()));
+        assertEquals(corrected, store.find(document.id()).metadata());
+    }
+
+    @Test void approvalCannotRacePastARestrictivePermissionCorrection() throws Exception {
+        var document = catalog.addDocument("Race fixture", "Nonmedical concurrency fixture body.",
+                metadata("permitted", "Synthetic fixture only"));
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            var approval = pool.submit(() -> {
+                start.await();
+                try { store.approve(document.id(), 1, LocalDateTime.now()); return true; }
+                catch (IllegalArgumentException expected) { return false; }
+            });
+            var correction = pool.submit(() -> {
+                start.await();
+                try { store.updatePendingMetadata(document.id(), metadata("restricted", null), LocalDateTime.now()); return true; }
+                catch (IllegalArgumentException expected) { return false; }
+            });
+            start.countDown();
+            boolean approved = approval.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            boolean corrected = correction.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            assertNotEquals(approved, corrected, "exactly one conflicting transition may succeed");
+            var persisted = store.find(document.id());
+            assertFalse("READY".equals(persisted.status()) && !persisted.metadata().mayPublish());
+        } finally { pool.shutdownNow(); }
+    }
+
+    @Test void correctionEndpointRejectsUnauthenticatedAndPatientRoles() throws Exception {
+        String request = json.writeValueAsString(metadata("permitted", "Synthetic fixture only"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/admin/knowledge/fixture/metadata")
+                .contentType("application/json").content(request))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
+        String token = new com.aihospital.shared.security.JwtService().issue("fixture-patient", "PATIENT");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/admin/knowledge/fixture/metadata")
+                .header("Authorization", "Bearer " + token).contentType("application/json").content(request))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
     }
 
     @Test void invalidPermissionAndSourceClaimsAreRejected() {

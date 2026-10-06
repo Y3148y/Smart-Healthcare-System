@@ -51,6 +51,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
 
     @Override @Transactional
     public StoredKnowledgeDocument approve(String id, int chunkCount, LocalDateTime updatedAt) {
+        if (mapper.lockDocument(id) == null) throw new IllegalArgumentException("知识资料不存在");
         StoredKnowledgeDocument candidate = find(id);
         if (candidate == null) throw new IllegalArgumentException("知识资料不存在");
         if (candidate.metadata() != null && !candidate.metadata().mayPublish())
@@ -66,6 +67,21 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
     public void refreshChunkCount(String id, int chunkCount) {
         if (mapper.refreshChunkCount(id, chunkCount) != 1)
             throw new IllegalArgumentException("知识资料不存在");
+    }
+
+    @Override @Transactional
+    public StoredKnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata supplied, LocalDateTime updatedAt) {
+        if (supplied == null) throw new IllegalArgumentException("Knowledge metadata is required");
+        if (mapper.updatePendingSource(id, supplied.sourceLabel(), updatedAt) != 1)
+            throw new IllegalArgumentException("Only pending knowledge metadata may be corrected");
+        try {
+            String encoded = json.writeValueAsString(supplied);
+            if (mapper.updateMetadata(id, encoded) == 0 && mapper.insertMetadata(id, encoded) != 1)
+                throw new IllegalStateException("Knowledge metadata correction was not persisted");
+        } catch (JsonProcessingException invalid) {
+            throw new IllegalStateException("Knowledge metadata cannot be serialized", invalid);
+        }
+        return find(id);
     }
 
     private StoredKnowledgeDocument convert(Map<String, Object> row) {
