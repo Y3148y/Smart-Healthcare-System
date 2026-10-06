@@ -89,6 +89,19 @@ class QdrantRemoteIndexReuseTest {
             assertTrue(restartedProcess.ensureIndexed(List.of(revised)));
             assertEquals(2, embeddingCalls.get(), "a changed chunk receives a new point id and must be embedded");
             assertEquals(2, upsertCalls.get());
+
+            var chunk = new com.aihospital.knowledge.domain.KnowledgeChunk("chunk-fixture", "doc-fixture",
+                    "version-fixture", 0, List.of("Fixture"), 0, revised.excerpt().length(), "unicode_codepoint",
+                    revised.excerpt(), "a".repeat(64), revised.source(), "test-chunker");
+            var origins = java.util.Map.of(com.aihospital.knowledge.domain.Bm25Retriever.key(revised), List.of(chunk));
+            restartedProcess.registerChunkProvenance(origins);
+            assertTrue(restartedProcess.ensureIndexed(List.of(revised)));
+            assertEquals(3, upsertCalls.get(), "legacy payload must be refreshed with provenance");
+            var restartedWithOrigins = configured(json, base);
+            restartedWithOrigins.registerChunkProvenance(origins);
+            assertTrue(restartedWithOrigins.ensureIndexed(List.of(revised)));
+            assertEquals(3, embeddingCalls.get(), "exact provenance survives a process restart without re-embedding");
+            assertEquals(3, upsertCalls.get());
         } finally {
             server.stop(0);
         }

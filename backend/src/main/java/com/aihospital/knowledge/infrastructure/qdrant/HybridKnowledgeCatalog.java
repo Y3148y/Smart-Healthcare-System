@@ -51,11 +51,26 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         String state = !approved ? "NOT_APPROVED" : !semantic.configured() ? "NOT_CONFIGURED"
                 : count == detail.segments().size() ? "INDEXED_IN_PROCESS" : count == 0 ? "NOT_INDEXED" : "PARTIAL";
         return new DocumentDetail(detail.document(), detail.source(), detail.segments(), state, count,
-                "索引计数是本进程已向 Qdrant 校验或成功写入的片段数，不是持续健康检查；资料和审批状态仍为内存演示。");
+                "索引计数是本进程已向 Qdrant 校验或成功写入的片段数，不是持续健康检查；数据库保存资料和审批状态，检索缓存由记录重建。");
     }
     @Override public Map<String, String> syncIndex() {
-        boolean success = semantic.ensureIndexed(local.approvedCorpus());
+        boolean success = indexApprovedCorpus(local.approvedCorpus());
         return Map.of("status", semantic.status(), "success", String.valueOf(success));
+    }
+
+    private boolean indexApprovedCorpus(List<Evidence> corpus) {
+        Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins = new HashMap<>();
+        for (KnowledgeDocument document : local.documents()) {
+            if (!"READY".equals(document.status())) continue;
+            for (var chunk : local.documentChunks(document.id())) {
+                String key = Bm25Retriever.key(new Evidence(document.title(), chunk.source(), chunk.text(), 1));
+                origins.computeIfAbsent(key, ignored -> new ArrayList<>()).add(chunk);
+            }
+        }
+        synchronized (semantic) {
+            semantic.registerChunkProvenance(origins);
+            return semantic.ensureIndexed(corpus);
+        }
     }
 
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic) {
@@ -110,7 +125,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             documentStore.approve(id, pending.segments().size(), java.time.LocalDateTime.now());
         }
         var approved = local.approveDocument(id);
-        semantic.ensureIndexed(local.approvedCorpus());
+        indexApprovedCorpus(local.approvedCorpus());
         return approved;
     }
     @Override public String retrievalMode() { return lastMode; }
@@ -139,7 +154,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
         var corpus = local.approvedCorpus();
         List<Evidence> lexical = lexicalIndex(corpus).search(query, depth, minimumScore);
-        boolean indexed = semantic.ensureIndexed(corpus);
+        boolean indexed = indexApprovedCorpus(corpus);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
                 : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
         List<Evidence> dense = semanticReport.evidence();

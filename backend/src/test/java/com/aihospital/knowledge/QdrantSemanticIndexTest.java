@@ -21,6 +21,8 @@ class QdrantSemanticIndexTest {
     @Test
     void configuredSemanticIndexCreatesCollectionAndReturnsCitedChunk() throws Exception {
         var upsertedTitles = new CopyOnWriteArrayList<String>();
+        var upsertedPoints = new java.util.concurrent.ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode>();
+        var corruptPayload = new java.util.concurrent.atomic.AtomicBoolean();
         var collectionConfig = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/embeddings", exchange -> {
@@ -40,13 +42,21 @@ class QdrantSemanticIndexTest {
         });
         server.createContext("/collections/ai_hospital_knowledge_v1/points", exchange -> {
             var request = new ObjectMapper().readTree(exchange.getRequestBody());
-            for (var point : request.path("points")) upsertedTitles.add(point.path("payload").path("title").asText());
+            for (var point : request.path("points")) {
+                String title = point.path("payload").path("title").asText();
+                upsertedTitles.add(title);
+                upsertedPoints.put(title, point);
+            }
             respond(exchange, 200, "{\"result\":true}");
         });
-        server.createContext("/collections/ai_hospital_knowledge_v1/points/search", exchange ->
-                respond(exchange, 200, upsertedTitles.contains("新增骨科资料")
-                        ? "{\"result\":[{\"score\":0.91,\"payload\":{\"title\":\"新增骨科资料\",\"source\":\"管理员录入/本地上传\",\"excerpt\":\"膝关节外伤应由医生评估\"}}]}"
-                        : "{\"result\":[{\"score\":0.91,\"payload\":{\"title\":\"呼吸资料\",\"source\":\"https://www.who.int/tools/triage\",\"excerpt\":\"咳嗽需要结合症状判断就医方向\"}}]}"));
+        server.createContext("/collections/ai_hospital_knowledge_v1/points/search", exchange -> {
+            var json = new ObjectMapper();
+            var point = upsertedPoints.get(upsertedTitles.contains("新增骨科资料") ? "新增骨科资料" : "呼吸资料");
+            var payload = point.path("payload").deepCopy();
+            if (corruptPayload.get()) ((com.fasterxml.jackson.databind.node.ObjectNode) payload).put("excerpt", "Wrong remote content");
+            var hit = json.createObjectNode().put("id", point.path("id").asText()).put("score", 0.91).set("payload", payload);
+            respond(exchange, 200, json.createObjectNode().set("result", json.createArrayNode().add(hit)).toString());
+        });
         server.start();
         try {
             QdrantSemanticIndex index = new QdrantSemanticIndex(new ObjectMapper());
@@ -72,11 +82,16 @@ class QdrantSemanticIndexTest {
             assertEquals("PENDING_REVIEW", pending.status());
             assertEquals("READY", hybrid.approveDocument(pending.id()).status());
             assertTrue(upsertedTitles.contains("新增骨科资料"));
+            var provenance = upsertedPoints.get("新增骨科资料").path("payload").path("provenance");
+            assertEquals(pending.id(), provenance.get(0).path("documentId").asText());
+            assertEquals(local.documentChunks(pending.id()).get(0).chunkId(), provenance.get(0).path("chunkId").asText());
             assertTrue(hybrid.retrieve("膝关节外伤", 3, 0.28).evidence().stream()
                     .anyMatch(item -> item.title().equals("新增骨科资料")));
             int beforeRepeat = upsertedTitles.size();
             assertTrue(index.ensureIndexed(local.approvedCorpus()));
             assertEquals(beforeRepeat, upsertedTitles.size(), "重复审批或检索不得重复 upsert 相同 point id");
+            corruptPayload.set(true);
+            assertTrue(index.search("膝关节外伤", 3, 0.28).isEmpty(), "mismatched remote payload is not evidence");
         } finally { server.stop(0); }
     }
 

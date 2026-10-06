@@ -1,6 +1,8 @@
 package com.aihospital.knowledge.infrastructure.qdrant;
 
 import com.aihospital.shared.model.Models.Evidence;
+import com.aihospital.knowledge.domain.KnowledgeChunk;
+import com.aihospital.knowledge.domain.Bm25Retriever;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -40,9 +42,30 @@ public class QdrantSemanticIndex {
     private volatile Set<String> activePointIds = Set.of();
     @Value("${ai.embedding-batch-size:10}") private int batchSize = 10;
     private final Set<String> indexedPointIds = new HashSet<>();
+    private Map<String, List<KnowledgeChunk>> provenance = Map.of();
+    private final Map<String, JsonNode> indexedPayloads = new java.util.HashMap<>();
+    private volatile Map<String, JsonNode> activePayloads = Map.of();
+
+    /** Call under the same monitor as ensureIndexed to install one approved corpus snapshot. */
+    public synchronized void registerChunkProvenance(Map<String, List<KnowledgeChunk>> snapshot) {
+        var copy = new java.util.HashMap<String, List<KnowledgeChunk>>();
+        snapshot.forEach((key, chunks) -> copy.put(key, List.copyOf(chunks)));
+        provenance = Map.copyOf(copy);
+    }
+
+    private JsonNode payload(Evidence evidence) {
+        var payload = json.createObjectNode().put("title", evidence.title())
+                .put("source", evidence.source()).put("excerpt", evidence.excerpt());
+        var origins = provenance.get(Bm25Retriever.key(evidence));
+        if (origins != null && !origins.isEmpty()) {
+            payload.set("provenance", json.valueToTree(origins));
+            payload.put("embedding_model", model);
+        }
+        return payload;
+    }
 
     public QdrantSemanticIndex(ObjectMapper json) { this.json = json; }
-    public boolean configured() { return !model.isBlank() && !apiKey.isBlank() && !embeddingBaseUrl.isBlank(); }
+    public boolean configured() { return !model.isBlank() && com.aihospital.shared.security.ApiCredentialCheck.usable(apiKey) && !embeddingBaseUrl.isBlank(); }
     public boolean indexed() { return indexed; }
     public String status() { return status; }
     public String modelName() { return model; }
@@ -77,11 +100,16 @@ public class QdrantSemanticIndex {
     public synchronized boolean ensureIndexed(List<Evidence> corpus) {
         if (!configured()) { status = "NOT_CONFIGURED"; return false; }
         activePointIds = corpus.stream().map(this::pointId).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        var expectedPayloads = new java.util.HashMap<String, JsonNode>();
+        for (Evidence item : corpus) expectedPayloads.put(pointId(item), payload(item));
+        activePayloads = Map.copyOf(expectedPayloads);
+        indexedPointIds.removeIf(id -> !java.util.Objects.equals(indexedPayloads.get(id), activePayloads.get(id)));
         if (corpus.isEmpty()) { indexed = false; status = "EMPTY_CORPUS"; return false; }
         try {
             List<Evidence> pending = corpus.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
             if (pending.isEmpty()) return indexed;
             indexedPointIds.addAll(existingPointIds(pending));
+            for (String id : indexedPointIds) if (activePayloads.containsKey(id)) indexedPayloads.put(id, activePayloads.get(id));
             pending = pending.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
             if (pending.isEmpty()) {
                 indexed = true;
@@ -101,11 +129,14 @@ public class QdrantSemanticIndex {
             for (int i = 0; i < pending.size(); i++) {
                 Evidence evidence = pending.get(i);
                 String id = pointId(evidence);
-                points.add(Map.of("id", id, "vector", vectors.get(i), "payload", Map.of(
-                        "title", evidence.title(), "source", evidence.source(), "excerpt", evidence.excerpt())));
+                points.add(Map.of("id", id, "vector", vectors.get(i), "payload", activePayloads.get(id)));
             }
             request("PUT", qdrantUrl + "/collections/" + collection + "/points?wait=true", Map.of("points", points), false);
-            for (Evidence item : pending) indexedPointIds.add(pointId(item));
+            for (Evidence item : pending) {
+                String id = pointId(item);
+                indexedPointIds.add(id);
+                indexedPayloads.put(id, activePayloads.get(id));
+            }
             indexed = true;
             status = "INDEXED";
             return true;
@@ -145,9 +176,7 @@ public class QdrantSemanticIndex {
                 String id = point.path("id").asText();
                 Evidence evidence = expected.get(id);
                 JsonNode payload = point.path("payload");
-                if (evidence != null && evidence.title().equals(payload.path("title").asText())
-                        && evidence.source().equals(payload.path("source").asText())
-                        && evidence.excerpt().equals(payload.path("excerpt").asText())) existing.add(id);
+                if (evidence != null && payload.equals(activePayloads.get(id))) existing.add(id);
             }
         }
         return existing;
@@ -158,12 +187,14 @@ public class QdrantSemanticIndex {
         return searchDetailed(query, limit, minimumScore).evidence();
     }
     public SearchResult searchDetailed(String query, int limit, double minimumScore) {
-        if (!indexed || !configured() || activePointIds.isEmpty()) return new SearchResult(List.of(), "NOT_READY");
+        Map<String, JsonNode> expectedSnapshot = activePayloads;
+        Set<String> snapshotIds = expectedSnapshot.keySet();
+        if (!indexed || !configured() || snapshotIds.isEmpty()) return new SearchResult(List.of(), "NOT_READY");
         try {
             List<Double> vector = embeddings(List.of(query)).get(0);
             JsonNode response = request("POST", qdrantUrl + "/collections/" + collection + "/points/search",
                     Map.of("vector", vector, "limit", Math.max(1, Math.min(limit, 100)), "with_payload", true,
-                            "score_threshold", minimumScore, "filter", Map.of("must", List.of(Map.of("has_id", activePointIds)))), false);
+                            "score_threshold", minimumScore, "filter", Map.of("must", List.of(Map.of("has_id", snapshotIds)))), false);
             if (!response.path("result").isArray()) throw new IllegalStateException("Invalid Qdrant search response");
             List<Evidence> found = new ArrayList<>();
             for (JsonNode hit : response.path("result")) {
@@ -171,7 +202,9 @@ public class QdrantSemanticIndex {
                 double score = hit.path("score").asDouble(Double.NaN);
                 Evidence evidence = new Evidence(payload.path("title").asText(), payload.path("source").asText(),
                         payload.path("excerpt").asText(), score);
-                if (Double.isFinite(score) && score >= minimumScore && activePointIds.contains(pointId(evidence))) found.add(evidence);
+                String hitId = hit.path("id").asText();
+                if (Double.isFinite(score) && score >= minimumScore && snapshotIds.contains(hitId)
+                        && hitId.equals(pointId(evidence)) && payload.equals(expectedSnapshot.get(hitId))) found.add(evidence);
             }
             status = "READY";
             return new SearchResult(List.copyOf(found), "READY");
