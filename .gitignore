@@ -18,3 +18,14 @@ backend/data/
 tools/knowledge-sync/cache/
 tools/knowledge-sync/reports/
 tools/knowledge-sync/node_modules/
+
+# Local collaboration and generated working records; not public deliverables.
+/AGENTS.md
+/.trae/
+/docs/AGENT_BOARD.md
+/docs/HANDOVER*.md
+/docs/*2026*.md
+!/docs/RAG_KNOWLEDGE_CATALOG_2026-09-26.md
+/docs/archive/
+/docs/design/
+/docs/evaluations/

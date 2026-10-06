@@ -8,7 +8,7 @@
 > - 行号与实际不符时，**以符号名与附录 A 的内容串为准**，不要照着过期行号改代码。
 > 无人在改的文件（`InMemoryKnowledgeCatalog.java`、`Models.java`、`schema.sql`、`Disposition.java` 等，以及 `tools/knowledge-sync/**`）的行号可直接引用。
 > **定级**：本系统为未经临床审核的原型，无医生执业资质审核、无医院系统对接、无患者数据留痕基础设施。本文不构成合规意见，也不构成临床认可。
-> **配套**：[`docs/KNOWLEDGE_PIPELINE.md`](KNOWLEDGE_PIPELINE.md)（临床知识侧）、[`docs/KNOWLEDGE_SOURCES.md`](KNOWLEDGE_SOURCES.md)（来源与许可）、[`docs/AGENT_BOARD.md`](AGENT_BOARD.md)（owner 划分）
+> **配套**：[`docs/KNOWLEDGE_PIPELINE.md`](KNOWLEDGE_PIPELINE.md)（临床知识侧）、[`docs/KNOWLEDGE_SOURCES.md`](KNOWLEDGE_SOURCES.md)（来源与许可）、[贡献说明](../CONTRIBUTING.md)（公开提交规范）
 
 ---
 
