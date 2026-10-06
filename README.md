@@ -82,6 +82,7 @@ npm run build
 | tools/ | 知识来源同步工具 |
 | scripts/ | 启动与专项验证 |
 | docs/ | 架构、方案、验收和历史故障记录 |
-| img/ | 原型与图片 |
+| docs/design/prototypes/ | 原型图片，供需求对照 |
+| docs/archive/ | 历史测试与故障记录，不是当前产品说明 |
 
 从 [文档导航](docs/README.md) 阅读架构、计划和验证记录。历史报告只反映当时版本，不代表当前默认配置或当前验收状态。

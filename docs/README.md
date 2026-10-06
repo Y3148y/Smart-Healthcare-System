@@ -1,5 +1,7 @@
 # 文档导航
 
+当前架构与功能说明从下方入口阅读。原型在 [design/prototypes](design/prototypes/)，历史测试报告在 [archive/testing](archive/testing/)，故障记录在 [archive/incidents](archive/incidents/)。代码测试留在 backend/src/test 和 frontend/tests 中，与文档报告区分。
+
 日期报告保留当时的设计与验证结果，旧测试数量、模型和环境配置不代表当前状态。
 
 ## 优先阅读
