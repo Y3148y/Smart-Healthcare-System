@@ -1,99 +1,87 @@
 # AI 智慧医院智能导诊系统
 
-这是一个以聊天式预问诊为中心的智慧医院原型。患者可以多轮描述症状、查看本人历史会话与症状时间线，获得带知识依据的就诊方向，并创建**模拟预约**。目前没有合作医院，号源和预约都不是真实医院数据。
+以多轮聊天预问诊为核心的导诊原型，包含患者端和导诊管理员端。目标是帮助患者描述症状、识别危险信号、了解就诊方向并衔接预约。
 
-## 产品定位与轻量改造范围
+目前没有合作医院，医生、号源和预约为演示数据；真实 HIS 对接与临床审核尚未完成。聊天记录和症状时间线不是正式病历。
 
-目标是面向门诊入口的辅助预问诊、危险信号提醒与挂号导航，不替代医生诊断，也不替代医院 HIS/EMR。当前是接入真实模型与向量检索的原型，尚不具备真实医院上线条件。
+## 功能范围
 
-当前面向成年人本人、声明非孕产期的常规就医咨询与模拟挂号用户；后台面向知识维护、AI 运行检查及导诊申请处理人员。入口声明不是医学核验，风险规则未经临床审核。当前没有合作医院或真实 HIS 联调。
-
-系统只有 PATIENT、ADMIN 两种业务角色。医生目前是演示目录数据，不是可登录角色。用户已确认下一阶段采用最小范围：**患者端 + 导诊管理员端**，沿用单体、MyBatis、数据库和 Qdrant，不拆微服务或新增框架。
-
-| 板块 | 当前实际能力 | 本轮计划，尚未完成 |
+| 模块 | 已有能力 | 当前边界 |
 | --- | --- | --- |
-| 患者端 | 首页、多轮预问诊、历史会话/分诊版本、模拟预约、本人症状时间线 | 修复顺序与推荐质量，增加必要本人基础资料 |
-| 导诊管理员端 | 首页、医学知识库、检索调试、工具中心、AI 观测、人工申请处理、目录/最小号源管理 | 按申请关系查看必要摘要 |
-| 医生/科室 | 数据库维护科室、医生、当前日期/容量；可新增/编辑/启停，无物理删除 | 完整排班与真实医院目录同步暂不建设 |
-| 患者档案 | 本人基础资料页、聊天和自述时间线；资料支持持久化更正与版本冲突保护 | 不生成诊断画像，不是医院病历；不默认向管理员开放 |
-| 人工导诊 | 患者查看本人申请状态；管理员按申请查看有限会话摘要、受理和关闭 | 非实时导诊，没有医院值守或通知；不等于医生诊疗 |
+| 患者端 | 多轮预问诊、历史会话与分诊版本、症状时间线、本人资料、模拟预约、人工导诊申请 | 回答质量仍需改进；不提供诊断或处方 |
+| 导诊管理员 | 科室/医生/最小号源管理、知识审批、检索调试、工具管理、调用观测、人工申请处理 | 没有医院实时值守保障；不默认开放所有患者资料 |
+| 医生与 HIS | 医生目录记录、业务适配边界 | 没有医生工作台，没有真实医院身份匹配、挂号确认或对账 |
 
-多轮请求已区分当前意图与历史症状，改问挂号不会被旧处方请求永久拒绝；历史安全检查保留。真实验证与剩余问题见 [当前请求修复记录](docs/CURRENT_REQUEST_FIX_2026-10-03.md)，不代表全部问诊质量问题已完成。
+## 架构与流程
 
-患者问诊已接入真实阶段状态SSE；正文仍完整校验后一次返回，不是LLM token流。断开后可从历史核对结果，详见 [阶段推送记录](docs/TRIAGE_PROGRESS_STREAM_2026-10-03.md)。
-| 病历与医生端 | 未实现；聊天记录不是正式病历 | 本阶段不做医生登录、正式病历、处方、检查报告 |
-| HIS | 未实现真实请求、身份匹配、挂号确认或对账 | 仅保留适配边界，待合作医院明确接口规范 |
+Spring Boot 单体按业务模块组织 api、application、domain、infrastructure；MyBatis 执行持久化 SQL。默认 H2，另有 MySQL 配置，真实 MySQL 联调未完成。
 
-不新增支付、短信、复杂排班或随访。人工申请尚无医院值守保障，不能承诺实时处理；系统管理员不默认获得浏览所有患者医疗记录的权限。轻量化不取消权限、危险信号闸门、幂等扣号或失败反馈。
+```text
+患者聊天 → 会话服务 → 安全规则与流程判断 → 本地工具执行器
+         → 医学检索／科室与号源查询 → LLM 与输出检查 → 保存结果
+管理员或外部调用方 → 管理员认证的 /mcp → 同一个工具执行器
+```
 
-分阶段任务与验收见 [轻量改造清单](docs/LIGHTWEIGHT_DELIVERY_PLAN.md)。科室匹配与生成措辞仍待检查，不能称为完整可试用闭环。
-消息排序已在第一批修复并复验，旧记录顺序不可完全恢复；当前科室/医生/号源管理入口为 `?demo=admin&page=admin&adminPage=catalog`，见 [目录管理记录](docs/CATALOG_MANAGEMENT_2026-10-03.md)。目录扩充不代表新科室的医学匹配已完成。患者导航“我的资料”入口为 `?demo=patient&page=profile`；人工导诊状态在“我的就诊”，管理员从左侧“人工导诊申请”处理，见 [人工导诊流程](docs/HUMAN_REVIEW_FLOW_2026-10-03.md)。问诊质量及独立复核仍待推进。
+当前是后端编排的 Workflow，没有模型自主 Function Calling 循环或多 Agent 编排。/mcp 是工具列表与调用的协议子集演示入口。安全规则控制风险和预约限制，模型不能解除限制；规则未经临床审核，未命中不能排除急症。
 
-## 运行方式
+SSE 推送真实处理阶段，正文检查完成后一次返回，尚非逐 token 输出。
 
-需要 JDK 17、Maven 3.6.1+ 与 Node.js 20+。本机 JDK 可使用 `E:\JDK17\jdk-17.0.1`。
+## RAG 当前状态
+
+```text
+已批准本地正文 → 段落切分 → BM25 + embedding/Qdrant
+查询 → 两路召回 → RRF → 百炼 rerank → 引用片段 → 回答检查
+```
+
+内置资料是 11 篇手工整理的简短 Markdown，并非来源网页完整正文。URL 是来源标识，回答时不会通过网页搜索重新抓取。长段切分上限 420 字符、重叠 60 字符；现有短语料不足以验证完整医学文档切分质量。
+
+已有可重复索引构建清单、BM25 索引复用、Qdrant 幂等写入与分阶段工程评估。正文清洗、规范元数据、不可变语料版本、审核历史、索引发布与回滚仍需补齐。小型工程评估集不是临床审核集，检索命中和模型核对通过不等于医学正确。
+
+默认允许明确标识的本地检索降级；rag-live 要求向量与重排依赖。demo 对话不调用外部 LLM，检索依赖按配置独立启用。详细事实与限制见 [RAG 工程化记录](docs/RAG_INDEX_QUERYPLAN_2026-10-05.md)。
+
+## 本地运行
+
+需要 JDK 17、Maven 和 Node.js 20+。项目根目录打开两个终端：
 
 ```powershell
-# 终端 1：后端（默认演示 Agent；无需配置模型密钥）
-$env:JAVA_HOME='E:\JDK17\jdk-17.0.1'
+# 后端默认 8080；本机 JDK 路径按实际安装替换
+$env:JAVA_HOME = 'E:\JDK17\jdk-17.0.1'
+$env:Path = "$env:JAVA_HOME\bin;$env:Path"
 cd backend
 mvn spring-boot:run
 
-# 终端 2：前端
+# 另一个终端：前端默认代理 8080
 cd frontend
-npm install
+npm ci
 npm run dev -- --host 127.0.0.1 --port 5188
 ```
 
-打开 `http://127.0.0.1:5188`。演示账号为 `zhangsan`、`lisi` 或 `admin`，密码任意。默认使用本地持久化 H2 数据库，文件在 `backend/data/`；测试使用独立的内存数据库。
+访问 http://127.0.0.1:5188。演示账号 zhangsan、lisi、admin，任意非空密码。默认数据库在 backend/data/。后端改为 8081 时必须同步前端代理。
 
-后端持久化通过 MyBatis 3.0.5 Mapper 执行 SQL（分诊会话、评估版本、模拟号源、预约和后台统计）；业务 Service 不再直接使用 `JdbcTemplate`。MyBatis 底层仍使用 JDBC 数据源，切换 Mapper 不等于切换数据库，当前默认数据库仍是 H2。
+真实模型通过进程环境变量 AI_MODE=openai-compatible、AI_BASE_URL、AI_MODEL、AI_API_KEY 配置。向量检索配置 AI_EMBEDDING_MODEL、AI_EMBEDDING_API_KEY、AI_EMBEDDING_BASE_URL、AI_QDRANT_URL；重排配置 AI_RERANK_MODEL、AI_RERANK_URL 与对应密钥变量。实际默认值以 backend/src/main/resources/application*.yml 为准。
 
-## 核心接口
+密钥不得写入文件或 GitHub。演示认证仅限本地，对外部署前必须关闭 AI_DEMO_AUTH_ENABLED 并接入正式认证。
 
-- `POST /api/triage/sessions`、`POST /api/triage/sessions/{id}/turns`：创建本人会话并多轮预问诊。
-- `GET /api/triage/sessions`、`GET /api/triage/sessions/{id}`、`GET /api/triage/timeline`：查看本人会话、评估版本和症状时间线。
-- `POST /api/appointments`：使用 `doctorId`、`sessionId` 和 `idempotencyKey` 创建模拟预约，事务内扣减演示号源；`GET /api/appointments` 仅返回本人记录。
-- `POST /mcp`：带管理员认证的 MCP Streamable HTTP 工具列表与调用子集；`/mcp/tools/*` 保留为旧版兼容入口。Agent 在同一进程内调用共用的工具执行器，并非外部 MCP 客户端。
-- `POST /api/triage/sessions/{id}/human-review`、`GET/PATCH /api/admin/human-reviews`：提交、查看与处理人工导诊申请队列。
-- `/api/admin/*`：知识库、工具中心和 AI 调用观测。
+## 验证与目录
 
-`docker compose up -d` 可启动 MySQL 与 Qdrant；默认离线配置不依赖它们。MySQL 此阶段尚未在本机实例上完成联调（配置位于 `backend/src/main/resources/application-mysql.yml`）。可通过 `AI_MODE=openai-compatible`、`AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` 启用兼容模型；`AI_MAX_TOKENS` 可调整单次输出预算（默认 4096，非实际消耗量）。密钥只允许通过进程环境变量注入。当前工具仍连接演示医院数据，不代表真实 HIS 接入或完整 MCP Agent 编排。
+```powershell
+# 使用 JDK 17
+cd backend
+mvn clean test
+# 另一个终端
+cd frontend
+npm run build
+```
 
-当前默认检索为通用字符 n-gram BM25，不靠逐症状扩充词表；完整路径为 **BM25 + 百炼 embedding/Qdrant → 单一 RRF 融合 → 百炼 rerank → 引用片段**。配置 `AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY`、`AI_EMBEDDING_BASE_URL`、`AI_QDRANT_URL` 及 `AI_RERANK_MODEL`、`AI_RERANK_URL` 后可启用外部检索。使用 `rag-live` profile 时强制要求两项服务配置，依赖失败不发布未经重排的候选。`scripts/start-rag-live.ps1` 使用独立验证数据库和 8092 端口，不改写既有会话。真实百炼/Qdrant 评测与未解决问题见 [RAG 改造记录](docs/RAG_REDESIGN_2026-10-02.md)。
+普通测试不调用真实模型，外部 RAG 集成测试需显式启用。不要使用 JDK 25 跑当前 Mockito 测试。工程测试通过不代表临床验收。
 
-模型回答会携带最近最多 5 个用户轮次的会话消息（历史合计不超过 4000 字符）；演示对话模型不调用外部 LLM，检索依赖是否调用外部服务由检索配置单独决定。`AI_RETRIEVAL_MIN_SCORE`（默认 0.28）现在是 BM25 原始分门槛，`AI_SEMANTIC_MIN_SCORE`（默认 0.45）是向量相似度门槛；不同分值不可混用。`AI_RERANK_MIN_SCORE` 在默认配置为 0.5，`rag-live` 为小样本评测后暂定的 0.15，均不是医学可信概率。新上传知识需要管理员批准才会参与检索；批准后尝试增量更新 Qdrant，失败时默认配置允许明确标识的本地降级，`rag-live` 不返回检索依据。资料及审批状态目前只保存在内存，服务重启会丢失。
+| 目录 | 内容 |
+| --- | --- |
+| backend/ | 分层业务、数据库、模型与检索适配器、测试 |
+| frontend/ | Vue 患者端和管理员端 |
+| tools/ | 知识来源同步工具 |
+| scripts/ | 启动与专项验证 |
+| docs/ | 架构、方案、验收和历史故障记录 |
+| img/ | 原型与图片 |
 
-仅凭未映射的鼻部症状和挂号意图，不再生成全科可预约医生；`待补充信息` 的分诊版本也不能预约。此次处置一致性修正见 [D4 修复记录](docs/D4_DISPOSITION_CONSISTENCY_2026-10-02.md)，旧行为的历史记录见 [鼻部症状挂号问题记录](docs/INCIDENT_NASAL_BOOKING_2026-10-01.md)。
-
-疑似食物相关全身皮疹的确定性安全预警与普通预约阻断，见 [过敏预警问题记录](docs/INCIDENT_ALLERGY_WARNING_2026-10-01.md)；该规则尚未经过临床审核。
-
-> 系统仅用于辅助分诊和挂号演示，不输出诊断、处方或治疗建议。出现胸痛、严重呼吸困难、意识障碍等症状时会优先给出紧急就医提醒。
-
-当前 P0 变更、测试结果与上线阻断项见 [P0 实施及验收记录](docs/P0_IMPLEMENTATION_2026-09-29.md)。演示登录接受任意非空密码，只可用于本机演示；对外部署必须关闭 `AI_DEMO_AUTH_ENABLED` 并接入正式认证。
-
-本轮四项返工、文件与函数清单、验证和答辩要点见 [P0 返工讲解页](docs/P0_REWORK_BRIEF_2026-09-29.md)。
-
-Qdrant 真实向量检索的本机实测数据（命中分数、降级与恢复、无密钥底线）及四种状态/三问讲解材料见 [Qdrant 实测记录](docs/QDRANT_LIVE_VERIFICATION_2026-09-30.md)。
-
-多候选场景下 LLM 输出结构化分诊决策（白名单、置信度、依据护栏与四态回退）的实现、实测与边界见 [结构化分诊决策记录](docs/LLM_STRUCTURED_TRIAGE_2026-10-01.md)。安全评估与风险等级始终由服务端规则控制，模型不能修改。
-
-当前代码分层与依赖方向见 [项目分层架构](docs/ARCHITECTURE.md)；此前的阶段 A 实施、接口收敛与测试记录见 [阶段 A 实施与测试记录](docs/PHASE_A_PROGRESS_2026-09-27.md)。
-
-最新真实运行修正：重排模型为 `qwen3.7-text-rerank`，`rag-live` 阈值已改为 0.5，旧 0.15 仅属历史校准；聊天 `glm-5.3` 使用独立业务空间地址，不复用 embedding 地址，已实测两轮 LIVE。启动脚本需 `-ChatBaseUrl` 或进程 `AI_BASE_URL`。详见 [重排实测](docs/RERANK_MODEL_SWITCH_2026-10-03.md) 和 [聊天地址修正](docs/CHAT_WORKSPACE_FIX_2026-10-03.md)。这些最新结果不代表所有回答或科室推荐正确，也不代表全量回归全绿。
-
-预问诊的多轮收集、预约触发条件和紧急信号处理见 [多轮预问诊与安全预警](docs/TRIAGE_CONVERSATION_AND_SAFETY.md)。
-
-后续扩展的模块边界、接口地图、真实模型/RAG/数据库接入方式与已知限制见 [后续扩展说明](docs/EXTENSION_GUIDE.md)；接口联调记录见 [2026-09-24 验收记录](QA_RUN_2026-09-24.md) 和 [2026-09-26 全链路回归记录](QA_RUN_2026-09-26.md)。
-
-管理员后台新增文档原文/来源/片段与审批、增量索引同步、逐候选检索调试、配置与执行状态观测、工具错误详情和日志分页。入口为 `?demo=admin&page=admin&adminPage=knowledge`，检索调试使用 `adminPage=retrieval`，观测使用 `adminPage=observe`。当前索引状态是本进程写入记录，检索摘要只保留内存中最近 100 条，不是实时健康探针或完整持久化审计。验证结果、当前百炼 Arrearage 和会话排序复验问题见 [后台交付记录](docs/ADMIN_AI_WORKSPACE_2026-10-03.md)。
-
-真实模型连通性验证与安全配置原则见 [模型连通性记录](QA_MODEL_CONNECTIVITY_2026-09-25.md)。密钥不得写入项目文件。
-
-登录与文本编码问题的故障原因、修复和回归项见 [故障记录](docs/INCIDENT_LOGIN_AND_TEXT_ENCODING_2026-09-25.md)。
-
-专业 RAG 资料的官方来源、整理规则和检索验证见 [RAG 医学知识来源目录](docs/RAG_KNOWLEDGE_CATALOG_2026-09-26.md)。
-
-固定返回呼吸内科的问题、真实模型验证和修复记录见 [预问诊故障记录](docs/INCIDENT_TRIAGE_FIXED_RESULT_2026-09-26.md)。
-
-患者页旧令牌导致数据加载失败，以及最新模型 API 健康检查见 [患者加载与 LLM 健康记录](docs/INCIDENT_PATIENT_LOAD_AND_LLM_HEALTH_2026-09-26.md)。
+从 [文档导航](docs/README.md) 阅读架构、计划和验证记录。历史报告只反映当时版本，不代表当前默认配置或当前验收状态。
