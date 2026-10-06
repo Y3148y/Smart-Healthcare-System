@@ -10,6 +10,10 @@ test('short main excludes navigation and preserves headings and paragraphs', () 
 test('nested role main is not truncated at first closing element', () => {
   assert.equal(extractHtml('<div role="main"><div><p>One</p></div><p>Two</p></div><p>Outside</p>').text, 'One\n\nTwo');
 });
+test('paragraphs inside list items remain attached to their bullet', () => {
+  assert.equal(extractHtml('<main><ul><li><p>Keep the condition</p></li><li><p>Keep the exception</p></li></ul></main>').text,
+    '- Keep the condition\n\n- Keep the exception');
+});
 test('table relationships and review dates survive with warning', () => {
   const result = extractHtml('<main><table><tr><th>Symptom</th><th>Action</th></tr><tr><td>A</td><td>B</td></tr></table><p>Page last reviewed: 2026-01-01</p></main>');
   assert.match(result.text, /Symptom \| Action\n\nA \| B/);

@@ -23,9 +23,9 @@ export function buildCandidate(source, record, raw) {
       sources: [{sourceId: source.id, publisher: source.publisher, url: source.url,
         fetchedAt: record.fetchedAt, rawSha256: record.sha256}],
       topics: [], population: [], exclusions: [], prerequisites: [], evidenceUses: [],
-      permissionStatus: 'pending', permissionProof: '' },
+      permissionStatus: 'pending', permissionEvidence: null },
     reviewRequired: ['language', 'topics', 'population', 'exclusions', 'prerequisites',
-      'evidenceUses', 'permissionProof', 'medicalFidelity'],
+      'evidenceUses', 'permissionEvidence', 'medicalFidelity'],
     registryLicenseNote: source.licenseNote ?? '',
   };
 }

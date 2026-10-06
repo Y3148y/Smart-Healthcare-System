@@ -10,6 +10,8 @@ test('complete local content has provenance but never inherits publication permi
   assert.match(candidate.body, /Complete condition and exception/);
   assert.equal(candidate.metadata.sources[0].rawSha256, record.sha256);
   assert.equal(candidate.metadata.permissionStatus, 'pending');
+  assert.equal(candidate.metadata.permissionEvidence, null);
+  assert.equal('permissionProof' in candidate.metadata, false);
   assert.equal(candidate.reviewStatus, 'PENDING');
   assert.deepEqual(candidate.metadata.evidenceUses, []);
 });

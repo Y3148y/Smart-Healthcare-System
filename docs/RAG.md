@@ -14,6 +14,8 @@
 
 管理员页面使用结构化入库接口，支持读取本地 UTF-8 TXT/Markdown 正文，并要求填写来源标识、发布机构、链接和实际许可依据。录入后仍为待审批；详情展示来源声明、未声明项以及逐片段版本/位置/哈希。旧上传接口保留兼容，但新页面不再用它绕过来源录入。
 
+来源工具的 intake 命令生成本地待审 JSON（reports/intake，不提交第三方全文）。管理员可读取该包：先校验抽取正文 SHA-256，再保留原始快照哈希/采集时间和清洗告警；语言和证据用途必须核对。快照哈希并不表示浏览器已核验原始网页实物。许可待核对或受限的资料可保存待审，但后端禁止审批发布；已许可状态仍需填写依据、确认并另行审批。工具输出不自动翻译、不填造适用范围、不为检索凑词。
+
 管理员可通过 POST /api/admin/knowledge/documents 提交 title、body、metadata；正文保存到数据库，不在问答时访问来源网页。metadata.schemaVersion=1，包含 language、contentKind（source_extract/reviewed_summary）、sources（sourceId、publisher、url、可选 fetchedAt/rawSha256）、topics、population、exclusions、prerequisites、evidenceUses，以及 permissionStatus/permissionEvidence。evidenceUses 可选 general_information、direction_reference、warning_reference。
 
 新结构化资料一律先进入 PENDING_REVIEW；permissionStatus=pending/restricted 时禁止审批发布，permitted 必须填写许可依据，仍需管理员另行审批。许可字段只是操作者声明，不是法律或临床认证，也尚未作为在线适用性过滤条件。GET /api/admin/knowledge/{id}/metadata 返回声明；旧资料没有这些字段时返回 LEGACY_UNKNOWN，不生成虚假来源或审核记录。原始网页快照仍由来源同步工具管理，声明哈希目前未与快照实物自动校验。

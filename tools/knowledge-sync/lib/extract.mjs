@@ -55,9 +55,11 @@ export function extractHtml(html) {
       return;
     }
     if (node.tagName === 'li') {
-      flush(); pending = '- ';
-      for (const child of children(node)) visit(child);
-      flush(); return;
+      flush();
+      const item = normal(textOf(node));
+      if (item) output.push(`- ${item}`);
+      if (find(node, (child) => child.tagName === 'li').length > 1) warnings.push('NESTED_LIST_REQUIRES_REVIEW');
+      return;
     }
     if (node.tagName === 'br' || node.tagName === 'hr') { flush(); return; }
     if (BLOCK.has(node.tagName)) flush();
