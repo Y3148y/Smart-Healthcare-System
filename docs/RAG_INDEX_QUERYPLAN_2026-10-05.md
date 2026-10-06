@@ -158,3 +158,9 @@ JDK17、无 `AI_*` 环境变量，在隔离副本执行完整 `mvn clean test -q
 `QdrantSemanticIndex.ensureCollection` 对新建 collection 显式传入 `hnsw_config`：`m=16`、`ef_construct=100`、`full_scan_threshold=10000 KB`；三项可分别由 `ai.qdrant.hnsw.m`、`ai.qdrant.hnsw.ef-construct`、`ai.qdrant.hnsw.full-scan-threshold-kb` 覆盖。数值与 Qdrant 文档示例的默认配置相同，不是本项目评测调参结果；在线 search 不额外指定 `hnsw_ef`。已存在 collection 不会被此逻辑自动更新，以避免应用启动/请求时触发后台重建。Qdrant 对小于 dense `full_scan_threshold` 的 segment 可直接全扫描；因此当前小语料走全扫描是预期行为，HNSW 图索引需要达到索引条件并由优化器完成。该设置只影响查询性能/召回折中，不能修正语料缺失或内容不相关。参考 [Qdrant indexing](https://qdrant.tech/documentation/manage-data/indexing/) 与 [collection 创建 API](https://api.qdrant.tech/master/api-reference/collections/create-collection)。
 
 本项在隔离 JDK17 副本重跑完整 `mvn clean test -q -DforkCount=0`：253 项，252 通过、1 个 opt-in 外部服务用例跳过，0 失败/错误；`QdrantSemanticIndexTest` 两项均通过，验证默认值及属性覆盖。未调用外部 embedding/Qdrant，也未改正在运行的 collection。
+
+### 重启后的 Qdrant point 复用
+
+`QdrantSemanticIndex.ensureIndexed` 现在在调用 embedding 前，先按稳定 point ID 批量向当前 collection 读取候选点，并逐字段核对 `title/source/excerpt`。ID 与完整 payload 均相同的片段会登记为已索引并复用；缺失、ID 不同或 payload 不匹配的内容才会重新 embedding/upsert。因此服务重启后可以避免对未变更的已发布知识重复请求 embedding；文档变化仍会因内容参与 point ID 而生成新向量。读取 Qdrant 失败不会假定点存在，会维持索引不可用状态交给既有检索策略处理。撤回/修订产生的旧 point 暂不物理删除，活动语料的 ID 过滤仍阻止其成为当前证据。
+
+新增 `QdrantRemoteIndexReuseTest` 用本地 HTTP 服务验证：第一次构建 embedding/upsert 一次；模拟进程重启后精确相同语料不再调用 embedding/upsert；正文变化后才再次调用。该协议测试不访问真实 Qdrant/百炼，也不代表并发负载或线上 collection 的当前状态。

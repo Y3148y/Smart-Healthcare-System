@@ -57,6 +57,13 @@ public class QdrantSemanticIndex {
         try {
             List<Evidence> pending = corpus.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
             if (pending.isEmpty()) return indexed;
+            indexedPointIds.addAll(existingPointIds(pending));
+            pending = pending.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
+            if (pending.isEmpty()) {
+                indexed = true;
+                status = "INDEXED";
+                return true;
+            }
             List<List<Double>> vectors = new ArrayList<>();
             int batch = Math.max(1, Math.min(32, batchSize));
             for (int from = 0; from < pending.size(); from += batch)
@@ -89,6 +96,37 @@ public class QdrantSemanticIndex {
     private String pointId(Evidence evidence) {
         return UUID.nameUUIDFromBytes(("v2|" + embeddingBaseUrl + "|" + model + "|" + evidence.source()
                 + "|" + evidence.title() + "|" + evidence.excerpt()).getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    /** Reuse only points whose deterministic id and full evidence payload match this corpus snapshot. */
+    private Set<String> existingPointIds(List<Evidence> candidates) throws Exception {
+        HttpRequest probe = HttpRequest.newBuilder(URI.create(qdrantUrl + "/collections/" + collection))
+                .timeout(Duration.ofSeconds(5)).GET().build();
+        HttpResponse<String> response = http.send(probe, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() == 404) return Set.of();
+        if (response.statusCode() != 200)
+            throw new IllegalStateException("Qdrant collection check returned HTTP " + response.statusCode());
+
+        Map<String, Evidence> expected = new java.util.HashMap<>();
+        for (Evidence item : candidates) expected.put(pointId(item), item);
+        List<String> ids = List.copyOf(expected.keySet());
+        Set<String> existing = new HashSet<>();
+        int batch = 100;
+        for (int from = 0; from < ids.size(); from += batch) {
+            List<String> batchIds = ids.subList(from, Math.min(ids.size(), from + batch));
+            JsonNode retrieved = request("POST", qdrantUrl + "/collections/" + collection + "/points",
+                    Map.of("ids", batchIds, "with_payload", true, "with_vector", false), false);
+            if (!retrieved.path("result").isArray()) throw new IllegalStateException("Invalid Qdrant point retrieval response");
+            for (JsonNode point : retrieved.path("result")) {
+                String id = point.path("id").asText();
+                Evidence evidence = expected.get(id);
+                JsonNode payload = point.path("payload");
+                if (evidence != null && evidence.title().equals(payload.path("title").asText())
+                        && evidence.source().equals(payload.path("source").asText())
+                        && evidence.excerpt().equals(payload.path("excerpt").asText())) existing.add(id);
+            }
+        }
+        return existing;
     }
 
     public record SearchResult(List<Evidence> evidence, String status) {}
