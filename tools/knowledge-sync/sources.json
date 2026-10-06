@@ -14,6 +14,48 @@
   },
   "sources": [
     {
+      "id": "nhs-chest-pain-patient", "name": "NHS Chest pain — patient source", "publisher": "NHS",
+      "url": "https://www.nhs.uk/symptoms/chest-pain/", "fetchMode": "auto", "status": "verified",
+      "priority": "P0", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Current symptoms page verified; separate patient intake from historical rule citation. Publication and clinical adaptation pending."
+    },
+    {
+      "id": "nhs-anaphylaxis-patient", "name": "NHS Anaphylaxis — patient source", "publisher": "NHS",
+      "url": "https://www.nhs.uk/conditions/anaphylaxis/", "fetchMode": "auto", "status": "verified",
+      "priority": "P0", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Trailing-slash official page verified. Medication and UK emergency-service content requires review; no safety-rule changes."
+    },
+    {
+      "id": "nhs-stroke-symptoms", "name": "NHS Stroke symptoms", "publisher": "NHS",
+      "url": "https://www.nhs.uk/conditions/stroke/symptoms/", "fetchMode": "auto", "status": "verified",
+      "priority": "P0", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Symptom page, not a navigation-only disease landing page; clinical mapping pending."
+    },
+    {
+      "id": "nhs-dizziness-patient", "name": "NHS Dizziness", "publisher": "NHS",
+      "url": "https://www.nhs.uk/symptoms/dizziness/", "fetchMode": "auto", "status": "verified",
+      "priority": "P1", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Dizziness information is not general headache coverage."
+    },
+    {
+      "id": "nhs-stomach-ache-patient", "name": "NHS Stomach ache", "publisher": "NHS",
+      "url": "https://www.nhs.uk/symptoms/stomach-ache/", "fetchMode": "auto", "status": "verified",
+      "priority": "P1", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Symptom-source intake only; do not infer a diagnosis or local department availability."
+    },
+    {
+      "id": "nhs-cough-patient", "name": "NHS Cough", "publisher": "NHS",
+      "url": "https://www.nhs.uk/symptoms/cough/", "fetchMode": "auto", "status": "verified",
+      "priority": "P1", "reviewCycleDays": 90, "targetRag": true, "permissionStatus": "pending",
+      "licenseNote": "NHS terms/OGL conditions require attribution and third-party checks; not permission certification.",
+      "notes": "Cough patient information, not hospital directory content; review pending."
+    },
+    {
       "id": "nhs-dental-abscess",
       "name": "NHS Dental abscess",
       "publisher": "NHS",
