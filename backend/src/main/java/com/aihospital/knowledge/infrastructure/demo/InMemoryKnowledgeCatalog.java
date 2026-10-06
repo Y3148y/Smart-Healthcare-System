@@ -3,6 +3,7 @@ package com.aihospital.knowledge.infrastructure.demo;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.shared.model.Models.Evidence;
 import com.aihospital.shared.model.Models.KnowledgeDocument;
+import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -21,7 +22,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * P0 local hybrid retriever: section-aware chunks + medical term matching +
@@ -42,7 +42,6 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     private final Map<String, KnowledgeDocument> documents = new ConcurrentHashMap<>();
     private final Map<String, String> sources = new ConcurrentHashMap<>();
     private final Map<String, List<Chunk>> chunks = new ConcurrentHashMap<>();
-    private final AtomicInteger ids = new AtomicInteger(100);
 
     public InMemoryKnowledgeCatalog() {
         loadBundledKnowledge();
@@ -54,6 +53,48 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     public List<Evidence> approvedCorpus() {
         return chunks.values().stream().flatMap(List::stream)
                 .map(chunk -> new Evidence(chunk.title(), chunk.source(), chunk.text(), 1.0)).toList();
+    }
+    public synchronized List<StoredKnowledgeDocument> persistedDocuments() {
+        return documents.values().stream().map(document -> new StoredKnowledgeDocument(document.id(), document.title(),
+                document.body(), sources.get(document.id()), document.status(), document.chunks(), document.updatedAt())).toList();
+    }
+
+    public synchronized void restorePersistedDocuments(List<StoredKnowledgeDocument> storedDocuments) {
+        if (storedDocuments == null || storedDocuments.isEmpty())
+            throw new IllegalArgumentException("Persistent knowledge catalog must not be empty");
+        documents.clear();
+        sources.clear();
+        chunks.clear();
+        for (StoredKnowledgeDocument stored : storedDocuments) {
+            if (stored.id() == null || stored.id().isBlank() || stored.title() == null || stored.title().isBlank()
+                    || stored.body() == null || stored.body().isBlank() || stored.source() == null || stored.source().isBlank()
+                    || stored.chunkCount() < 0 || stored.updatedAt() == null
+                    || !Set.of("READY", "PENDING_REVIEW").contains(stored.status()))
+                throw new IllegalStateException("Persistent knowledge document is incomplete");
+            KnowledgeDocument document = new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
+                    stored.chunkCount(), stored.status(), stored.updatedAt());
+            documents.put(stored.id(), document);
+            sources.put(stored.id(), stored.source());
+            if ("READY".equals(stored.status())) {
+                List<Chunk> indexed = chunk(stored.id(), stored.title(), stored.body(), stored.source());
+                documents.put(stored.id(), new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
+                        indexed.size(), stored.status(), stored.updatedAt()));
+                chunks.put(stored.id(), indexed);
+            }
+        }
+    }
+
+    public synchronized StoredKnowledgeDocument persistedDocument(String id) {
+        KnowledgeDocument document = documents.get(id);
+        if (document == null) throw new IllegalArgumentException("知识资料不存在");
+        return new StoredKnowledgeDocument(document.id(), document.title(), document.body(), sources.get(id),
+                document.status(), document.chunks(), document.updatedAt());
+    }
+
+    public synchronized void removeAfterPersistenceFailure(String id) {
+        documents.remove(id);
+        sources.remove(id);
+        chunks.remove(id);
     }
     public String chunkingProfile() {
         return "paragraph-character-window-v1;maxChars=" + CHUNK_SIZE + ";overlapChars=" + CHUNK_OVERLAP
@@ -86,7 +127,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     private KnowledgeDocument add(String title, String body, String source) {
         if (title == null || title.isBlank() || body == null || body.isBlank() || title.length() > 160 || body.length() > 100_000)
             throw new IllegalArgumentException("知识资料标题或正文无效");
-        String id = "kd" + ids.incrementAndGet();
+        String id = "kd" + java.util.UUID.randomUUID();
         List<Chunk> indexed = chunk(id, title, body, source);
         boolean approvedSource = source.startsWith("https://");
         KnowledgeDocument document = new KnowledgeDocument(id, title, body, indexed.size(),

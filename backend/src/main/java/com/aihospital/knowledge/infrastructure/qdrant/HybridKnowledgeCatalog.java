@@ -2,6 +2,8 @@ package com.aihospital.knowledge.infrastructure.qdrant;
 
 import com.aihospital.knowledge.domain.Bm25Retriever;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
+import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
+import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import com.aihospital.knowledge.infrastructure.demo.InMemoryKnowledgeCatalog;
 import com.aihospital.shared.model.Models.Evidence;
 import com.aihospital.shared.model.Models.KnowledgeDocument;
@@ -19,6 +21,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     private final InMemoryKnowledgeCatalog local;
     private final QdrantSemanticIndex semantic;
     private final BailianReranker reranker;
+    private final KnowledgeDocumentStore documentStore;
     @Value("${ai.retrieval.min-score:0.28}") private double lexicalMinScore = 0.28;
     @Value("${ai.retrieval.semantic-min-score:0.45}") private double semanticMinScore = 0.45;
     @Value("${ai.retrieval.rrf-k:60}") private int rrfK = 60;
@@ -56,20 +59,43 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
 
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic) {
-        this(local, semantic, null);
+        this(local, semantic, null, null);
+    }
+    public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic, BailianReranker reranker) {
+        this(local, semantic, reranker, null);
     }
     @Autowired
-    public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic, BailianReranker reranker) {
-        this.local = local; this.semantic = semantic; this.reranker = reranker;
+    public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic,
+                                  BailianReranker reranker, KnowledgeDocumentStore documentStore) {
+        this.local = local; this.semantic = semantic; this.reranker = reranker; this.documentStore = documentStore;
     }
     @PostConstruct public void validateConfiguration() {
+        if (documentStore != null) {
+            List<StoredKnowledgeDocument> documents = documentStore.loadOrSeed(local.persistedDocuments());
+            local.restorePersistedDocuments(documents);
+            for (StoredKnowledgeDocument stored : documents) {
+                int currentChunkCount = local.persistedDocument(stored.id()).chunkCount();
+                if (currentChunkCount != stored.chunkCount()) documentStore.refreshChunkCount(stored.id(), currentChunkCount);
+            }
+        }
         if (requireSemantic && !semantic.configured()) throw new IllegalStateException("rag-live requires embedding configuration");
         if (requireRerank && (reranker == null || !reranker.configured()))
             throw new IllegalStateException("rag-live requires rerank configuration");
     }
     @Override public List<KnowledgeDocument> documents() { return local.documents(); }
-    @Override public KnowledgeDocument addDocument(String title, String body) { return local.addDocument(title, body); }
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body) {
+        KnowledgeDocument document = local.addDocument(title, body);
+        if (documentStore != null) {
+            try { documentStore.insert(local.persistedDocument(document.id())); }
+            catch (RuntimeException failure) { local.removeAfterPersistenceFailure(document.id()); throw failure; }
+        }
+        return document;
+    }
     @Override public KnowledgeDocument approveDocument(String id) {
+        if (documentStore != null) {
+            var pending = local.documentDetails(id);
+            documentStore.approve(id, pending.segments().size(), java.time.LocalDateTime.now());
+        }
         var approved = local.approveDocument(id);
         semantic.ensureIndexed(local.approvedCorpus());
         return approved;

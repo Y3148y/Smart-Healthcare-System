@@ -125,3 +125,14 @@ CREATE TABLE IF NOT EXISTS patient_profile (
   version_number BIGINT NOT NULL,
   updated_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_document (
+  id VARCHAR(64) PRIMARY KEY,
+  title VARCHAR(160) NOT NULL,
+  body LONGTEXT NOT NULL,
+  source VARCHAR(4000) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  chunk_count INT NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  updated_at TIMESTAMP NOT NULL
+);
