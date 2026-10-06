@@ -6,6 +6,8 @@ import java.util.*;
 /** Corpus-based lexical retrieval; no medical dictionary or source-authority bonus. */
 public final class Bm25Retriever {
     private Bm25Retriever() {}
+    public record TermContribution(String term, int documentFrequency, int termFrequency,
+                                   double inverseDocumentFrequency, double score) {}
 
     public static List<Evidence> search(String query, List<Evidence> corpus, int limit, double minimum) {
         return index(corpus).search(query, limit, minimum);
@@ -31,19 +33,36 @@ public final class Bm25Retriever {
 
         public boolean matches(List<Evidence> other) { return corpus.equals(other); }
 
+        /** Request-local scoring explanation; never infer medical applicability from matched terms. */
+        public List<TermContribution> explain(String query, Evidence evidence) {
+            int position = -1;
+            for (int i = 0; i < corpus.size(); i++) {
+                if (key(corpus.get(i)).equals(key(evidence))) { position = i; break; }
+            }
+            if (position < 0) return List.of();
+            return contributions(tokens(query).keySet(), documents.get(position));
+        }
+
+        private List<TermContribution> contributions(Set<String> queryTerms, Map<String, Integer> document) {
+            List<TermContribution> result = new ArrayList<>();
+            for (String term : new TreeSet<>(queryTerms)) {
+                int tf = document.getOrDefault(term, 0);
+                if (tf == 0) continue;
+                int df = frequencies.get(term);
+                double idf = Math.log(1 + (corpus.size() - df + 0.5) / (df + 0.5));
+                double score = idf * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * length(document) / average));
+                result.add(new TermContribution(term, df, tf, idf, score));
+            }
+            return List.copyOf(result);
+        }
+
         public List<Evidence> search(String query, int limit, double minimum) {
             Set<String> queryTerms = tokens(query).keySet();
             if (queryTerms.isEmpty() || corpus.isEmpty()) return List.of();
             List<Evidence> hits = new ArrayList<>();
             for (int i = 0; i < documents.size(); i++) {
                 Map<String, Integer> document = documents.get(i);
-                double score = 0;
-                for (String term : queryTerms) {
-                    int tf = document.getOrDefault(term, 0);
-                    if (tf == 0) continue;
-                    double idf = Math.log(1 + (corpus.size() - frequencies.get(term) + 0.5) / (frequencies.get(term) + 0.5));
-                    score += idf * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * length(document) / average));
-                }
+                double score = contributions(queryTerms, document).stream().mapToDouble(TermContribution::score).sum();
                 Evidence e = corpus.get(i);
                 if (score > 0 && score >= minimum) hits.add(new Evidence(e.title(), e.source(), e.excerpt(), score));
             }

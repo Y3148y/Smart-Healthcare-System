@@ -144,7 +144,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 "note", "mode is the last completed retrieval; it is not a live health probe");
     }
     public record FusionRecord(String title, String source, String excerpt, int lexicalRank, Double lexicalScore,
-                               int semanticRank, Double semanticScore, double fusedScore, Double rerankScore, boolean kept, String reason) {}
+                               int semanticRank, Double semanticScore, double fusedScore, Double rerankScore, boolean kept, String reason,
+                               List<Bm25Retriever.TermContribution> lexicalTerms) {}
     public record Report(Retrieval retrieval, String mode, String semanticStatus, String rerankStatus,
                          List<FusionRecord> candidates, long elapsedMs) {}
     @Override public List<Evidence> search(String query) { return retrieve(query, 5, lexicalMinScore).evidence(); }
@@ -160,7 +161,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         long start = System.nanoTime();
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
         var corpus = local.approvedCorpus();
-        List<Evidence> lexical = lexicalIndex(corpus).search(query, depth, minimumScore);
+        var requestLexicalIndex = lexicalIndex(corpus);
+        List<Evidence> lexical = requestLexicalIndex.search(query, depth, minimumScore);
         boolean indexed = indexApprovedCorpus(corpus);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
                 : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
@@ -201,7 +203,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).evidence().score() : null,
                 kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
-                : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k")).toList();
+                : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k",
+                c.lexicalRank == 0 ? List.of() : requestLexicalIndex.explain(query, c.evidence))).toList();
         var report = new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()
                 + "; selected=" + selected.size() + "; retrieval relevance does not prove answer support"), mode,
                 semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);

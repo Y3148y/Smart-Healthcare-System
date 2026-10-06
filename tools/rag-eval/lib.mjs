@@ -25,7 +25,7 @@ export function evaluateCase(item, report) {
     elapsedMs:report.elapsedMs,
     candidates:report.candidates.map(c => ({title:c.title, lexicalRank:c.lexicalRank, lexicalScore:c.lexicalScore,
       semanticRank:c.semanticRank, semanticScore:c.semanticScore, fusedScore:c.fusedScore,
-      rerankScore:c.rerankScore, kept:c.kept, reason:c.reason}))};
+      rerankScore:c.rerankScore, kept:c.kept, reason:c.reason, lexicalTerms:c.lexicalTerms || []}))};
 }
 
 export function summarize(results) {
