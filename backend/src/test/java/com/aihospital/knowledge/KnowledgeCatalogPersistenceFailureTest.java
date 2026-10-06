@@ -11,6 +11,27 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class KnowledgeCatalogPersistenceFailureTest {
+    @Test void failedMetadataCorrectionKeepsOriginalSourceAndApprovalState() {
+        var local = new InMemoryKnowledgeCatalog();
+        var pending = local.addDocument("Correction failure fixture", "Synthetic nonmedical content");
+        var store = mock(KnowledgeDocumentStore.class);
+        var semantic = mock(QdrantSemanticIndex.class);
+        var catalog = new HybridKnowledgeCatalog(local, semantic, null, store);
+        var original = local.persistedDocument(pending.id());
+        var supplied = new com.aihospital.knowledge.domain.KnowledgeMetadata(1, "zh-CN", "source_extract",
+                java.util.List.of(new com.aihospital.knowledge.domain.KnowledgeMetadata.Source("fixture", "Test",
+                        "https://example.invalid/fixture", null, null)), java.util.List.of(), java.util.List.of(),
+                java.util.List.of(), java.util.List.of(), java.util.List.of("general_information"),
+                "permitted", "Synthetic test fixture only");
+        when(store.updatePendingMetadata(eq(pending.id()), eq(supplied), any()))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        assertThrows(IllegalStateException.class, () -> catalog.updatePendingMetadata(pending.id(), supplied));
+        assertEquals(original, local.persistedDocument(pending.id()));
+        assertTrue(local.approvedCorpus().stream().noneMatch(e -> e.title().equals(pending.title())));
+        verifyNoInteractions(semantic);
+    }
+
     @Test void failedInsertDoesNotLeaveADocumentVisibleInTheCache() {
         var local = new InMemoryKnowledgeCatalog();
         var store = mock(KnowledgeDocumentStore.class);

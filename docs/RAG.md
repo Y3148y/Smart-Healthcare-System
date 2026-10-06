@@ -50,6 +50,8 @@
 
 普通 JDK 17 Maven 测试覆盖本地 BM25、融合、依赖失败、幂等索引与质量门禁，不调用真实模型。RagLiveIntegrationTest 需设置 AI_RAG_LIVE_TEST=true 与本机服务凭据；冻结测试数据在 backend/src/test/resources，报告生成到 target/rag-live*.json。
 
+数据库失败回归覆盖新增回滚、审批不发布、元数据补正不改缓存；补正与审批的冲突测试使用H2事务锁，不等同于已验证MySQL或多实例部署。
+
 KnowledgeIndexBuildRunner 通过 ai.knowledge.offline-index.enabled 显式启用，输出索引构建清单，包含语料哈希、分块策略、模型及实际 collection 参数。它证明构建输入和结果可追溯，不代表医学审核。
 
 实际离线构建输出 schemaVersion=3 的清单，逐片段列出文档/版本/章节/位置/哈希与切分策略，不重复保存正文或密钥。批准语料与溯源数量不一致或ID重复时拒绝输出清单；旧 Evidence-only 工程评估调用保留 schemaVersion=2 的兼容清单。仅有 Markdown 标题、没有可检索正文的资料不允许入库。
