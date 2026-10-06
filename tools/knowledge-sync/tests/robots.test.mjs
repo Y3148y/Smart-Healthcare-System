@@ -1,8 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRobots, isDisallowed, robotsAllows } from '../lib/http.mjs';
+import { parseRobots, isDisallowed, robotsAllows, fetchSource } from '../lib/http.mjs';
 
 const blocked = (text, path) => isDisallowed(parseRobots(text), path);
+test('restricted sources are blocked before any robots or network request', async () => {
+  const result = await fetchSource({id:'restricted',url:'not-even-a-url',permissionStatus:'restricted'});
+  assert.equal(result.status, 'blocked-by-permission');
+  assert.equal(result.httpStatus, null);
+});
 
 test('wildcard disallow and consecutive user agents survive parsing', () => {
   assert.equal(blocked('User-agent: other\nUser-agent: *\nDisallow: /private', '/private/a'), true);

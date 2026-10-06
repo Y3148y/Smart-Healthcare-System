@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-02T06:00:28.243Z",
+  "updatedAt": "2026-10-06T06:42:31.857Z",
   "note": "每源抓取结果只记录 URL、时间、HTTP 状态与 sha256。raw 快照写在 cache/（已 git 忽略），原文永不进入 git。",
   "sources": {
     "sdcep-spreading-infection": {
@@ -37,6 +37,58 @@
       "httpStatus": 200,
       "sha256": "a5593c241b04c70b240eddf91c3c1f3b2e763d75945a3281b0634dd8b8804468",
       "bytes": 42532,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "nhs-common-cold": {
+      "id": "nhs-common-cold",
+      "url": "https://www.nhs.uk/conditions/common-cold/",
+      "fetchedAt": "2026-10-06T06:31:43.234Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "e90dd1d85643c4b402935af2d768cd9fda3cbf2d8af1e1faa2110b57fca6a144",
+      "bytes": 44515,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "medlineplus-common-cold": {
+      "id": "medlineplus-common-cold",
+      "url": "https://medlineplus.gov/ency/article/003049.htm",
+      "fetchedAt": "2026-10-06T06:31:48.988Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "14e84e4f6392e36f326686c6047f9766670f6f013560f64938ae28047cee06dd",
+      "bytes": 30568,
+      "etag": "W/\"70f3f9453b43ba8adf19cf5418861894\"",
+      "lastModified": "Mon, 05 Oct 2026 17:55:38 GMT",
+      "contentType": "text/html",
+      "note": ""
+    },
+    "nhs-chest-pain": {
+      "id": "nhs-chest-pain",
+      "url": "https://www.nhs.uk/conditions/chest-pain/",
+      "fetchedAt": "2026-10-06T06:42:21.309Z",
+      "status": "unreachable",
+      "httpStatus": null,
+      "sha256": null,
+      "bytes": null,
+      "etag": null,
+      "lastModified": null,
+      "contentType": null,
+      "note": "请求失败：fetch failed"
+    },
+    "nhs-migraine": {
+      "id": "nhs-migraine",
+      "url": "https://www.nhs.uk/conditions/migraine/",
+      "fetchedAt": "2026-10-06T06:42:16.007Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "72672e21a4d164d806ed2984dd581fe6216c31628105b9354c9ae8f32bb3a31c",
+      "bytes": 45801,
       "etag": null,
       "lastModified": null,
       "contentType": "text/html; charset=utf-8",

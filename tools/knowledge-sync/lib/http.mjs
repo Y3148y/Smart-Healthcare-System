@@ -140,6 +140,11 @@ export async function fetchSource(source, previous) {
     contentType: null,
     note: '',
   };
+  if (source.permissionStatus === 'restricted') {
+    result.status = 'blocked-by-permission';
+    result.note = '来源使用条款受限：未获授权不得抓取、抽取或向量化。';
+    return result;
+  }
   if (!source.url) {
     result.status = 'unregistered';
     result.note = '登记表中没有 URL；需人工定位官方地址，定位不到则删除该条。';

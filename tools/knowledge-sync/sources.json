@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "registryNote": "本清单只登记官方机构或公立医院/官方机构发布的公开资料。登记不等于可用：每条都必须由人工或AI 改写成仓库既有短段落风格、标注出处与「未经临床审核」，并经 owner 批准后，才可进入 backend/src/main/resources/knowledge/。脚本永远不会自动发布。",
+  "registryNote": "来源登记不等于允许抓取或可用于患者RAG。逐页核对权利、正文、日期、适用范围与证据用途，保存完整上下文和来源元数据，审核后通过知识管理入库；脚本不自动发布，不为检索分数凑词或强制缩成短介绍。",
   "licensePolicy": {
-    "repoRule": "docs/RAG_KNOWLEDGE_CATALOG_2026-09-26.md:42 —— 不复制整篇网页；改写为短知识片段，保留原始 URL。",
+    "repoRule": "docs/RAG.md：原始来源、整理正文与片段可追溯；第三方全文不推公开仓库；许可声明不是法律或临床认证。",
     "rawSnapshots": "只写入 tools/knowledge-sync/cache/（已被 git 忽略），原文永不进入 git。",
     "diffReports": "只写差异位置与长度，不复制原文；reports/ 已被 git 忽略。",
-    "committedEvidence": "只提交 URL、抓取时间、sha256、HTTP 状态与许可证复核提示（docs/KNOWLEDGE_SYNC_LOG.md）。",
+    "committedEvidence": "只提交 URL、抓取时间、sha256、HTTP 状态与许可复核提示，不引用已删除的内部记录文件。",
     "excludedSourceClasses": [
       "商业问答与内容农场（脚本硬编码 URL 白名单之外不新增）",
       "征求意见稿、地方性文件、新闻评论：不进 RAG，也不作为合规依据；如需研究只能标注效力级别",
@@ -13,6 +13,24 @@
     ]
   },
   "sources": [
+    {
+      "id": "nhs-migraine",
+      "name": "NHS Migraine",
+      "publisher": "NHS",
+      "jurisdiction": "英国",
+      "url": "https://www.nhs.uk/conditions/migraine/",
+      "type": "公众信息",
+      "licenseNote": "需核对NHS条款3.3–3.6与OGL适用范围、例外和署名要求：https://www.nhs.uk/our-policies/terms-and-conditions/ 。不据此自动批准全文、翻译或中国就医映射。",
+      "permissionStatus": "pending",
+      "covers": "偏头痛资料缺口：原文症状、持续时间、就医提示，不能据患者自述确诊偏头痛。",
+      "targetDoc": "",
+      "fetchMode": "auto",
+      "status": "verified",
+      "reviewCycleDays": 90,
+      "priority": "P0",
+      "targetRag": true,
+      "notes": "2026-10-06已核对官方页面；新语料须核对原文、适用范围、许可与本地医疗流程，未经临床审核。"
+    },
     {
       "id": "who-triage",
       "name": "WHO Emergency triage（急诊分诊）",
@@ -243,15 +261,17 @@
     },
     {
       "id": "medlineplus-common-cold",
-      "name": "MedlinePlus Common cold",
+      "name": "MedlinePlus Stuffy or runny nose – adult（历史ID保留）",
       "publisher": "US National Library of Medicine",
       "jurisdiction": "美国",
       "url": "https://medlineplus.gov/ency/article/003049.htm",
       "type": "公众信息",
-      "licenseNote": "美国政府作品，属公有领域；仍需标注出处。",
+      "licenseNote": "第三方 A.D.A.M./Ebix 百科内容，不是美国政府公有领域作品；未经书面许可禁止抓取、存储、向量化和RAG使用。https://medlineplus.gov/ency/article/003049.htm 与 https://medlineplus.gov/about/using/usingcontent/ 已核对。",
+      "permissionStatus": "restricted",
+      "targetRag": false,
       "covers": "现有 11-runny-nose.md 的补充来源",
       "targetDoc": "11-runny-nose.md",
-      "fetchMode": "auto",
+      "fetchMode": "manual",
       "status": "verified",
       "reviewCycleDays": 180,
       "priority": "P0"
@@ -453,7 +473,7 @@
       "name": "NHS Chest pain",
       "publisher": "NHS England",
       "jurisdiction": "英国",
-      "url": "https://www.nhs.uk/conditions/chest-pain",
+      "url": "https://www.nhs.uk/conditions/chest-pain/",
       "type": "公众信息",
       "licenseNote": "Crown copyright / OGL v3；改写后署名来源。注意与本表中的 nhc-chest-pain（国家卫生健康委胸痛科普）是两个不同来源，不要混淆。",
       "covers": "胸痛的立即处置判据（Call 999）：突发且不缓解的胸部疼痛或不适（可感觉为挤压感、压迫感、灼烧感或烧心感）；疼痛放射至左臂或双臂、颈、下颌、胃或背；胸痛同时伴出汗、恶心、头晕或气短。对应 ER-CIRCULATION-001 的出处。其中「放射至手臂/颈/颌/背」与「出汗/恶心/头晕/气短」是本项目规则词表里缺失的伴随表现，可作为后续扩词表的候选依据（须临床审核）。",

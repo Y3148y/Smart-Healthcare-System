@@ -20,3 +20,7 @@ test('wrong hash, failed fetch and unsafe identifiers rejected', () => {
   assert.throws(() => buildCandidate(source, {...record,status:'http-error'}, raw), /NO_SUCCESSFUL_FETCH/);
   assert.throws(() => buildCandidate({...source,id:'../bad'},record,raw), /INVALID_SOURCE_ID/);
 });
+test('restricted and non-patient sources cannot become intake packages', () => {
+  assert.throws(() => buildCandidate({...source,permissionStatus:'restricted'},record,raw), /SOURCE_PERMISSION_RESTRICTED/);
+  assert.throws(() => buildCandidate({...source,targetRag:false},record,raw), /SOURCE_NOT_FOR_PATIENT_RAG/);
+});

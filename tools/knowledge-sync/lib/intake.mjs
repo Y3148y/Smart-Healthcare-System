@@ -7,6 +7,8 @@ import { extractHtml } from './extract.mjs';
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 
 export function buildCandidate(source, record, raw) {
+  if (source.permissionStatus === 'restricted') throw new Error('SOURCE_PERMISSION_RESTRICTED');
+  if (source.targetRag === false) throw new Error('SOURCE_NOT_FOR_PATIENT_RAG');
   if (!/^[a-z0-9][a-z0-9-]*$/.test(source.id ?? '')) throw new Error('INVALID_SOURCE_ID');
   if (!['new', 'updated', 'unchanged'].includes(record?.status)) throw new Error('NO_SUCCESSFUL_FETCH');
   if (hash(raw) !== record.sha256) throw new Error('SNAPSHOT_HASH_MISMATCH');
@@ -36,6 +38,8 @@ export function writeCandidates(sources, records) {
   const results = [];
   for (const source of sources) {
     try {
+      if (source.permissionStatus === 'restricted') throw new Error('SOURCE_PERMISSION_RESTRICTED');
+      if (source.targetRag === false) throw new Error('SOURCE_NOT_FOR_PATIENT_RAG');
       if (!/^[a-z0-9][a-z0-9-]*$/.test(source.id ?? '')) throw new Error('INVALID_SOURCE_ID');
       const path = join(CACHE_DIR, source.id, 'snapshot.html');
       if (!existsSync(path)) throw new Error('NO_SNAPSHOT');
