@@ -11,6 +11,7 @@
     "audit:corpus": "node audit-corpus.mjs",
     "test": "node --test tests/*.test.mjs",
     "intake": "node cli.mjs intake",
+    "import:local": "node import-local.mjs",
     "sources": "node cli.mjs sources",
     "fetch": "node cli.mjs fetch",
     "diff": "node cli.mjs diff",

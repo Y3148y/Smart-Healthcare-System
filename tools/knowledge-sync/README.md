@@ -1,6 +1,6 @@
 # knowledge-sync
 
-知识源抓取与变更留痕工具。**它永远不会往 `backend/src/main/resources/knowledge/` 写任何东西。**
+知识源抓取与待审入库工具，不写应用resources。运行node import-local.mjs packet.json默认校验；显式--apply才创建本机后台待审资料，不自动审批。包须包含schemaVersion=1、title、body、contentSha256及metadata；后台ADMIN token仅通过KNOWLEDGE_ADMIN_TOKEN环境变量注入。超时后先检查后台，导入尚无服务端幂等键，不盲目重试。
 
 ## 为什么需要它
 
