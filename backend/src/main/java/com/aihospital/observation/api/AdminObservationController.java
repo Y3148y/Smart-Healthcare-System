@@ -23,8 +23,8 @@ public class AdminObservationController {
     @GetMapping("/dashboard") public Dashboard dashboard(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return overview.dashboard();
     }
-    @GetMapping("/calls") public List<CallLog> calls(@RequestHeader(value = "Authorization", required = false) String auth) {
-        guard.require(auth, "ADMIN"); return calls.calls();
+    @GetMapping("/calls") public List<TechnicalCallView> calls(@RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return calls.calls().stream().map(TechnicalCallView::from).toList();
     }
     @GetMapping("/ai-runtime") public NarrationModel.RuntimeStatus aiRuntime(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return narration.runtimeStatus();
