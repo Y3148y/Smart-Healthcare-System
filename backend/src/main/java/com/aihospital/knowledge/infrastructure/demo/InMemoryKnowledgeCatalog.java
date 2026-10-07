@@ -69,8 +69,8 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     }
 
     public synchronized void restorePersistedDocuments(List<StoredKnowledgeDocument> storedDocuments) {
-        if (storedDocuments == null || storedDocuments.isEmpty())
-            throw new IllegalArgumentException("Persistent knowledge catalog must not be empty");
+        if (storedDocuments == null)
+            throw new IllegalArgumentException("Persistent knowledge catalog snapshot must not be null");
         if (storedDocuments.stream().anyMatch(stored -> "READY".equals(stored.status())
                 && stored.metadata() != null && !stored.metadata().mayPublish()))
             throw new IllegalStateException("Published knowledge has unresolved usage permission");
