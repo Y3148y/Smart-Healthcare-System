@@ -9,12 +9,13 @@
  *   intake     校验快照哈希，生成本地正文与元数据待审包（不发布）
  *   verify     旧词法检索参考检查，不代表当前在线混合链路
  *
- * 这个工具永远不写 backend/src/main/resources/knowledge/。入库必须是独立、经批准的手工提交。
+ * 这个工具不写应用资源目录。intake 仅生成待审包；导入须显式调用 import-local.mjs --apply，
+ * 只创建 PENDING_REVIEW 记录，不审批、不替代管理员复核。
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import { CACHE_DIR, REPORTS_DIR, ROOT, TOOL_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
+import { CACHE_DIR, CORPUS_DIR, REPORTS_DIR, ROOT, TOOL_DIR, autoSources, loadRegistry, loadState, saveState } from './lib/registry.mjs';
 import { checkCitations, checkRuleInvariants, collectCitations, loadRules, rulesFileExists } from './lib/citations.mjs';
 import { fetchSource, firstDifference } from './lib/http.mjs';
 import { htmlToText, shorten } from './lib/extract.mjs';
@@ -186,6 +187,14 @@ async function commandProposals() {
 }
 
 function commandVerify() {
+  if (!existsSync(CORPUS_DIR)) {
+    console.log(JSON.stringify({
+      status: 'SKIPPED_NO_BUNDLED_CORPUS',
+      detail: 'The legacy lexical verifier requires bundled Markdown files; the application no longer packages them.',
+      currentPipelineEvaluation: 'tools/rag-eval',
+    }, null, 2));
+    return;
+  }
   const documents = loadCorpus();
   const chunkTotal = documents.reduce((sum, document) => sum + document.chunks.length, 0);
   console.log(`语料：${documents.length} 个文件，${chunkTotal} 个可检索片段，词表 ${MEDICAL_TERMS.length} 词，默认阈值 ${DEFAULT_MIN_SCORE}`);
