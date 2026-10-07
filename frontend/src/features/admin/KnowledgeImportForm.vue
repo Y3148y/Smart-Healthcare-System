@@ -2,14 +2,14 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../../api'
 import type { KnowledgeDocument } from './types'
-import { parseKnowledgeIntake, type IntakeMetadata } from './knowledgeIntake'
+import { parseKnowledgeIntake, parseKnowledgeMarkdown, type IntakeMetadata } from './knowledgeIntake'
 
 const emit = defineEmits<{ saved: [document: KnowledgeDocument] }>()
 interface Source { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }
 interface InitialMetadata { language: string; contentKind: string; topics: string[]; population: string[]; permissionStatus?: string;
   exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null; sources: Source[] }
 const props = defineProps<{ documentId?: string; initialMetadata?: InitialMetadata }>()
-const busy = ref(false), error = ref('')
+const busy = ref(false), reading = ref(false), error = ref('')
 const intakeMetadata = ref<IntakeMetadata>(), intakeWarnings = ref<string[]>([])
 const form = reactive({ title: '', body: '', sourceId: '', publisher: '', url: '',
   topics: '', population: '', exclusions: '', prerequisites: '', permissionEvidence: '',
@@ -29,16 +29,23 @@ onMounted(() => {
 })
 
 async function readFile(event: Event) {
+  if (reading.value || busy.value) return
   const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
+  const files = Array.from(input.files || [])
+  const file = files[0]
   error.value = ''
   if (!file) return
+  reading.value = true
   try {
-    if (!/\.(txt|md|json)$/i.test(file.name) || file.size === 0 || file.size > 500000)
-      throw new Error('请选择不超过 500000 字节的 TXT、Markdown 或待审 JSON 文件')
+    if (files.length > 10 || files.some(f => !/\.(txt|md|json)$/i.test(f.name) || f.size === 0 || f.size > 4 * 1024 * 1024))
+      throw new Error('最多选择10个文件，每个不超过4MB')
+    if (new Set(files.map(f => f.name)).size !== files.length) throw new Error('文件名重复，请仅选择同一篇资料的文件')
     const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer())
-    if (/\.json$/i.test(file.name)) {
-      const candidate = await parseKnowledgeIntake(text)
+    const canonical = files.some(f => f.name === 'document.zh-CN.md')
+    if (canonical || /\.json$/i.test(file.name)) {
+      const contents: Record<string, string> = {}
+      if (canonical) for (const f of files) contents[f.name] = new TextDecoder('utf-8', {fatal:true}).decode(await f.arrayBuffer())
+      const candidate = canonical ? await parseKnowledgeMarkdown(contents) : await parseKnowledgeIntake(text)
       intakeMetadata.value = candidate.metadata
       intakeWarnings.value = candidate.warnings
       const source = candidate.metadata.sources[0]
@@ -49,16 +56,19 @@ async function readFile(event: Event) {
         contentKind:candidate.metadata.contentKind, evidenceUse:'', permissionStatus:'pending', permissionEvidence:'', confirmed:false})
       return
     }
+    if (files.length !== 1) throw new Error('普通正文只能选择一个文件')
+    if (/^\uFEFF?---\r?\n/.test(text)) throw new Error('带元数据的Markdown请使用完整资料包，不能作为普通正文导入')
     if (text.length > 100000) throw new Error('正文不能超过 100000 字符')
     intakeMetadata.value = undefined
     intakeWarnings.value = []
     form.body = text
     if (!form.title.trim()) form.title = file.name
   } catch (e: any) { error.value = e.message || '文件读取失败'; input.value = '' }
+  finally { reading.value = false }
 }
 
 async function submit() {
-  if (busy.value) return
+  if (busy.value || reading.value) return
   error.value = ''
   try {
     const url = new URL(form.url.trim())
@@ -99,11 +109,13 @@ async function submit() {
     <p>填写实际正文与来源，提交后仍需另行审批。许可声明不代表临床审核。</p>
     <p v-if="error" class="admin-error" role="alert">{{ error }}</p>
     <form @submit.prevent="submit">
-      <fieldset :disabled="busy">
+      <fieldset :disabled="busy || reading">
         <legend>正文与来源</legend>
         <template v-if="!documentId">
           <label>资料标题<input v-model="form.title" required maxlength="160"></label>
-          <label>读取本地正文或待审包<input type="file" accept=".txt,.md,.json" @change="readFile"></label>
+          <label>读取本地正文或待审包<input type="file" multiple accept=".txt,.md,.json" @change="readFile"></label>
+          <p>新资料同时选择同一目录的 document.zh-CN.md、provenance.json 和 source*.en.md。仅医学正文入库；许可仍需人工核对，提交不会自动发布。</p>
+          <p v-if="reading" role="status">正在核验资料和来源文件…</p>
           <p v-if="intakeMetadata">已校验待审正文哈希；原始网页哈希是溯源声明，尚不等于许可或临床审核。</p>
           <p v-if="intakeWarnings.length" role="status">需要复核的抽取问题：{{ intakeWarnings.join('、') }}</p>
           <label>资料正文<textarea v-model="form.body" required maxlength="100000" rows="8"></textarea></label>

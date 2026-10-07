@@ -24,6 +24,8 @@
 
 ### 可复现待审入库
 
+管理员录入页支持同时选择同一目录的 `document.zh-CN.md`、`provenance.json` 和全部 `source*.en.md`。浏览器核验待审状态、审计文件哈希、来源快照哈希及多来源关联，剥离文档头后仅将医学正文和接口支持的来源/适用元数据提交到既有待审接口。带文档头的MD不能作为普通正文上传。文件读取不调用网络；提交使用当前管理端认证，不依赖开发终端令牌。导入时许可恢复为待核对，用户另行核对用途与许可，不自动审批或替换在线稿；本地章节来源与完整审计扩展字段仍未持久化。
+
 在tools/knowledge-sync运行 `node import-local.mjs packet.json`，默认只校验；显式加`--apply`才向本机后台创建PENDING_REVIEW资料。
 资料包包含schemaVersion=1、title、body、contentSha256（UTF-8正文SHA-256）及上述metadata。校验哈希不证明医学正确性或来源授权。
 后台凭据仅通过KNOWLEDGE_ADMIN_TOKEN进程变量注入，KNOWLEDGE_IMPORT_BASE_URL默认http://127.0.0.1:8081/api/，禁止外部地址和重定向。
