@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
 import {validateCases,evaluateCase,summarize} from '../lib.mjs';
 test('target ranks and latency use explicit denominators, preserving unknown durations', () => {
   const results=[
@@ -27,9 +28,23 @@ test('dependency failure cannot pass by returning empty evidence', () => {
 });
 test('covered topic selection passes but extras remain flagged for review', () => {
   const result = evaluateCase({id:'covered',query:'fixture',expectedTitle:'Fixture'},
-    {...report,retrieval:{evidence:[{title:'Fixture'},{title:'Other'}]}});
+    {...report,retrieval:{evidence:[{title:'Fixture'},{title:'Fixture'},{title:'Other'}]}});
   assert.equal(result.passed,true);
+  assert.deepEqual(result.selected,['Fixture','Other']);
   assert.deepEqual(result.extraSelectionsForReview,['Other']);
+});
+test('candidate report retains exact excerpt and matching corpus chunk identity for review', () => {
+  const excerpt='胸痛资料的核验片段';
+  const contentSha256=createHash('sha256').update(excerpt).digest('hex');
+  const result=evaluateCase({id:'trace',query:'胸痛',expectedTitle:'Chest'}, {
+    ...report,
+    corpus:{approved:[{title:'Chest',chunks:[{chunkId:'chunk-1',documentVersion:'v1',contentSha256,chunkingVersion:'v3'}]}]},
+    candidates:[{title:'Chest',source:'https://example.invalid/source',excerpt,kept:true}],
+    retrieval:{evidence:[{title:'Chest',source:'https://example.invalid/source',excerpt,score:0.8}]},
+  });
+  assert.equal(result.candidates[0].excerpt,excerpt);
+  assert.equal(result.candidates[0].chunkReferences[0].chunkId,'chunk-1');
+  assert.equal(result.selectedEvidence[0].excerpt,excerpt);
 });
 test('missing negative label and duplicate IDs fail dataset validation', () => {
   const dataset={schemaVersion:1,labelVersion:'fixture',reviewStatus:'NOT_CLINICALLY_REVIEWED',cases:[{id:'one',query:'fixture'}]};

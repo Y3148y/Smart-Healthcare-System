@@ -35,7 +35,9 @@ try {
   token = login.token;
   if (typeof token !== 'string' || !token) throw new Error('Evaluation authentication failed');
   const before = await snapshot(), results = [];
-  for (const item of dataset.cases) results.push(evaluateCase(item, await request(`admin/knowledge/search/details?q=${encodeURIComponent(item.query)}`)));
+  for (const item of dataset.cases) results.push(evaluateCase(item, {
+    ...await request(`admin/knowledge/search/details?q=${encodeURIComponent(item.query)}`), corpus:before,
+  }));
   const after = await snapshot();
   const corpusStable = before.sha256 === after.sha256;
   const summary = {...summarize(results),corpusStable};

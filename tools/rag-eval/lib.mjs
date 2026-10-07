@@ -1,3 +1,7 @@
+import {createHash} from 'node:crypto';
+
+const sha256 = value => createHash('sha256').update(value).digest('hex');
+
 export function reportFileName(labelVersion, runId) {
   if (typeof labelVersion !== 'string' || !labelVersion || !/^[a-zA-Z0-9-]+$/.test(runId))
     throw new Error('Invalid report identity');
@@ -24,17 +28,35 @@ export function validateCases(dataset) {
 export function evaluateCase(item, report) {
   if (!Array.isArray(report?.retrieval?.evidence) || !Array.isArray(report.candidates)
       || report.retrieval.evidence.some(e => typeof e.title !== 'string')) throw new Error('Invalid retrieval report');
-  const selected = report.retrieval.evidence.map(e => e.title);
+  const selectedEvidence = report.retrieval.evidence.map(e => ({
+    title:e.title, source:e.source, excerpt:e.excerpt, score:e.score,
+    contentSha256:typeof e.excerpt === 'string' ? sha256(e.excerpt) : null,
+  }));
+  // One document may contribute several selected chunks. Topic labels are document-level,
+  // so count each title once and retain its first rank instead of inflating duplicates.
+  const selected = [...new Set(selectedEvidence.map(e => e.title))];
   const dependencyPassed = report.semanticStatus === 'READY' && ['OK', 'EMPTY'].includes(report.rerankStatus);
   const expectationMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
   return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
     dependencyPassed, expectationMet, passed:dependencyPassed && expectationMet,
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
+    selectedEvidence,
     extraSelectionsForReview:item.expectedTitle === null ? selected : selected.filter(title => title !== item.expectedTitle),
     elapsedMs:report.elapsedMs,
-    candidates:report.candidates.map(c => ({title:c.title, lexicalRank:c.lexicalRank, lexicalScore:c.lexicalScore,
+    candidates:report.candidates.map(c => {
+      const contentSha256 = typeof c.excerpt === 'string' ? sha256(c.excerpt) : null;
+      const document = report.corpus?.approved?.find(d => d.title === c.title);
+      const chunkReferences = contentSha256 && document
+        ? document.chunks.filter(chunk => chunk.contentSha256 === contentSha256).map(chunk => ({
+            chunkId:chunk.chunkId, documentVersion:chunk.documentVersion,
+            contentSha256:chunk.contentSha256, chunkingVersion:chunk.chunkingVersion,
+          }))
+        : [];
+      return {title:c.title, source:c.source, excerpt:c.excerpt, contentSha256, chunkReferences,
+        lexicalRank:c.lexicalRank, lexicalScore:c.lexicalScore,
       semanticRank:c.semanticRank, semanticScore:c.semanticScore, fusedScore:c.fusedScore,
-      rerankScore:c.rerankScore, kept:c.kept, reason:c.reason, lexicalTerms:c.lexicalTerms || []}))};
+      rerankScore:c.rerankScore, kept:c.kept, reason:c.reason, lexicalTerms:c.lexicalTerms || []};
+    })};
 }
 
 export function summarize(results) {

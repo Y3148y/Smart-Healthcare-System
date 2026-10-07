@@ -6,6 +6,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import java.net.URI;
 import java.net.http.*;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
+import java.net.SocketTimeoutException;
+import javax.net.ssl.SSLException;
 import java.time.Duration;
 import java.util.*;
 
@@ -29,16 +34,31 @@ public class BailianReranker {
     public Result rank(String query, List<Evidence> candidates, int limit) {
         if (!configured()) return new Result(List.of(), "NOT_CONFIGURED");
         if (candidates.isEmpty()) return new Result(List.of(), "EMPTY");
+        final HttpRequest request;
         try {
-            var request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeout))
+            request = HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(timeout))
                     .header("Authorization", "Bearer " + key).header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(Map.of(
                             "model", model, "input", Map.of("query", query, "documents", candidates.stream()
                                     .map(e -> e.title() + "\n" + e.excerpt()).toList()),
                             "parameters", Map.of("top_n", candidates.size(), "return_documents", false))))).build();
-            var response = http.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() / 100 != 2) return new Result(List.of(), failureStatus(response));
-            var results = json.readTree(response.body()).path("output").path("results");
+        } catch (IllegalArgumentException ex) {
+            return new Result(List.of(), "INVALID_CONFIGURATION");
+        } catch (Exception ex) {
+            return new Result(List.of(), "REQUEST_SERIALIZATION_FAILED");
+        }
+        final HttpResponse<String> response;
+        try {
+            response = http.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt(); return new Result(List.of(), "INTERRUPTED");
+        } catch (IOException ex) {
+            return new Result(List.of(), transportStatus(ex));
+        }
+        if (response.statusCode() / 100 != 2) return new Result(List.of(), failureStatus(response));
+        try {
+            var root = json.readTree(response.body());
+            var results = root == null ? null : root.path("output").path("results");
             if (!results.isArray() || results.size() != candidates.size()) return new Result(List.of(), "INVALID_RESPONSE");
             Set<Integer> seen = new HashSet<>();
             List<Evidence> ranked = new ArrayList<>();
@@ -52,14 +72,37 @@ public class BailianReranker {
             }
             var sorted = ranked.stream().sorted(Comparator.comparingDouble(Evidence::score).reversed()
                     .thenComparing(com.aihospital.knowledge.domain.Bm25Retriever::key)).toList();
-            var selected = sorted.stream().filter(e -> e.score() >= minimum).limit(Math.max(1, limit)).toList();
-            var decisions = sorted.stream().map(e -> new Ranked(e, selected.contains(e), e.score() < minimum
-                    ? "below_rerank_threshold" : selected.contains(e) ? "selected" : "beyond_final_top_k")).toList();
+            int selectionLimit = Math.max(1, limit);
+            List<Evidence> diverse = new ArrayList<>();
+            Set<String> seenDocuments = new HashSet<>();
+            for (Evidence evidence : sorted) {
+                if (evidence.score() >= minimum && seenDocuments.add(documentKey(evidence))) diverse.add(evidence);
+            }
+            var selected = diverse.stream().limit(selectionLimit).toList();
+            Set<String> selectedEvidence = new HashSet<>();
+            selected.forEach(e -> selectedEvidence.add(com.aihospital.knowledge.domain.Bm25Retriever.key(e)));
+            Set<String> selectedDocuments = new HashSet<>();
+            selected.forEach(e -> selectedDocuments.add(documentKey(e)));
+            var decisions = sorted.stream().map(e -> {
+                boolean kept = selectedEvidence.contains(com.aihospital.knowledge.domain.Bm25Retriever.key(e));
+                String reason = e.score() < minimum ? "below_rerank_threshold"
+                        : kept ? "selected" : selectedDocuments.contains(documentKey(e))
+                        ? "duplicate_document" : "beyond_final_top_k";
+                return new Ranked(e, kept, reason);
+            }).toList();
             return new Result(selected, "OK", decisions);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt(); return new Result(List.of(), "INTERRUPTED");
-        } catch (Exception ex) { return new Result(List.of(), "UNAVAILABLE"); }
+        } catch (Exception ex) { return new Result(List.of(), "INVALID_RESPONSE"); }
     }
+    private String transportStatus(IOException failure) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof HttpTimeoutException || cause instanceof SocketTimeoutException) return "TIMEOUT";
+            if (cause instanceof UnknownHostException) return "DNS_FAILURE";
+            if (cause instanceof ConnectException) return "CONNECTION_FAILED";
+            if (cause instanceof SSLException) return "TLS_FAILURE";
+        }
+        return "TRANSPORT_ERROR";
+    }
+    private String documentKey(Evidence evidence) { return evidence.title() + "\n" + evidence.source(); }
     private String failureStatus(HttpResponse<String> response) {
         String status = "HTTP_" + response.statusCode();
         try {
