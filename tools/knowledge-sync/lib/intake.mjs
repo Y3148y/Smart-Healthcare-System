@@ -12,7 +12,10 @@ export function buildCandidate(source, record, raw) {
   if (!/^[a-z0-9][a-z0-9-]*$/.test(source.id ?? '')) throw new Error('INVALID_SOURCE_ID');
   if (!['new', 'updated', 'unchanged'].includes(record?.status)) throw new Error('NO_SUCCESSFUL_FETCH');
   if (hash(raw) !== record.sha256) throw new Error('SNAPSHOT_HASH_MISMATCH');
-  const extraction = extractHtml(new TextDecoder('utf-8', {fatal:true}).decode(raw));
+  if(source.extractionScope==='health_topic_summary' &&
+      (!/^https:\/\/medlineplus\.gov\/[a-z]+\.html$/.test(source.url)))
+    throw new Error('SUMMARY_SOURCE_REQUIRED');
+  const extraction = extractHtml(new TextDecoder('utf-8', {fatal:true}).decode(raw),source.extractionScope);
   if (!extraction.text || !extraction.text.split('\n').some((line) => line.trim() && !line.startsWith('#'))) {
     throw new Error('NO_BODY_CONTENT');
   }

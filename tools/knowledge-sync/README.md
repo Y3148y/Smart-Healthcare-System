@@ -29,11 +29,13 @@
 
 ## 采集和审核边界
 
-本地待审导入也接受 `.md`：文件顶部以两行 `---` 包围 JSON 元数据区（明确的严格格式，不接受任意 YAML）；包含 schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED 和既有接口 metadata。读取器校验元数据并仅把结束分隔符之后的正文送入待审接口，元数据区不参与正文切分或向量化。正文规范化为LF后计算哈希。该入口不审批、不更新既有记录；来源日期、翻译/临床审核等本地扩展字段目前不全量持久化，不宣称在线完整消费。
+本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。只有分隔符之后正文进入切分/向量化；审核说明不进入正文。该入口仅创建待审记录，扩展审核和章节来源字段尚未完整持久化，不宣称在线完整消费。
 
 使用 `npm run import:local -- document.md` 先离线校验；加 `--apply` 才创建待审记录。contentKind沿用后端 reviewed_summary 枚举，这个名称不表示已经完成医学审核。
 
-`node validate-document.mjs <document.md> [...]` 离线核验来源快照与sourceExtractSha256，支持多个文档；失败不自动抓网页或修改资料。文档日期/范围审核等扩展声明仍保留在本地，当前API只接收既有metadata字段。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
+`node validate-document.mjs <document.md> [...]` 离线核验追溯记录及全部来源快照，支持多个文档，拒绝路径穿越、缺失来源或指纹漂移。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
+
+新增NLM来源仅提取MedlinePlus健康主题页的topic-summary区域；找不到或区域重复则拒绝，不回退整页。依据官方使用说明，该区域政府编写的摘要可复用；百科、药物、图片及外链内容不在此许可范围。本机英文摘要与中文整理稿仍需逐段核查，来源可复用不等于临床审核完成。历史受限百科ID与新感冒摘要ID分离。
 
 - 来源登记表不是医学知识库。URL 或抓取成功不能证明内容完整、授权充分、医学准确或适用于某位患者。
 - 抓取遵守工具中的 robots、重定向和限速检查。来源不可达、被拦截或抽取不完整时，不生成替代正文。

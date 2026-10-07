@@ -21,13 +21,16 @@ export function decodeEntities(text) {
 }
 
 /** Structural extraction only; neither medical review nor a publication decision. */
-export function extractHtml(html) {
+export function extractHtml(html,scope) {
   const document = parse(html);
+  const summaries=scope==='health_topic_summary'?find(document,node=>attr(node,'id')==='topic-summary'):[];
+  if(scope && scope!=='health_topic_summary') throw new Error('UNKNOWN_EXTRACTION_SCOPE');
+  if(scope==='health_topic_summary' && summaries.length!==1) throw new Error('SUMMARY_REGION_REQUIRED');
   const candidates = find(document, (node) => node.tagName === 'main' || attr(node, 'role') === 'main');
   const articles = candidates.length ? candidates : find(document, (node) => node.tagName === 'article');
-  const region = articles.sort((a, b) => textOf(b).length - textOf(a).length)[0]
+  const region = summaries[0] ?? articles.sort((a, b) => textOf(b).length - textOf(a).length)[0]
     ?? find(document, (node) => node.tagName === 'body')[0] ?? document;
-  const warnings = articles.length ? [] : ['BODY_FALLBACK_REQUIRES_REVIEW'];
+  const warnings = summaries.length || articles.length ? [] : ['BODY_FALLBACK_REQUIRES_REVIEW'];
   if (articles.length > 1) warnings.push('MULTIPLE_CONTENT_REGIONS_REQUIRES_REVIEW');
   const output = [];
   const headings = [];
@@ -69,7 +72,7 @@ export function extractHtml(html) {
   visit(region); flush();
   const text = output.join('\n\n');
   if (!text) warnings.push('EMPTY_EXTRACTION');
-  return { text, headings, region: region.tagName ?? 'document', warnings: [...new Set(warnings)], extractionVersion: 'html-structural-v1', reviewStatus: 'PENDING' };
+  return { text, headings, region: summaries.length?'topic-summary':region.tagName ?? 'document', warnings: [...new Set(warnings)], extractionVersion: summaries.length?'medlineplus-summary-structural-v1':'html-structural-v1', reviewStatus: 'PENDING' };
 }
 export function htmlToText(html) { return extractHtml(html).text; }
 export function shorten(text, limit = 220) {

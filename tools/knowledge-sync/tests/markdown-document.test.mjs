@@ -24,3 +24,27 @@ test('source snapshots are verified separately from body and cannot silently dri
   assert.equal(inspectMarkdownDocument(document(h),source+'\n').sourceVerified,true);
   assert.throws(()=>inspectMarkdownDocument(document(h),source+'changed'),/HASH_MISMATCH/);
 });
+test('lean front matter resolves one bound provenance record without embedding audit prose',()=>{
+  const source='# Source\nFixture',sha=x=>createHash('sha256').update(x).digest('hex');
+  const audit={...header,sourceSnapshots:[{sourceId:'fixture',file:'source.en.md',sha256:sha(source)}],
+    scopeReviewStatus:'PENDING',editorNotes:'Not medical evidence'};
+  const provenance=JSON.stringify(audit);
+  const {metadata,...lean}=header;
+  lean.provenanceFile='provenance.json';lean.provenanceSha256=sha(provenance);
+  const p=parseMarkdownDocument(document(lean),provenance);
+  assert.equal(p.metadata.sources[0].sourceId,'fixture');
+  assert.ok(!p.body.includes('Not medical evidence'));
+  assert.equal(inspectMarkdownDocument(document(lean),source,provenance).sourceVerified,true);
+  assert.throws(()=>parseMarkdownDocument(document(lean),provenance+' '),/HASH/);
+  assert.throws(()=>parseMarkdownDocument(document({...lean,metadata}),provenance),/DUPLICATE/);
+});
+test('all sources are bound and source filenames cannot traverse directories',()=>{
+  const source='# Source\nFixture',sha=x=>createHash('sha256').update(x).digest('hex');
+  const {metadata,...lean}=header;
+  const check=(snapshots,meta=metadata)=>{
+    const provenance=JSON.stringify({...header,metadata:meta,sourceSnapshots:snapshots});
+    return ()=>inspectMarkdownDocument(document({...lean,provenanceFile:'provenance.json',provenanceSha256:sha(provenance)}),source,provenance);
+  };
+  assert.throws(check([{sourceId:'fixture',file:'../source.en.md',sha256:sha(source)}]),/PROVENANCE/);
+  assert.throws(check([{sourceId:'other',file:'source.en.md',sha256:sha(source)}]),/INCOMPLETE/);
+});

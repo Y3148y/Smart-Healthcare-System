@@ -1,7 +1,6 @@
 import {readFileSync,statSync} from 'node:fs';
-import {dirname,resolve} from 'node:path';
 import {validateLocalPacket,importPendingPacket} from './lib/local-import.mjs';
-import {parseMarkdownDocument,inspectMarkdownDocument} from './lib/markdown-document.mjs';
+import {readMarkdownFile} from './lib/markdown-file.mjs';
 
 // Local operator packet only. No login, automatic approval, database replacement or source fetch.
 try {
@@ -12,12 +11,7 @@ try {
   if (statSync(path).size > 4*1024*1024) throw new Error('PACKET_TOO_LARGE');
   const text=new TextDecoder('utf-8',{fatal:true}).decode(readFileSync(path));
   const markdown=/\.md$/i.test(path);
-  if(markdown) {
-    const sourcePath=resolve(dirname(path),'source.en.md');
-    if(statSync(sourcePath).size>4*1024*1024) throw new Error('SOURCE_TOO_LARGE');
-    inspectMarkdownDocument(text,new TextDecoder('utf-8',{fatal:true}).decode(readFileSync(sourcePath)));
-  }
-  const packet=markdown?parseMarkdownDocument(text):JSON.parse(text);
+  const packet=markdown?readMarkdownFile(path).packet:JSON.parse(text);
   const valid=validateLocalPacket(packet);
   if (!args.includes('--apply')) console.log(JSON.stringify({status:'VALIDATED_NOT_IMPORTED',sources:valid.metadata.sources.length}));
   else console.log(JSON.stringify(await importPendingPacket(packet,{
