@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-10-06T07:29:37.340Z",
+  "updatedAt": "2026-10-07T08:38:16.021Z",
   "note": "每源抓取结果只记录 URL、时间、HTTP 状态与 sha256。raw 快照写在 cache/（已 git 忽略），原文永不进入 git。",
   "sources": {
     "sdcep-spreading-infection": {
@@ -219,6 +219,32 @@
       "httpStatus": 200,
       "sha256": "6dd3b435480a97d355815b6df097f271abebc4f08d51d06be989685622a4f076",
       "bytes": 34600,
+      "etag": null,
+      "lastModified": null,
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "who-triage": {
+      "id": "who-triage",
+      "url": "https://www.who.int/tools/triage",
+      "fetchedAt": "2026-10-07T08:38:03.519Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "03601dbab0b89875766e3ab2169109e42e0ee669331f9cb0d066b6f634a93bd4",
+      "bytes": 97458,
+      "etag": null,
+      "lastModified": "Wed, 07 Oct 2026 08:20:46 GMT",
+      "contentType": "text/html; charset=utf-8",
+      "note": ""
+    },
+    "who-basic-emergency-care": {
+      "id": "who-basic-emergency-care",
+      "url": "https://www.who.int/publications/i/item/basic-emergency-care-approach-to-the-acutely-ill-and-injured",
+      "fetchedAt": "2026-10-07T08:38:09.049Z",
+      "status": "new",
+      "httpStatus": 200,
+      "sha256": "63e4313df831b88612109d3f2b2e93e510b133e94a1bddb3c586e457133cf94a",
+      "bytes": 93928,
       "etag": null,
       "lastModified": null,
       "contentType": "text/html; charset=utf-8",

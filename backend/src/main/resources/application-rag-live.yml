@@ -1,5 +1,8 @@
 # Explicit opt-in. Fails configuration validation instead of silently running a lexical-only service.
 ai:
+  knowledge:
+    # Existing databases retain persisted approval/withdrawal status.
+    bundled-approved: false
   rerank:
     # qwen3.7-text-rerank: checked on development and small held-out engineering samples.
     # Not a probability or a clinical threshold; see docs/RERANK_MODEL_SWITCH_2026-10-03.md.

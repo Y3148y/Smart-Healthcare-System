@@ -47,7 +47,12 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     private final Map<String, List<Chunk>> chunks = new ConcurrentHashMap<>();
 
     public InMemoryKnowledgeCatalog() {
-        loadBundledKnowledge();
+        this(true);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public InMemoryKnowledgeCatalog(@Value("${ai.knowledge.bundled-approved:true}") boolean bundledApproved) {
+        loadBundledKnowledge(bundledApproved);
     }
 
     @Override public List<KnowledgeDocument> documents() {
@@ -292,7 +297,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     private String normalize(String value) { return value == null ? "" : value.replace('\r', ' ').trim(); }
     private double round(double value) { return Math.round(value * 1000.0) / 1000.0; }
 
-    private void loadBundledKnowledge() {
+    private void loadBundledKnowledge(boolean bundledApproved) {
         try {
             Resource[] resources = new PathMatchingResourcePatternResolver().getResources("classpath*:knowledge/*.md");
             Arrays.sort(resources, Comparator.comparing(resource -> Optional.ofNullable(resource.getFilename()).orElse("")));
@@ -307,7 +312,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
                 String body = markdown.lines().filter(line -> !line.startsWith("# ") && !line.startsWith("来源：")
                         && !line.startsWith("补充来源：") && !line.startsWith("主题："))
                         .reduce("", (left, line) -> left + (left.isBlank() ? "" : "\n") + line).trim();
-                add(title, topics.isBlank() ? body : "主题：" + topics + "\n" + body, source, true);
+                add(title, topics.isBlank() ? body : "主题：" + topics + "\n" + body, source, bundledApproved);
             }
         } catch (IOException ex) { throw new IllegalStateException("加载内置医学知识资料失败", ex); }
     }
