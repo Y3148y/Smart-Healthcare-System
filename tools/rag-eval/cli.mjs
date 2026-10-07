@@ -1,8 +1,8 @@
 import {readFileSync, mkdirSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
-import {createHash} from 'node:crypto';
-import {validateCases, evaluateCase, summarize} from './lib.mjs';
+import {createHash, randomUUID} from 'node:crypto';
+import {validateCases, evaluateCase, summarize, reportFileName} from './lib.mjs';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const datasetPath = resolve(directory, process.argv[2] || 'cases.json');
@@ -39,7 +39,7 @@ try {
   const after = await snapshot();
   const corpusStable = before.sha256 === after.sha256;
   const summary = {...summarize(results),corpusStable};
-  const output = resolve(directory, '../../.codex-rag-evaluation/topic-baseline.json');
+  const output = resolve(directory, '../../.codex-rag-evaluation', reportFileName(dataset.labelVersion, randomUUID()));
   mkdirSync(dirname(output),{recursive:true});
   writeFileSync(output,JSON.stringify({schemaVersion:1,time:new Date().toISOString(),labelVersion:dataset.labelVersion,
     reviewStatus:dataset.reviewStatus,corpus:before,runtime:await request('admin/knowledge/runtime'),summary,results},null,2)+'\n');

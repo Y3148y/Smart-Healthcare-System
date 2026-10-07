@@ -1,3 +1,12 @@
+export function reportFileName(labelVersion, runId) {
+  if (typeof labelVersion !== 'string' || !labelVersion || !/^[a-zA-Z0-9-]+$/.test(runId))
+    throw new Error('Invalid report identity');
+  // Encode rather than interpolate arbitrary labels into filesystem paths.
+  const label = Buffer.from(labelVersion, 'utf8').toString('hex');
+  if (label.length > 512) throw new Error('Evaluation label is too long');
+  return `topic-${label}-${runId}.json`;
+}
+
 export function validateCases(dataset) {
   if (dataset.schemaVersion !== 1 || typeof dataset.labelVersion !== 'string' || !dataset.labelVersion
       || dataset.reviewStatus !== 'NOT_CLINICALLY_REVIEWED' || !Array.isArray(dataset.cases) || !dataset.cases.length)
