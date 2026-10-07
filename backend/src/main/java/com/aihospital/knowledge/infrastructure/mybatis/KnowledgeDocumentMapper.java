@@ -41,4 +41,7 @@ public interface KnowledgeDocumentMapper {
 
     @Update("UPDATE knowledge_document SET chunk_count=#{chunkCount} WHERE id=#{id}")
     int refreshChunkCount(@Param("id") String id, @Param("chunkCount") int chunkCount);
+
+    @Update("UPDATE knowledge_document SET status='PENDING_REVIEW',updated_at=#{updatedAt} WHERE id=#{id} AND status='READY'")
+    int withdrawReady(@Param("id") String id, @Param("updatedAt") LocalDateTime updatedAt);
 }

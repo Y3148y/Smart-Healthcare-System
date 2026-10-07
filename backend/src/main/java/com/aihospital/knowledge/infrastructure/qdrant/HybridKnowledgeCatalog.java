@@ -135,6 +135,11 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         indexApprovedCorpus(local.approvedCorpus());
         return approved;
     }
+    @Override public synchronized KnowledgeDocument withdrawDocument(String id) {
+        local.documentDetails(id); // Validate before durable mutation; do not change cache on store failure.
+        if (documentStore != null) documentStore.withdraw(id, java.time.LocalDateTime.now());
+        return local.withdrawDocument(id);
+    }
     @Override public String retrievalMode() { return lastMode; }
     @Override public Map<String, String> runtimeDetails() {
         return Map.of("mode", lastMode, "embeddingConfigured", String.valueOf(semantic.configured()),

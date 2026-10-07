@@ -19,6 +19,9 @@ public interface KnowledgeCatalog {
         throw new UnsupportedOperationException("Pending metadata update is unavailable");
     }
     KnowledgeDocument approveDocument(String id);
+    default KnowledgeDocument withdrawDocument(String id) {
+        throw new UnsupportedOperationException("Knowledge withdrawal is unavailable");
+    }
     Retrieval retrieve(String query, int maxResults, double minimumScore);
     default List<Evidence> search(String query) { return retrieve(query, 5, 0.28).evidence(); }
     default String retrievalMode() { return "LOCAL_LEXICAL_VECTOR"; }

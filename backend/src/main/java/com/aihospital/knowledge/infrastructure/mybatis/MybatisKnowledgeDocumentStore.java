@@ -70,6 +70,16 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
     }
 
     @Override @Transactional
+    public StoredKnowledgeDocument withdraw(String id, LocalDateTime updatedAt) {
+        if (mapper.lockDocument(id) == null) throw new IllegalArgumentException("知识资料不存在");
+        mapper.withdrawReady(id, updatedAt);
+        StoredKnowledgeDocument existing = find(id);
+        if (existing == null || !"PENDING_REVIEW".equals(existing.status()))
+            throw new IllegalStateException("Knowledge withdrawal state changed concurrently");
+        return existing;
+    }
+
+    @Override @Transactional
     public StoredKnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata supplied, LocalDateTime updatedAt) {
         if (supplied == null) throw new IllegalArgumentException("Knowledge metadata is required");
         if (mapper.updatePendingSource(id, supplied.sourceLabel(), updatedAt) != 1)

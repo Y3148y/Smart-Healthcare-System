@@ -99,4 +99,8 @@ public class AdminKnowledgeController {
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.approveDocument(id);
     }
+    @PostMapping("/{id}/withdraw") public KnowledgeDocument withdraw(@PathVariable String id,
+            @RequestHeader(value = "Authorization", required = false) String auth) {
+        guard.require(auth, "ADMIN"); return knowledge.withdrawDocument(id);
+    }
 }

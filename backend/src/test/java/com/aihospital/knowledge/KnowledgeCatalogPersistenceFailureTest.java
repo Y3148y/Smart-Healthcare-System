@@ -11,6 +11,20 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class KnowledgeCatalogPersistenceFailureTest {
+    @Test void failedWithdrawalDoesNotChangePublishedCache() {
+        var local = new InMemoryKnowledgeCatalog();
+        var pending = local.addDocument("Withdrawal failure", "Synthetic withdrawal fixture.");
+        local.approveDocument(pending.id());
+        var before = local.persistedDocument(pending.id());
+        var store = mock(KnowledgeDocumentStore.class);
+        var semantic = mock(QdrantSemanticIndex.class);
+        var catalog = new HybridKnowledgeCatalog(local, semantic, null, store);
+        when(store.withdraw(eq(pending.id()), any())).thenThrow(new IllegalStateException("database unavailable"));
+        assertThrows(IllegalStateException.class, () -> catalog.withdrawDocument(pending.id()));
+        assertEquals(before, local.persistedDocument(pending.id()));
+        assertTrue(local.approvedCorpus().stream().anyMatch(e -> e.title().equals(pending.title())));
+        verifyNoInteractions(semantic);
+    }
     @Test void failedMetadataCorrectionKeepsOriginalSourceAndApprovalState() {
         var local = new InMemoryKnowledgeCatalog();
         var pending = local.addDocument("Correction failure fixture", "Synthetic nonmedical content");

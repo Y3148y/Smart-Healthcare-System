@@ -10,6 +10,9 @@ public interface KnowledgeDocumentStore {
     void insert(StoredKnowledgeDocument document);
     StoredKnowledgeDocument approve(String id, int chunkCount, LocalDateTime updatedAt);
     void refreshChunkCount(String id, int chunkCount);
+    default StoredKnowledgeDocument withdraw(String id, LocalDateTime updatedAt) {
+        throw new UnsupportedOperationException("Knowledge withdrawal is unavailable");
+    }
     default StoredKnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata metadata, LocalDateTime updatedAt) {
         throw new UnsupportedOperationException("Pending metadata update is unavailable");
     }

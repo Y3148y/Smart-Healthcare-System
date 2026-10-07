@@ -45,6 +45,15 @@ async function sync() {
   } catch (e: any) { error.value = e.message || '索引同步失败' }
   finally { busy.value = false }
 }
+async function withdraw(id: string) {
+  if (busy.value || !window.confirm('撤回后资料保留，但后续检索不再使用。确认撤回到待审批？')) return
+  busy.value = true; error.value = ''; notice.value = ''
+  try {
+    await api(`/admin/knowledge/${encodeURIComponent(id)}/withdraw`, { method: 'POST' })
+    await load(); await view(id); notice.value = '资料已撤回到待审批。已有回答和正在处理的请求不会被追溯删除。'
+  } catch (e: any) { error.value = e.message || '撤回失败' }
+  finally { busy.value = false }
+}
 onMounted(load)
 </script>
 <template>
@@ -57,6 +66,7 @@ onMounted(load)
     <p v-if="detailLoading" role="status">正在加载文档详情…</p>
     <KnowledgeProvenancePanel v-if="detail" :key="detail.document.id + detail.document.updatedAt" :document-id="detail.document.id"
       :pending="detail.document.status === 'PENDING_REVIEW'" @corrected="view(detail.document.id)" />
+    <button v-if="detail?.document.status === 'READY'" class="mini" :disabled="busy" @click="withdraw(detail.document.id)">撤回到待审批</button>
     <section v-if="detail" class="table-card admin-document" aria-label="文档详情"><div class="admin-title"><h3>{{ detail.document.title }}</h3><div class="admin-actions"><button v-if="detail.document.status==='PENDING_REVIEW'" class="primary" :disabled="busy" @click="approve(detail.document.id)">核对后审批通过</button><button class="mini" @click="detail=null">关闭详情</button></div></div><p>来源：{{ detail.source }}</p><div class="admin-source-links"><a v-for="url in sources(detail.source)" :key="url" :href="url" target="_blank" rel="noopener noreferrer">{{ url }}</a></div><p>向量状态：<b>{{ label(detail.indexStatus) }}</b> · 本进程已验证或写入 {{ detail.indexedChunks }}/{{ detail.segments.length }} 个片段</p><small>{{ detail.indexNote }}</small><details><summary>查看完整原文</summary><pre>{{ detail.document.body }}</pre></details><h4>片段预览（{{ detail.segments.length }}）</h4><article v-for="(segment, i) in detail.segments" :key="i" class="admin-segment"><b>片段 {{ i+1 }}</b><p>{{ segment.excerpt }}</p></article></section>
   </div>
 </template>

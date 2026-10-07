@@ -167,6 +167,16 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return approved;
     }
 
+    @Override public synchronized KnowledgeDocument withdrawDocument(String id) {
+        KnowledgeDocument current = documentDetails(id).document();
+        if ("PENDING_REVIEW".equals(current.status())) return current;
+        KnowledgeDocument withdrawn = new KnowledgeDocument(id, current.title(), current.body(), current.chunks(),
+                "PENDING_REVIEW", LocalDateTime.now());
+        chunks.remove(id);
+        documents.put(id, withdrawn);
+        return withdrawn;
+    }
+
     private KnowledgeDocument add(String title, String body, String source, boolean bundledSeed) {
         if (title == null || title.isBlank() || body == null || body.isBlank() || title.length() > 160 || body.length() > 100_000)
             throw new IllegalArgumentException("知识资料标题或正文无效");
