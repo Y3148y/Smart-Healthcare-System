@@ -81,6 +81,6 @@ npm run build
 | frontend/ | Vue 患者端和管理员端 |
 | tools/ | 知识来源同步工具 |
 | scripts/ | 启动与专项验证 |
-| docs/ | 架构、方案、验收和历史故障记录 |
+| docs/ | 架构与 RAG 技术说明；本机另保留当前方案、状态和安全缺口 |
 
 技术说明只保留 [架构与业务边界](docs/ARCHITECTURE.md) 和 [RAG 设计与验证](docs/RAG.md)。运行与功能范围以本页为入口，公开提交规则见 [贡献说明](CONTRIBUTING.md)。
