@@ -1,6 +1,8 @@
 package com.aihospital.catalog.application;
 
 import com.aihospital.catalog.domain.CatalogRecords.*;
+import com.aihospital.catalog.domain.DepartmentAvailability;
+import com.aihospital.catalog.domain.DepartmentAvailability.Status;
 import com.aihospital.catalog.infrastructure.demo.DemoDoctorDirectory;
 import com.aihospital.catalog.infrastructure.mybatis.CatalogMapper;
 import com.aihospital.catalog.infrastructure.mybatis.SlotMapper;
@@ -34,6 +36,24 @@ public class CatalogManagementService {
     }
     public List<Department> departments(){return mapper.departments();}
     public List<ManagedDoctor> doctors(){return mapper.doctors();}
+
+    public DepartmentAvailability departmentAvailability(String name) {
+        if (name == null || name.isBlank()) throw bad("科室名称必填");
+        String query = name.trim();
+        Department department = departments().stream().filter(d -> d.name().equals(query)).findFirst().orElse(null);
+        if (department == null) return new DepartmentAvailability(query, Status.DEPARTMENT_NOT_CONFIGURED, 0, 0, 0);
+        if (!department.enabled()) return new DepartmentAvailability(query, Status.DEPARTMENT_DISABLED, 0, 0, 0);
+        List<ManagedDoctor> active = doctors().stream()
+                .filter(d -> d.departmentId().equals(department.id()) && d.enabled()).toList();
+        LocalDate today = LocalDate.now();
+        List<ManagedDoctor> scheduled = active.stream()
+                .filter(d -> !LocalDate.parse(d.date()).isBefore(today)).toList();
+        int bookable = (int) scheduled.stream().filter(d -> d.remaining() > 0).count();
+        Status status = active.isEmpty() ? Status.NO_ACTIVE_DOCTOR
+                : scheduled.isEmpty() ? Status.NO_MATCHING_SCHEDULE
+                : bookable == 0 ? Status.NO_SLOTS : Status.AVAILABLE;
+        return new DepartmentAvailability(query, status, active.size(), scheduled.size(), bookable);
+    }
     @Transactional public Department saveDepartment(String id,DepartmentEdit edit) {
         if(edit==null) throw bad("请填写科室资料");
         String name=text(edit.name(),80,"科室名称");

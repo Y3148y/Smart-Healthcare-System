@@ -55,6 +55,9 @@ class RuleBasedTriageEngineTest {
     void negatedRedFlagsAreNotUrgent() {
         assertFalse(safety.requiresImmediateCare("咳嗽三天，没有胸痛和呼吸困难"));
         assertFalse(safety.requiresImmediateCare("否认胸痛，无晕厥"));
+        assertTrue(safety.requiresImmediateCare("我心脏不舒服，心脏绞痛"));
+        assertFalse(safety.requiresImmediateCare("没有心脏绞痛"));
+        assertFalse(safety.requiresImmediateCare("以前心脏绞痛，现在好了"));
     }
 
     @Test
@@ -180,8 +183,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void bundledProfessionalKnowledgeIsSearchableAndTraceable() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
         InMemoryKnowledgeCatalog knowledge = new InMemoryKnowledgeCatalog();
         RuleBasedTriageEngine service = new RuleBasedTriageEngine(safety, new DemoDoctorDirectory(), knowledge,
@@ -201,8 +204,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void dizzinessGetsRelevantAnswerInsteadOfRespiratoryFallback() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "FALLBACK", "configured-model"));
         RuleBasedTriageEngine service = engine(narration);
         var result = service.triage("dizziness-case", "我最近头晕想吐", "张三", java.util.List.of());
@@ -218,8 +221,8 @@ class RuleBasedTriageEngineTest {
      */
     @Test
     void subThresholdFeverNeverReadsAsRulingOutSeriousInfection() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
         when(narration.guideGeneral(anyString(), anyString(), anyList()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(1), "DEMO", ""));
@@ -368,8 +371,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void symptomsAcrossDepartmentsRetainCandidatesInsteadOfArbitraryFirstMatch() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
         RuleBasedTriageEngine service = engine(narration);
         var result = service.triage("mixed-case", "头晕三天，同时腹痛并反酸", "张三", java.util.List.of());
@@ -381,8 +384,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void structuredDecisionPicksOneRuleCandidateAndSurfacesBasis() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "LIVE", "stub-model"));
         StructuredDecisionModel accepting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
             @Override public Proposal propose(String symptoms,
@@ -402,8 +405,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void rejectedStructuredDecisionKeepsRuleResult() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
         StructuredDecisionModel rejecting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
             @Override public Proposal propose(String symptoms,
@@ -420,7 +423,7 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void emergencyFlowNeverConsultsStructuredDecision() {
-        NarrationModel narration = mock(NarrationModel.class);
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         var consulted = new java.util.concurrent.atomic.AtomicBoolean(false);
         StructuredDecisionModel accepting = new StructuredDecisionModel("openai-compatible", "key", "http://127.0.0.1:9", "stub-model", 5) {
             @Override public Proposal propose(String symptoms,
@@ -440,8 +443,8 @@ class RuleBasedTriageEngineTest {
 
     @Test
     void unconfiguredStructuredModelIsNeverConsulted() {
-        NarrationModel narration = mock(NarrationModel.class);
-        when(narration.explain(anyString(), anyString(), anyString(), anyString(), anyString(), anyList()))
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
             .thenAnswer(invocation -> new NarrationModel.Answer(invocation.getArgument(4), "DEMO", ""));
         var consulted = new java.util.concurrent.atomic.AtomicBoolean(false);
         StructuredDecisionModel unconfigured = new StructuredDecisionModel("demo", "", "", "", 5) {

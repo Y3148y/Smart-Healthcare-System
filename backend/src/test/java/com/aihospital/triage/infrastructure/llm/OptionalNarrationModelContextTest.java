@@ -21,7 +21,7 @@ class OptionalNarrationModelContextTest {
                 new Turn("USER", "我咳嗽"),
                 new Turn("ASSISTANT", "咳嗽持续多久？"),
                 new Turn("USER", "现在还咳嗽")));
-        assertEquals("安全指令", ((SystemMessage) prompt.get(0)).text());
+        assertEquals("安全指令" + OptionalNarrationModel.CONVERSATION_STYLE, ((SystemMessage) prompt.get(0)).text());
         assertTrue(prompt.stream().filter(UserMessage.class::isInstance).map(UserMessage.class::cast)
                 .anyMatch(message -> message.text().contains("<evidence>呼吸资料</evidence>")));
         assertTrue(prompt.stream().filter(AiMessage.class::isInstance).map(AiMessage.class::cast)

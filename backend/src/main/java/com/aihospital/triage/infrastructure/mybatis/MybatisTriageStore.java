@@ -61,7 +61,7 @@ public class MybatisTriageStore implements TriageStore {
             String assessmentId = UUID.randomUUID().toString();
             mapper.insertAssessment(assessmentId, sessionId, version, json.writeValueAsString(result), LocalDateTime.now());
             ResponseProvenance provenance = new ResponseProvenance(result.modelStatus(), result.evidence().size(),
-                    result.tools().size(), (int) result.tools().stream().filter(trace -> !trace.success()).count());
+                    result.tools().size(), (int) result.tools().stream().filter(trace -> !trace.success()).count(), result.answerEvidence());
             String assistantMessageId = appendAssistantMessage(sessionId, result.summary(), provenance);
             mapper.insertAnchor(assessmentId, assistantMessageId);
         } catch (JsonProcessingException ex) {

@@ -2,14 +2,24 @@
 import { computed, ref } from 'vue'
 import type { Assessment, Doctor } from '../types'
 
-const props=defineProps<{anchor:Assessment,assessments:Assessment[],bookingRunning:boolean}>()
+const props=defineProps<{anchor:Assessment,assessments:Assessment[],bookingRunning:boolean,currentSessionStatus?:string}>()
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],review:[sessionId:string,reason:string]}>()
 const selectedVersion=ref(props.anchor.version)
 const traceExpanded=ref(false)
 const shown=computed(()=>props.assessments.find(item=>item.version===selectedVersion.value)||props.anchor)
 const latestVersion=computed(()=>props.assessments[props.assessments.length-1]?.version)
 const isBookable=computed(()=>shown.value.version===latestVersion.value && shown.value.result.grounded
+  && (!props.currentSessionStatus || props.currentSessionStatus==='已完成分诊')
   && !['待补充信息','紧急','尽快就医'].includes(shown.value.result.riskLevel))
+const serviceMessage=computed(()=>{
+  const result=shown.value.result
+  if(result.riskLevel==='紧急')return '请立即寻求急诊帮助，不等待普通号源'
+  if(result.riskLevel==='尽快就医')return '当前已停止普通模拟预约，请尽快线下评估或申请人工导诊'
+  if(!result.grounded)return '医学依据不足，尚未提供具体模拟预约'
+  const lookup=result.tools.find(t=>t.tool==='department_search')
+  if(lookup && !lookup.success)return '科室查询失败，暂无法确认服务状态'
+  return lookup?.outcome || '本版本未记录科室服务状态，不能据此判断科室是否存在'
+})
 const explanation=computed(()=>{
   if(props.anchor.version===1)return '第 1 版是本次会话首次分诊的原始快照；后续补充症状不会改写此结果。'
   const previous=props.assessments.find(item=>item.version===props.anchor.version-1)
@@ -38,7 +48,7 @@ function sourceLabel(source:string){try{return new URL(source).hostname}catch{re
          RuleBasedTriageEngine.prescriptionRefusalResult. Kept so that relaxing that invariant
          cannot make a refusal display as 「本地规则回答」. -->
     <div class="result-title">智能分诊建议 · 第 {{ shown.version }} 版 <small class="model-badge" :class="shown.result.modelStatus==='LIVE'?'live':'fallback'">{{ shown.result.modelStatus==='LIVE' ? `大模型已回答 · ${shown.result.modelName}` : shown.result.modelStatus==='SAFETY_RULE' ? '安全规则已接管' : shown.result.modelStatus==='POLICY_REFUSAL' ? '合规拒答 · 未生成诊断或处方' : shown.result.modelStatus==='EVIDENCE_BLOCKED' ? '知识依据不足 · 已停止生成' : shown.result.modelStatus==='VALIDATION_BLOCKED' ? '模型回答未通过安全校验' : shown.result.modelStatus==='FALLBACK' ? '模型暂不可用 · 已使用规则回答' : '本地规则回答' }}</small> <label :class="shown.result.riskLevel==='紧急'?'danger':''">风险等级：{{ shown.result.riskLevel }}</label><label>置信度：{{ shown.result.confidence }}%</label></div>
-    <div class="recommend"><div><small>建议就医方向</small><b>{{ shown.result.department }}</b></div><div><small>模拟可约医生</small><b>{{ shown.result.doctor?.name || (shown.result.riskLevel==='紧急' ? '请立即急诊就医' : '暂无模拟号源') }}</b></div></div>
+    <div class="recommend"><div><small>建议就医方向</small><b>{{ shown.result.department }}</b></div><div><small>模拟可约医生</small><b>{{ shown.result.doctor?.name || '未提供模拟可约医生' }}</b><span>{{ serviceMessage }}</span></div></div>
     <div v-if="shown.result.riskLevel==='紧急'" class="emergency-alert" role="alert"><strong>⚠ 紧急就医提醒</strong><span>{{ shown.result.safetyTip }}</span><div v-if="shown.result.safetyAssessment?.signals?.length" class="safety-signals"><span v-for="signal in shown.result.safetyAssessment.signals" :key="signal.ruleCode"><b>{{ signal.category }}</b>：{{ signal.evidence }}（{{ signal.ruleCode }}）</span></div><small>规则版本：{{ shown.result.safetyAssessment?.policyVersion }}。系统已停止普通号源推荐。</small><div class="emergency-actions"><a href="tel:120" class="primary">拨打 120</a><button type="button" class="review-button" @click="emit('review',shown.result.sessionId,'危险信号触发后申请人工复核')">申请人工导诊复核</button></div></div>
     <div v-if="shown.result.candidates?.length>1" class="candidate-list"><b>其他相关科室及模拟医生 <small>多个方向仅供参考，不代表多项诊断</small></b><div v-for="candidate in shown.result.candidates" :key="candidate.department" class="candidate-option"><div><strong>{{ candidate.department }}</strong><span>{{ candidate.reason }}</span><small>{{ candidate.doctor ? `${candidate.doctor.name} · ${candidate.doctor.title} · ${candidate.doctor.date} ${candidate.doctor.period}` : '暂无可用模拟号源' }}</small></div><button v-if="candidate.doctor && isBookable" type="button" class="primary" :disabled="bookingRunning" @click="emit('book',candidate.doctor,shown.result.sessionId)">模拟预约</button></div></div>
     <p v-if="shown.result.riskLevel!=='紧急'" class="safety">{{ shown.result.safetyTip }}</p>
@@ -48,7 +58,7 @@ function sourceLabel(source:string){try{return new URL(source).hostname}catch{re
     <button class="text-btn" type="button" @click="traceExpanded=!traceExpanded">{{ traceExpanded?'收起':'展开' }} Agent 工具调用轨迹（{{ shown.result.tools.length }}）</button>
     <div v-if="traceExpanded" class="trace"><div v-for="t in shown.result.tools" :key="t.tool" :class="{failed:!t.success}"><b>{{ t.label }}</b><span>{{ t.outcome }}<em v-if="t.error"> · {{ t.error }}</em></span><small>{{ t.elapsedMs }}ms</small></div></div>
     <button v-if="shown.result.doctor && isBookable" type="button" class="primary" :disabled="bookingRunning" @click="emit('book',shown.result.doctor!,shown.result.sessionId)">{{ bookingRunning?'预约中…':`模拟预约 ${shown.result.doctor.name} 的号源` }}</button>
-    <small v-else-if="shown.result.doctor" class="historic-note">历史版本仅供回看；如需预约，请切换到最新分诊版本。</small>
+    <small v-else-if="shown.result.doctor" class="historic-note">{{ shown.version!==latestVersion ? '历史版本仅供回看；如需预约，请切换到最新分诊版本。' : '当前会话暂不提供模拟预约；可继续咨询或提出新的挂号请求。' }}</small>
     <button v-if="shown.result.safetyAssessment?.humanReviewRecommended && shown.result.riskLevel!=='紧急'" type="button" class="review-button" @click="emit('review',shown.result.sessionId,'系统建议人工复核')">申请人工导诊</button>
   </div>
 </template>

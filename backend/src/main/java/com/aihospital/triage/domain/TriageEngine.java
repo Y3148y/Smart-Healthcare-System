@@ -6,7 +6,12 @@ import java.util.List;
 
 /** Application boundary for a replaceable triage implementation. */
 public interface TriageEngine {
-    record Guidance(String text, String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {}
+    record Guidance(String text, String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures,
+                    AnswerEvidence.Diagnostics answerEvidence) {
+        public Guidance(String text, String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {
+            this(text, modelStatus, knowledgeHits, localToolCalls, toolFailures, null);
+        }
+    }
     SafetyAssessment assessSafety(String symptoms);
     boolean requiresImmediateCare(String symptoms);
     /**

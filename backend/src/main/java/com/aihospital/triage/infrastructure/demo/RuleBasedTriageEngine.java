@@ -4,6 +4,7 @@ import com.aihospital.catalog.domain.DoctorDirectory;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval;
 import com.aihospital.observation.domain.CallLogStore;
+import com.aihospital.observation.application.AnswerCallAudit;
 import com.aihospital.shared.model.Models.*;
 import com.aihospital.triage.domain.Disposition;
 import com.aihospital.triage.domain.NarrationModel;
@@ -67,9 +68,14 @@ public class RuleBasedTriageEngine implements TriageEngine {
         // 「明显出血」量级不明，既不该升级急症，也不该落到普通分诊或预约。走确定性追问，
         // 服务据此置「待补充信息」，而该处置按 D5 不可预约。
         if (safety.requiresBleedingClarification(symptoms)) return true;
+        // A preference about booking cannot suppress offline safety guidance.
+        if (safety.assess(symptoms).humanReviewRecommended() || possibleFracture(symptoms)) return false;
+        var bookingIntent = CurrentRequestIntent.booking(currentRequest);
+        if (bookingIntent == CurrentRequestIntent.BookingIntent.DECLINED) return true;
         List<DepartmentCandidate> candidates = candidatesFor(symptoms);
         if (candidates.isEmpty()) return true;
-        if (possibleFracture(symptoms) || hasBookingIntent(currentRequest)) return false;
+        if (bookingIntent == CurrentRequestIntent.BookingIntent.REQUESTED
+                || CurrentRequestIntent.directionRequested(currentRequest)) return false;
         return !(hasTimeCourse(symptoms) && hasClinicalQualifier(symptoms));
     }
 
@@ -149,21 +155,20 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
         progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
         HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve",
-                java.util.Map.of("query", safety.removeNegatedRedFlags(text)));
+                java.util.Map.of("query", CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text))));
         Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
         String fallback = guidedFallback(text, candidates, evidence, history);
         progress.accept(TriageProgress.ANSWER_GENERATION);
-        NarrationModel.Answer answer = retrieval.grounded() ? narration.guide(text, departments,
-                evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history)
-                : narration.guideGeneral(text, fallback, history);
+        NarrationModel.Answer answer = narration.answerWithEvidence(text, "", departments, evidence,
+                fallback, history, new NarrationModel.ServiceContext(List.of(), false), true,
+                retrievalStatus(retrieval, retrievalExecution.trace().success()));
         long elapsed = elapsedMillis(started);
-        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "预问诊引导", "患者",
-                answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
-                0, 0, elapsed, retrievalExecution.trace().success(), List.of(retrievalExecution.trace())));
+        AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed,
+                List.of(retrievalExecution.trace())).forEach(calls::record);
         return new Guidance(answer.text(), answer.status(), evidence.size(), 1,
-                retrievalExecution.trace().success() ? 0 : 1);
+                retrievalExecution.trace().success() ? 0 : 1, answer.diagnostics());
     }
 
     @Override public TriageResult triage(String sessionId, String text, String user, List<NarrationModel.Turn> history) {
@@ -203,7 +208,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         .toList();
             }
         }
-        String retrievalQuery = safety.removeNegatedRedFlags(text);
+        String retrievalQuery = CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text));
         if(!emergency)progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
         HospitalToolExecutor.Execution retrievalExecution = emergency ? null
                 : toolExecutor.execute("medical_knowledge_retrieve", java.util.Map.of("query", retrievalQuery));
@@ -212,9 +217,16 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
         if (retrievalExecution != null) trace.add(retrievalExecution.trace());
+        List<NarrationModel.ServiceState> services = new ArrayList<>();
         if (!emergency) {
             HospitalToolExecutor.Execution departmentExecution = toolExecutor.execute("department_search", java.util.Map.of("department", department));
             trace.add(departmentExecution.trace());
+            if (departmentExecution.trace().success() && departmentExecution.data() instanceof java.util.Map<?, ?> state
+                    && state.get("status") instanceof String status && state.get("message") instanceof String message) {
+                services.add(new NarrationModel.ServiceState(department, status, message));
+            } else {
+                services.add(new NarrationModel.ServiceState(department, "QUERY_FAILED", "科室能力查询失败，当前状态无法确认"));
+            }
         }
         Doctor doctor = null;
         if (!emergency) {
@@ -232,28 +244,34 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if (needsFeverCaveat(text, safetyAssessment)) safetyTip = safetyTip + " " + FEVER_CAVEAT;
         String fallback = fallbackAnswer(department, emergency, candidates);
         boolean grounded = emergency || retrieval.grounded();
-        if(!emergency)progress.accept(TriageProgress.ANSWER_GENERATION);
-        NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
-                : !grounded ? narration.guideGeneral(text,
-                        "目前没有检索到足以支持具体分诊的资料，所以暂不生成科室或预约建议。你可以继续问一般问题；若希望判断就医方向，请补充最主要的不适及持续时间，或在会话页申请人工导诊。", history)
-                : narration.explain(text, department,
-                        candidates.stream().map(DepartmentCandidate::department)
-                                .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right),
-                        evidence.stream().map(Evidence::excerpt).reduce("", (left, right) -> left + " " + right), fallback, history);
         int confidence = emergency ? 100 : !grounded ? 35 : structuredConfidence > 0 ? structuredConfidence
                 : "全科医学科".equals(department) ? 55 : 72;
         String risk = emergency ? Disposition.EMERGENCY : possibleFracture || "URGENT".equals(safetyAssessment.acuity())
                 ? Disposition.URGENT : candidates.size() > 1
                 ? Disposition.MULTI : confidence < 60 ? Disposition.PENDING : Disposition.ROUTINE;
         boolean bookable = grounded && Disposition.isBookable(risk);
+        if(!emergency)progress.accept(TriageProgress.ANSWER_GENERATION);
+        NarrationModel.Answer answer = emergency ? new NarrationModel.Answer(fallback, "SAFETY_RULE", "")
+                : narration.answerWithEvidence(text, department,
+                        candidates.stream().map(DepartmentCandidate::department)
+                                .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right),
+                        evidence, !grounded ? "目前资料不足以支持具体分诊，暂不生成预约建议；可以继续咨询或申请人工导诊。" : fallback, history,
+                        new NarrationModel.ServiceContext(services, bookable), false,
+                        retrievalStatus(retrieval, retrievalExecution.trace().success()));
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, bookable ? doctor : null, answer.text(),
                 safetyTip, evidence, List.copyOf(trace), candidates, answer.status(), answer.modelName(), LocalDateTime.now(),
-                safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核");
+                safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核", answer.diagnostics());
         long totalElapsed = elapsedMillis(callStarted);
-        calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "分诊Agent", user,
-                answer.modelName().isBlank() ? answer.status() : answer.modelName() + "/" + answer.status(),
-                0, 0, totalElapsed, true, List.copyOf(trace)));
+        AnswerCallAudit.records("分诊工作流", user, answer, totalElapsed, trace).forEach(calls::record);
         return result;
+    }
+
+    static String retrievalStatus(Retrieval retrieval, boolean toolCallSucceeded) {
+        if (!toolCallSucceeded || retrieval == null) return "DEPENDENCY_UNAVAILABLE";
+        String message = retrieval.message() == null ? "" : retrieval.message();
+        if (message.startsWith("DEPENDENCY_BLOCKED") || message.contains("SEARCH_UNAVAILABLE"))
+            return "DEPENDENCY_UNAVAILABLE";
+        return retrieval.evidence().isEmpty() ? "NO_MATCH" : "MATCHED";
     }
 
     private List<DepartmentCandidate> candidatesFor(String text) {
@@ -270,10 +288,6 @@ public class RuleBasedTriageEngine implements TriageEngine {
             found.add(new DepartmentCandidate("骨科", "描述中有外伤、疑似骨折或骨关节不适，需线下评估", null));
         if (menstrual) found.add(new DepartmentCandidate("妇科", "描述中有经期疼痛相关不适", null));
         return found;
-    }
-
-    private boolean hasBookingIntent(String text) {
-        return text.matches("(?s).*(挂什么科|看什么科|哪个科|挂号|预约|就诊方向).*" );
     }
 
     private boolean hasTimeCourse(String text) {

@@ -11,6 +11,7 @@ import com.aihospital.triage.domain.TriageStore;
 import com.aihospital.triage.domain.TriageRecords.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
@@ -94,10 +95,16 @@ public class TriageConversationService {
         // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
         if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
                 && triageEngine.needsClarification(combined,content)) {
-            TriageEngine.Guidance guidance = progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
+            final TriageEngine.Guidance guidance;
+            try {
+                guidance = progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
+            } catch (RuntimeException ex) {
+                update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
+                throw ex;
+            }
             updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
-                    guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures()));
+                    guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures(), guidance.answerEvidence()));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
             return conversation(id, patient);
         }
@@ -141,7 +148,15 @@ public class TriageConversationService {
         if (existing != null) return existing;
         String normalized = reason == null || reason.isBlank() ? "患者主动申请人工导诊" : reason.trim();
         if (normalized.length() > 500) normalized = normalized.substring(0, 500);
-        return store.createHumanReview(id, patient, normalized, LocalDateTime.now());
+        try {
+            return store.createHumanReview(id, patient, normalized, LocalDateTime.now());
+        } catch (DuplicateKeyException concurrentRequest) {
+            // The unique session constraint is the final concurrency guard. If another
+            // request won the insert race, return its row so duplicate submissions remain idempotent.
+            HumanReview createdByConcurrentRequest = store.humanReview(id);
+            if (createdByConcurrentRequest != null) return createdByConcurrentRequest;
+            throw concurrentRequest;
+        }
     }
 
     private TriageResult withCurrentAvailability(TriageResult result) {
@@ -159,7 +174,7 @@ public class TriageConversationService {
         return new TriageResult(result.sessionId(), result.riskLevel(), result.confidence(), result.department(),
                 available, result.summary(), result.safetyTip(), result.evidence(), result.tools(), candidates,
                 result.modelStatus(), result.modelName(), result.createdAt(), result.safetyAssessment(),
-                result.grounded(), result.groundingMessage());
+                result.grounded(), result.groundingMessage(), result.answerEvidence());
     }
 
     private List<Assessment> associateLegacyAnchors(List<Message> messages, List<Assessment> assessments) {
@@ -182,7 +197,7 @@ public class TriageConversationService {
 
     private ResponseProvenance provenance(TriageResult result) {
         return new ResponseProvenance(result.modelStatus(), result.evidence().size(), result.tools().size(),
-                (int) result.tools().stream().filter(trace -> !trace.success()).count());
+                (int) result.tools().stream().filter(trace -> !trace.success()).count(), result.answerEvidence());
     }
 
     private void update(String id, String title, String preview, String status) {

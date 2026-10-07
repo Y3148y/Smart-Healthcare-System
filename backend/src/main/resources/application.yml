@@ -1,3 +1,6 @@
+review:
+  # Exact authenticated ADMIN subjects, no wildcard. Empty denies patient summary access.
+  authorized-subjects: ${HUMAN_REVIEW_AUTHORIZED_SUBJECTS:}
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${SERVER_PORT:8080}
@@ -42,6 +45,17 @@ ai:
   model: ${AI_MODEL:}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
   max-tokens: ${AI_MAX_TOKENS:4096}
+  # Empty preserves the existing SDK/provider default. Explicit true/false opts into
+  # the bounded HTTP adapter for supported providers, without changing safety rules.
+  enable-thinking: ${AI_ENABLE_THINKING:}
+  # Optional provider-supported thinking cap; blank preserves the provider default.
+  # Requires explicit thinking=true; does not change the request timeout or max_tokens.
+  thinking-budget: ${AI_THINKING_BUDGET:}
+  # Opt-in JSON Object output for the configured HTTP structured narration path.
+  # Default off: provider/model support must be checked; it is not a semantic validator.
+  structured-json: ${AI_STRUCTURED_JSON:false}
+  answer-review:
+    timeout-seconds: ${AI_ANSWER_REVIEW_TIMEOUT_SECONDS:8}
   embedding-model: ${AI_EMBEDDING_MODEL:}
   embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:10}
   embedding-api-key: ${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}

@@ -424,6 +424,25 @@ class TriageConversationTests {
     }
 
     @Test
+    void colloquialHeartPainIsSafetyAlertNotModelOnlyWarning() throws Exception {
+        String owner = token("heart-pain-" + UUID.randomUUID());
+        String id = create(owner);
+        JsonNode conversation = turn(owner, id, "我心脏不舒服，心脏绞痛");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急提示", conversation.path("session").path("status").asText());
+        JsonNode result = conversation.path("assessments").get(0).path("result");
+        org.junit.jupiter.api.Assertions.assertEquals("紧急", result.path("riskLevel").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("SAFETY_RULE", result.path("modelStatus").asText());
+        org.junit.jupiter.api.Assertions.assertEquals("ER-CIRCULATION-001",
+                result.path("safetyAssessment").path("signals").get(0).path("ruleCode").asText());
+        org.junit.jupiter.api.Assertions.assertTrue(result.path("doctor").isNull());
+        mvc.perform(post("/api/appointments").header("Authorization", owner)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(java.util.Map.of("doctorId", "doc-general",
+                                "sessionId", id, "idempotencyKey", UUID.randomUUID().toString()))))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void unknownOrNegatedNasalSymptomDoesNotCreateBookingRecommendation() throws Exception {
         String owner = token("nasal-negated-" + UUID.randomUUID());
         String id = create(owner);

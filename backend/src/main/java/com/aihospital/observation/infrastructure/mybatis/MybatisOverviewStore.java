@@ -11,4 +11,5 @@ public class MybatisOverviewStore implements OverviewStore {
     @Override public int appointments() { return mapper.appointments(); }
     @Override public int completedSessions() { return mapper.completedSessions(); }
     @Override public int triageAppointments() { return mapper.triageAppointments(); }
+    @Override public int toolCalls() { return mapper.toolCalls(); }
 }

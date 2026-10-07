@@ -24,7 +24,7 @@ public class BailianReranker {
     @Value("${ai.rerank.min-score:0.5}") private double minimum = 0.5;
     @Value("${ai.rerank.timeout-seconds:12}") private int timeout = 12;
     public BailianReranker(ObjectMapper json) { this.json = json; }
-    public boolean configured() { return !url.isBlank() && !key.isBlank() && !model.isBlank(); }
+    public boolean configured() { return !url.isBlank() && com.aihospital.shared.security.ApiCredentialCheck.usable(key) && !model.isBlank(); }
     public String modelName() { return model; }
     public Result rank(String query, List<Evidence> candidates, int limit) {
         if (!configured()) return new Result(List.of(), "NOT_CONFIGURED");

@@ -21,7 +21,16 @@ public final class Models {
                                String summary, String safetyTip, List<Evidence> evidence, List<ToolTrace> tools,
                                List<DepartmentCandidate> candidates,
                                String modelStatus, String modelName, LocalDateTime createdAt,
-                               SafetyAssessment safetyAssessment, boolean grounded, String groundingMessage) {}
+                               SafetyAssessment safetyAssessment, boolean grounded, String groundingMessage,
+                               com.aihospital.triage.domain.AnswerEvidence.Diagnostics answerEvidence) {
+        public TriageResult(String sessionId, String riskLevel, int confidence, String department, Doctor doctor,
+                String summary, String safetyTip, List<Evidence> evidence, List<ToolTrace> tools,
+                List<DepartmentCandidate> candidates, String modelStatus, String modelName, LocalDateTime createdAt,
+                SafetyAssessment safetyAssessment, boolean grounded, String groundingMessage) {
+            this(sessionId, riskLevel, confidence, department, doctor, summary, safetyTip, evidence, tools,
+                    candidates, modelStatus, modelName, createdAt, safetyAssessment, grounded, groundingMessage, null);
+        }
+    }
     public record ChatSession(String id, String title, String preview, String status, LocalDateTime createdAt) {}
     public record Appointment(String id, String registrationNo, String patient, Doctor doctor, String status, String triageSessionId, LocalDateTime createdAt) {}
     public record KnowledgeDocument(String id, String title, String body, int chunks, String status, LocalDateTime updatedAt) {}

@@ -14,7 +14,7 @@ public class InMemoryToolRegistry implements ToolRegistry {
     public InMemoryToolRegistry() {
         add("symptom_tag_search","症状标签检索","按症状关键词匹配科室、权重和危险信号",1);
         add("medical_knowledge_retrieve","医学知识库检索","从 RAG 知识片段返回可引用的医疗资料",2);
-        add("department_search","科室查询","确认推荐科室及其擅长范围",3);
+        add("department_search","科室查询","查询目录是否配置或启用科室，并区分医生、排班及模拟号源状态；不判断医学适用性",3);
         add("doctor_schedule_search","医生出诊排班查询","返回推荐科室可预约的医生与号源",4);
     }
     private void add(String code, String name, String description, int order) {

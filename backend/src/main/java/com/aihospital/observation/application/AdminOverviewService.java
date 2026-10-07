@@ -25,6 +25,6 @@ public class AdminOverviewService {
         int fromTriage = store.triageAppointments();
         double acceptanceRate = sessions == 0 ? 0 : Math.round(fromTriage * 1000.0 / sessions) / 10.0;
         return new Dashboard(sessions, appointments, completed, acceptanceRate,
-                knowledge.documents().size(), calls.calls().size() * 4);
+                knowledge.documents().size(), store.toolCalls());
     }
 }

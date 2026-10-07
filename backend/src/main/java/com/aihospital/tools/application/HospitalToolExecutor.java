@@ -50,7 +50,11 @@ public class HospitalToolExecutor {
                 case "medical_knowledge_retrieve" -> knowledge.retrieve(required(args, "query"), 3, retrievalMinScore);
                 case "department_search" -> {
                     String department = required(args, "department");
-                    yield Map.of("department", department, "exists", !doctors.doctors(department).isEmpty());
+                    var availability = doctors.departmentAvailability(department);
+                    yield Map.of("department", department, "exists", availability.exists(),
+                            "enabled", availability.enabled(), "status", availability.status().name(),
+                            "message", availability.message(), "activeDoctors", availability.activeDoctors(),
+                            "scheduledDoctors", availability.scheduledDoctors(), "bookableDoctors", availability.bookableDoctors());
                 }
                 case "doctor_schedule_search" -> {
                     String department = required(args, "department");
@@ -87,7 +91,7 @@ public class HospitalToolExecutor {
         return switch (code) {
             case "symptom_tag_search" -> "已完成症状安全规则检查";
             case "medical_knowledge_retrieve" -> ((KnowledgeCatalog.Retrieval) result).message();
-            case "department_search" -> Boolean.TRUE.equals(((Map<?, ?>) result).get("exists")) ? "科室存在" : "科室不存在";
+            case "department_search" -> ((Map<?, ?>) result).get("message").toString();
             case "doctor_schedule_search" -> "返回 " + ((List<?>) result).size() + " 个模拟可用号源";
             default -> "工具执行完成";
         };

@@ -9,7 +9,12 @@ public final class TriageRecords {
     private TriageRecords() {}
     public record Session(String id, String title, String preview, String status,
                           LocalDateTime createdAt, LocalDateTime updatedAt) {}
-    public record ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {}
+    public record ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures,
+                                     AnswerEvidence.Diagnostics answerEvidence) {
+        public ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {
+            this(modelStatus, knowledgeHits, localToolCalls, toolFailures, null);
+        }
+    }
     public record Message(String id, String role, String content, LocalDateTime createdAt,
                           ResponseProvenance provenance) {}
     public record Assessment(int version, TriageResult result, LocalDateTime createdAt, String assistantMessageId) {}

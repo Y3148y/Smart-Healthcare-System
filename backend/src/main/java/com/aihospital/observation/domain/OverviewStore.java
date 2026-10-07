@@ -5,4 +5,5 @@ public interface OverviewStore {
     int appointments();
     int completedSessions();
     int triageAppointments();
+    int toolCalls();
 }

@@ -61,12 +61,13 @@
       "category": "循环",
       "acuity": "EMERGENCY",
       "reason": "当前胸痛在信息不足时不能在线排除心肺急症",
-      "expression": "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼",
+      "expression": "急性胸痛|持续胸痛|剧烈胸痛|胸痛|胸口痛|胸口疼|心口痛|心口疼|心脏绞痛",
       "citations": [
         {"id": "nhc-chest-pain", "title": "国家卫生健康委 胸痛相关科普文章", "note": "nhc.gov.cn 对程序化请求返回 412，须人工核对"},
-        {"id": "who-heart-attack", "title": "WHO Heart attack fact sheet"}
+        {"id": "who-heart-attack", "title": "WHO Heart attack fact sheet"},
+        {"id": "nhs-chest-pain", "title": "NHS Chest pain", "url": "https://www.nhs.uk/symptoms/chest-pain/", "note": "支持胸部疼痛/压榨感应及时评估；‘心脏绞痛’中文映射未经临床审核"}
       ],
-      "coverage": "只要出现「胸痛」二字即命中，含各种俗称。刻意从宽：宁可误报也不漏报心梗。"
+      "coverage": "胸痛及列明的胸部疼痛俗称触发保守急症提醒；新增‘心脏绞痛’属于未经临床审核的中文映射，不保证覆盖所有表达，也不判断具体病因。"
     },
     {
       "code": "ER-NEURO-001",

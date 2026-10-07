@@ -142,3 +142,11 @@ CREATE TABLE IF NOT EXISTS knowledge_document_metadata (
   metadata_json LONGTEXT NOT NULL,
   FOREIGN KEY (document_id) REFERENCES knowledge_document(id)
 );
+
+CREATE TABLE IF NOT EXISTS review_access_audit (
+  id VARCHAR(64) PRIMARY KEY,
+  actor VARCHAR(128) NOT NULL,
+  request_id VARCHAR(64) NOT NULL,
+  outcome VARCHAR(16) NOT NULL,
+  accessed_at TIMESTAMP NOT NULL
+);
