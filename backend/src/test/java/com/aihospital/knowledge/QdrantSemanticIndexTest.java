@@ -148,6 +148,22 @@ class QdrantSemanticIndexTest {
         } finally { server.stop(0); }
     }
 
+    @Test
+    void olderQdrantWithoutIndexCountReportsUnknownNotZero() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/collections/legacy-index", exchange -> respond(exchange, 200,
+                "{\"result\":{\"status\":\"green\",\"points_count\":12,"
+                        + "\"config\":{\"params\":{\"vectors\":{\"size\":1024,\"distance\":\"Cosine\"}},"
+                        + "\"hnsw_config\":{\"m\":16,\"ef_construct\":100,\"full_scan_threshold\":10000}}}}"));
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            ReflectionTestUtils.setField(index, "qdrantUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            ReflectionTestUtils.setField(index, "collection", "legacy-index");
+            assertEquals(-1, index.collectionConfiguration().indexedVectorsCount());
+        } finally { server.stop(0); }
+    }
+
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws java.io.IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");
