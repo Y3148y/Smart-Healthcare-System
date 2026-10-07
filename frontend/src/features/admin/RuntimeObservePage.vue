@@ -4,11 +4,11 @@ import { api } from '../../api'
 import { label, time } from './types'
 import type { KnowledgeRuntime, RetrievalEvent } from './types'
 interface ToolTrace { tool:string; elapsedMs:number; success:boolean; errorPresent:boolean }
-interface Call { id:string; time:string; purpose:string; model:string; inputTokens:number|null; outputTokens:number|null; elapsedMs:number; success:boolean; tools:ToolTrace[] }
+interface Call { id:string; time:string; purpose:string; model:string; inputTokens:number|null; outputTokens:number|null; elapsedMs:number; success:boolean; tools:ToolTrace[]; traceId:string|null }
 interface ModelRuntime { configured:boolean; mode:string; modelName:string; detail:string }
 const calls = ref<Call[]>([]), events = ref<RetrievalEvent[]>([]), model = ref<ModelRuntime | null>(null), knowledge = ref<KnowledgeRuntime>({})
 const loading = ref(false), errors = ref<string[]>([]), callsAvailable = ref(false), failureOnly = ref(false), keyword = ref(''), selected = ref<Call | null>(null)
-const filtered = computed(() => calls.value.filter(c => (!failureOnly.value || !c.success || c.tools.some(t => !t.success)) && `${c.purpose} ${c.model}`.toLowerCase().includes(keyword.value.trim().toLowerCase())))
+const filtered = computed(() => calls.value.filter(c => (!failureOnly.value || !c.success || c.tools.some(t => !t.success)) && `${c.purpose} ${c.model} ${c.traceId || ''}`.toLowerCase().includes(keyword.value.trim().toLowerCase())))
 const currentPage = ref(1), pageSize = 10
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)))
 const pageCalls = computed(() => filtered.value.slice((currentPage.value-1)*pageSize, currentPage.value*pageSize))
@@ -35,6 +35,7 @@ onMounted(load)
     <h3>模型与工具调用记录</h3><div class="admin-toolbar"><label>筛选用途或模型<input v-model="keyword" placeholder="输入关键词"></label><label class="admin-check"><input v-model="failureOnly" type="checkbox">仅看失败或工具错误</label><small>仅显示技术摘要，不提供患者身份、工具入参和原始错误。旧用量未知显示“—”。</small></div><div class="table-card admin-scroll"><table><thead><tr><th>调用时间</th><th>用途</th><th>模型 / 状态</th><th>Token（入 / 出）</th><th>耗时</th><th>结果</th><th>详情</th></tr></thead><tbody><tr v-for="c in pageCalls" :key="c.id"><td>{{ time(c.time) }}</td><td>{{ c.purpose }}</td><td>{{ c.model }}</td><td>{{ c.inputTokens ?? '—' }} / {{ c.outputTokens ?? '—' }}</td><td>{{ c.elapsedMs }}ms</td><td><span class="admin-badge" :class="{ok:c.success}">{{ c.success?'成功':'失败' }}</span></td><td><button class="mini" @click="selected=c">查看调用顺序</button></td></tr><tr v-if="!filtered.length"><td colspan="7" class="empty">{{ loading?'正在读取…':callsAvailable?'没有匹配的调用记录':'调用记录暂不可用' }}</td></tr></tbody></table></div>
     <div v-if="filtered.length" class="admin-toolbar"><span>共 {{ filtered.length }} 条 · 第 {{ currentPage }}/{{ pageCount }} 页</span><button class="mini" :disabled="currentPage<=1" @click="currentPage--">上一页</button><button class="mini" :disabled="currentPage>=pageCount" @click="currentPage++">下一页</button></div>
     <section v-if="selected" class="table-card admin-document"><div class="admin-title"><h3>调用 {{ selected.id.slice(0,8) }} 的工具顺序</h3><button class="mini" @click="selected=null">关闭详情</button></div><ol class="admin-tool-trace"><li v-for="(t,i) in selected.tools" :key="i"><b>{{ t.tool }}</b><span>{{ t.elapsedMs }}ms · {{ t.success?'成功':'失败' }}</span><p v-if="t.errorPresent" class="admin-error">该工具记录了错误；此技术视图不展示可能含患者信息的原始错误。</p></li></ol><p v-if="!selected.tools.length">这条记录没有保存工具轨迹。</p></section>
+    <p v-if="selected?.traceId" class="admin-notice">本轮关联标识：{{ selected.traceId }}（可在关键词框筛选当前已加载记录；旧记录无标识不补造）</p>
     <h3>最近检索执行</h3><p>保留本进程最近 100 条执行摘要，重启清空；不保存患者问题或知识片段。这里的检索记录包含管理员调试请求。</p><div class="table-card admin-scroll"><table><thead><tr><th>时间</th><th>实际路径</th><th>向量状态</th><th>重排状态</th><th>候选 / 保留</th><th>耗时</th></tr></thead><tbody><tr v-for="e in events" :key="e.id"><td>{{ time(e.time) }}</td><td>{{ e.mode }}</td><td>{{ label(e.semanticStatus) }}</td><td>{{ label(e.rerankStatus) }}</td><td>{{ e.candidates }} / {{ e.selected }}</td><td>{{ e.elapsedMs }}ms</td></tr><tr v-if="!events.length"><td colspan="6" class="empty">当前没有可展示的检索执行记录</td></tr></tbody></table></div>
   </div>
 </template>

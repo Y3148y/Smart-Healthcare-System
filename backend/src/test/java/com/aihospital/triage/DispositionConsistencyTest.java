@@ -36,7 +36,7 @@ class DispositionConsistencyTest {
         when(store.assessments("s1")).thenReturn(List.of());
         when(engine.triage(eq("s1"), anyString(), eq("patient"), anyList())).thenReturn(pending);
 
-        new TriageConversationService(store, engine, catalog).send("s1", "patient", "我要挂号");
+        new TriageConversationService(store, engine, catalog, new com.aihospital.observation.infrastructure.demo.InMemoryCallLogStore()).send("s1", "patient", "我要挂号");
 
         var saved = org.mockito.ArgumentCaptor.forClass(TriageResult.class);
         verify(store).saveAssessmentAndAnswer(eq("s1"), eq(1), saved.capture());

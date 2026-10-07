@@ -19,17 +19,22 @@ public class MybatisCallLogStore implements CallLogStore {
     public MybatisCallLogStore(CallLogMapper mapper, ObjectMapper json) { this.mapper = mapper; this.json = json; }
 
     @Override public List<CallLog> calls() {
-        return mapper.recent().stream().map(row -> new CallLog(string(row,"id"), dateTime(row,"called_at"),
+        return rows(mapper.recent());
+    }
+    @Override public List<CallLog> calls(String traceId) { return rows(mapper.byTrace(traceId)); }
+    private List<CallLog> rows(List<java.util.Map<String,Object>> rows) {
+        return rows.stream().map(row -> new CallLog(string(row,"id"), dateTime(row,"called_at"),
                 string(row,"purpose"), string(row,"actor"), string(row,"model"), integer(row,"input_tokens"),
                 integer(row,"output_tokens"), ((Number)row.get("elapsed_ms")).longValue(),
                 Boolean.TRUE.equals(row.get("success")) || Integer.valueOf(1).equals(row.get("success")),
-                tools(string(row,"tools_json")))).toList();
+                tools(string(row,"tools_json")), string(row,"trace_id"))).toList();
     }
 
-    @Override public void record(CallLog call) {
+    @Override @org.springframework.transaction.annotation.Transactional public void record(CallLog call) {
         try {
             mapper.insert(call.id(), call.time(), call.purpose(), call.user(), call.model(), call.inputTokens(),
                     call.outputTokens(), call.elapsedMs(), call.success(), json.writeValueAsString(call.tools()));
+            if (call.traceId() != null) mapper.insertTrace(call.id(), call.traceId());
         } catch (JsonProcessingException ex) { throw new IllegalStateException("无法保存 Agent 审计日志", ex); }
     }
 

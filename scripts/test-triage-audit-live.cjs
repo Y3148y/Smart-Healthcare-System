@@ -50,6 +50,15 @@ async function main() {
   const provenance = message.provenance
   const diagnostics = provenance?.answerEvidence
   assert.ok(diagnostics?.traceId, 'Answer trace missing')
+  assert.equal(provenance.turnTrace?.traceId, diagnostics.traceId, 'Per-turn trace missing; reload backend')
+  const userMessage = [...turn.data.messages].reverse().find(item => item.role === 'USER')
+  assert.equal(provenance.turnTrace.userMessageId, userMessage.id)
+  const scoped = await request('/admin/calls?traceId=' + diagnostics.traceId, admin)
+  assert.equal(scoped.status, 200)
+  assert.ok(scoped.data.length > 0)
+  assert.ok(scoped.data.every(item => item.traceId === diagnostics.traceId))
+  assert.ok(scoped.data.some(item => item.purpose === 'medical_knowledge_retrieve'))
+  assert.ok(scoped.data.some(item => item.purpose === '会话处理'))
   const calls = await request('/admin/calls', admin)
   assert.equal(calls.status, 200)
   for (const call of calls.data) {

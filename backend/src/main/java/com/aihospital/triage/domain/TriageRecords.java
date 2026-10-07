@@ -10,7 +10,13 @@ public final class TriageRecords {
     public record Session(String id, String title, String preview, String status,
                           LocalDateTime createdAt, LocalDateTime updatedAt) {}
     public record ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures,
-                                     AnswerEvidence.Diagnostics answerEvidence) {
+                                     AnswerEvidence.Diagnostics answerEvidence,
+                                     com.aihospital.shared.diagnostics.TurnTraceContext.Metadata turnTrace) {
+        public ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures,
+                                  AnswerEvidence.Diagnostics answerEvidence) {
+            this(modelStatus, knowledgeHits, localToolCalls, toolFailures, answerEvidence,
+                    com.aihospital.shared.diagnostics.TurnTraceContext.metadata());
+        }
         public ResponseProvenance(String modelStatus, int knowledgeHits, int localToolCalls, int toolFailures) {
             this(modelStatus, knowledgeHits, localToolCalls, toolFailures, null);
         }

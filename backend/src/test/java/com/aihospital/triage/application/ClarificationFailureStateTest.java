@@ -12,7 +12,8 @@ class ClarificationFailureStateTest {
     @Test void failedGuidanceKeepsPatientMessageAndExitsProcessingWithoutInventingAnswer() {
         var store = mock(TriageStore.class);
         var engine = mock(TriageEngine.class);
-        var service = new TriageConversationService(store, engine, null);
+        var calls = new com.aihospital.observation.infrastructure.demo.InMemoryCallLogStore();
+        var service = new TriageConversationService(store, engine, null, calls);
         var now = LocalDateTime.now();
         when(store.sessions("patient")).thenReturn(List.of(new Session("session", "新会话", "", "等待描述", now, now)));
         when(store.messages("session")).thenReturn(List.of());
@@ -26,5 +27,9 @@ class ClarificationFailureStateTest {
         verify(store).updateSession("session", "合成问题", "合成问题", "待重试");
         verify(store, never()).appendAssistantMessage(anyString(), anyString(), any());
         verify(store, never()).saveAssessmentAndAnswer(anyString(), anyInt(), any());
+        assertNull(com.aihospital.shared.diagnostics.TurnTraceContext.currentId());
+        assertEquals(1, calls.calls().size());
+        assertFalse(calls.calls().get(0).success());
+        assertNotNull(calls.calls().get(0).traceId());
     }
 }

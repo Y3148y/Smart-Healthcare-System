@@ -150,3 +150,10 @@ CREATE TABLE IF NOT EXISTS review_access_audit (
   outcome VARCHAR(16) NOT NULL,
   accessed_at TIMESTAMP NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS agent_call_trace (
+  call_id VARCHAR(64) PRIMARY KEY,
+  trace_id VARCHAR(64) NOT NULL,
+  FOREIGN KEY (call_id) REFERENCES agent_call_log(id)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_call_trace_id ON agent_call_trace(trace_id);

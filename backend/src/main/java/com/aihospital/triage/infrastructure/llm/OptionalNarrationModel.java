@@ -47,7 +47,7 @@ public class OptionalNarrationModel implements NarrationModel {
             String fallback, List<Turn> history, boolean guidance, String retrievalStatus) {
         long started = System.nanoTime();
         var references = promptReferences(evidence);
-        String traceId = java.util.UUID.randomUUID().toString();
+        String traceId = com.aihospital.shared.diagnostics.TurnTraceContext.currentOrNewId();
         var generation = new com.aihospital.triage.domain.AnswerEvidence.Generation("NOT_RUN", null, null, null, null);
         if (!"openai-compatible".equalsIgnoreCase(mode) || apiKey.isBlank() || model.isBlank())
             return diagnosed(new Answer(fallback, evidence.isEmpty() ? "DEMO_UNGROUNDED" : "DEMO", ""),

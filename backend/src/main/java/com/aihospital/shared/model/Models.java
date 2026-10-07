@@ -36,6 +36,12 @@ public final class Models {
     public record KnowledgeDocument(String id, String title, String body, int chunks, String status, LocalDateTime updatedAt) {}
     public record Tool(String code, String name, String description, boolean enabled, int order) {}
     public record CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
-                          long elapsedMs, boolean success, List<ToolTrace> tools) {}
+                          long elapsedMs, boolean success, List<ToolTrace> tools, String traceId) {
+        public CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
+                       long elapsedMs, boolean success, List<ToolTrace> tools) {
+            this(id, time, purpose, user, model, inputTokens, outputTokens, elapsedMs, success, tools,
+                    com.aihospital.shared.diagnostics.TurnTraceContext.currentId());
+        }
+    }
     public record Dashboard(int sessions, int appointments, int completed, double acceptanceRate, int documents, int toolCalls) {}
 }

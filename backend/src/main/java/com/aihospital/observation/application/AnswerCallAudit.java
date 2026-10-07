@@ -31,13 +31,13 @@ public final class AnswerCallAudit {
                 : answer.modelName() + "/" + answer.status();
         var call = new CallLog(id, LocalDateTime.now(), purpose, actor, model,
                 measured(generation == null ? null : generation.inputTokens()),
-                measured(generation == null ? null : generation.outputTokens()), Math.max(0, elapsedMs), success, trace);
+                measured(generation == null ? null : generation.outputTokens()), Math.max(0, elapsedMs), success, trace, id);
         if (review == null) return List.of(call);
         // Separate usage: do not conceal an unknown review count in a partially known aggregate.
         var reviewCall = new CallLog(id + "-review", call.time(), "回答依据核对", actor, answer.modelName(),
                 measured(review.inputTokens()), measured(review.outputTokens()),
                 review.elapsedMs() == null ? 0 : Math.max(0, review.elapsedMs()),
-                "PASSED".equals(review.status()), List.of());
+                "PASSED".equals(review.status()), List.of(), id);
         return List.of(call, reviewCall);
     }
 

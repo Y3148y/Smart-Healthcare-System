@@ -19,7 +19,13 @@ public interface CallLogMapper {
                @Param("outputTokens") int outputTokens, @Param("elapsedMs") long elapsedMs,
                @Param("success") boolean success, @Param("toolsJson") String toolsJson);
 
-    @Select("SELECT id,called_at,purpose,actor,model,input_tokens,output_tokens,elapsed_ms,success,tools_json "
-            + "FROM agent_call_log ORDER BY called_at DESC LIMIT 200")
+    @Insert("INSERT INTO agent_call_trace(call_id,trace_id) VALUES(#{id},#{traceId})")
+    int insertTrace(@Param("id") String id, @Param("traceId") String traceId);
+
+    @Select("SELECT l.id,l.called_at,l.purpose,l.actor,l.model,l.input_tokens,l.output_tokens,l.elapsed_ms,l.success,l.tools_json,t.trace_id "
+            + "FROM agent_call_log l LEFT JOIN agent_call_trace t ON t.call_id=l.id ORDER BY l.called_at DESC LIMIT 200")
     List<Map<String,Object>> recent();
+    @Select("SELECT l.id,l.called_at,l.purpose,l.actor,l.model,l.input_tokens,l.output_tokens,l.elapsed_ms,l.success,l.tools_json,t.trace_id "
+            + "FROM agent_call_log l JOIN agent_call_trace t ON t.call_id=l.id WHERE t.trace_id=#{traceId} ORDER BY l.called_at DESC LIMIT 200")
+    List<Map<String,Object>> byTrace(@Param("traceId") String traceId);
 }

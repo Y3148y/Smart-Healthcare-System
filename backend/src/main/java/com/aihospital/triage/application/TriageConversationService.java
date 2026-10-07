@@ -25,11 +25,15 @@ public class TriageConversationService {
     private final TriageStore store;
     private final TriageEngine triageEngine;
     private final DoctorCatalogService catalog;
+    private final com.aihospital.observation.domain.CallLogStore calls;
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TriageConversationService.class);
 
-    public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog) {
+    public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
+                                    com.aihospital.observation.domain.CallLogStore calls) {
         this.store = store;
         this.triageEngine = triageEngine;
         this.catalog = catalog;
+        this.calls = calls;
     }
 
     public List<Session> sessions(String patient) {
@@ -78,7 +82,40 @@ public class TriageConversationService {
         if (content.isBlank() || content.length() > 2000)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "症状描述应为 1 至 2000 字");
 
-        append(id, "USER", content);
+        String userMessageId = append(id, "USER", content);
+        try (var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open(userMessageId,
+                com.aihospital.triage.domain.TriageSafetyPolicy.POLICY_VERSION)) {
+            try {
+                Conversation result = processTurn(id, patient, content, session, updates, progress, trace);
+                var provenance = result.messages().stream().filter(m -> "ASSISTANT".equals(m.role()))
+                        .reduce((a,b) -> b).map(Message::provenance).orElse(null);
+                boolean success = provenance != null && !Set.of("FALLBACK", "FALLBACK_UNGROUNDED", "VALIDATION_BLOCKED", "EVIDENCE_BLOCKED").contains(provenance.modelStatus())
+                        && provenance.toolFailures() == 0;
+                recordTerminal(trace, success, provenance == null ? "NO_ANSWER" : provenance.modelStatus());
+                return result;
+            } catch (RuntimeException failure) {
+                recordTerminal(trace, false, "FAILED/" + failure.getClass().getSimpleName());
+                throw failure;
+            }
+        }
+    }
+
+    private void recordTerminal(com.aihospital.shared.diagnostics.TurnTraceContext trace, boolean success, String status) {
+        var metadata = com.aihospital.shared.diagnostics.TurnTraceContext.metadata();
+        try {
+            calls.record(new com.aihospital.shared.model.Models.CallLog(java.util.UUID.randomUUID().toString(),
+                    LocalDateTime.now(), "会话处理", "", metadata.route() + "/" + status,
+                    0, 0, metadata.elapsedMs(), success, List.of()));
+        } catch (RuntimeException unavailable) {
+            // Do not replace a completed safety reply or mask the original failure with an audit write failure.
+            log.warn("Turn terminal audit unavailable traceId={} causeType={}", metadata.traceId(), unavailable.getClass().getSimpleName());
+        }
+    }
+
+    private Conversation processTurn(String id, String patient, String content, Session session,
+            java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates,
+            java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress,
+            com.aihospital.shared.diagnostics.TurnTraceContext trace) {
         String title = "新会话".equals(session.title()) ? content.substring(0, Math.min(24, content.length())) : session.title();
         update(id, title, content.substring(0, Math.min(120, content.length())), "处理中");
 
@@ -95,6 +132,7 @@ public class TriageConversationService {
         // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
         if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
                 && triageEngine.needsClarification(combined,content)) {
+            trace.route("GUIDANCE");
             final TriageEngine.Guidance guidance;
             try {
                 guidance = progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
@@ -103,6 +141,7 @@ public class TriageConversationService {
                 throw ex;
             }
             updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
+            if ("POLICY_REFUSAL".equals(guidance.modelStatus())) trace.route("POLICY_REFUSAL");
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
                     guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures(), guidance.answerEvidence()));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
@@ -110,6 +149,7 @@ public class TriageConversationService {
         }
 
         final TriageResult result;
+        trace.route("ASSESSMENT");
         try {
             result = withCurrentAvailability(progress==null?triageEngine.triage(id,combined,patient,history):triageEngine.triage(id, combined, patient, history,updates));
         } catch (RuntimeException ex) {
@@ -122,6 +162,8 @@ public class TriageConversationService {
         // disposition is reported even when nothing could be grounded, with grounded=false so
         // the UI still shows that the reasoning is not evidence-backed.
         updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
+        if (result.safetyAssessment() != null && result.safetyAssessment().humanReviewRecommended()) trace.route("SAFETY");
+        if ("POLICY_REFUSAL".equals(result.modelStatus())) trace.route("POLICY_REFUSAL");
         if (!result.grounded() && !result.safetyAssessment().humanReviewRecommended()) {
             store.appendAssistantMessage(id, result.summary(), provenance(result));
             update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);

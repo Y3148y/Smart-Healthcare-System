@@ -23,8 +23,18 @@ public class AdminObservationController {
     @GetMapping("/dashboard") public Dashboard dashboard(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return overview.dashboard();
     }
-    @GetMapping("/calls") public List<TechnicalCallView> calls(@RequestHeader(value = "Authorization", required = false) String auth) {
-        guard.require(auth, "ADMIN"); return calls.calls().stream().map(TechnicalCallView::from).toList();
+    public List<TechnicalCallView> calls(String auth) { return calls(auth, null); }
+    @GetMapping("/calls") public List<TechnicalCallView> calls(@RequestHeader(value = "Authorization", required = false) String auth,
+            @RequestParam(required = false) String traceId) {
+        guard.require(auth, "ADMIN");
+        if (traceId == null) return calls.calls().stream().map(TechnicalCallView::from).toList();
+        try {
+            if (traceId.length() != 36) throw new IllegalArgumentException();
+            traceId = java.util.UUID.fromString(traceId).toString();
+        } catch (IllegalArgumentException invalid) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.BAD_REQUEST, "轮次标识格式无效");
+        }
+        return calls.calls(traceId).stream().map(TechnicalCallView::from).toList();
     }
     @GetMapping("/ai-runtime") public NarrationModel.RuntimeStatus aiRuntime(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return narration.runtimeStatus();
