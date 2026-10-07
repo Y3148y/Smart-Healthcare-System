@@ -8,6 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "audit:corpus": "node audit-corpus.mjs",
     "test": "node --test tests/*.test.mjs",
     "intake": "node cli.mjs intake",
     "sources": "node cli.mjs sources",

@@ -62,3 +62,6 @@
 ## 依赖
 
 Node ≥ 20（全局 `fetch`）；`npm ci` 安装锁文件固定的 parse5 HTML 解析器，不需要 API 密钥。解析方式见 [parse5](https://github.com/inikulin/parse5)。
+# 内置语料盘点
+
+`npm run audit:corpus`只读盘点11份旧Markdown：来源声明、正文码点数、内容哈希及缺失声明。不会自动批准、联网、复制正文或修改数据库。500码点仅为短资料人工复核提示，不是临床质量判定。新入库资料的审核仍走既有intake与管理员审批流程。
