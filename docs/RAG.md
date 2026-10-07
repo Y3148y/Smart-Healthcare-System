@@ -33,8 +33,8 @@
 MarkdownChunker按标题章节和段落切分，同章节短段按原顺序打包，不跨标题。长段最多420个Unicode码点、重叠60码点，优先在合适句末切开。
 每个片段保存文档ID/内容版本、稳定片段ID、章节路径、原始位置、正文哈希和切分策略。长医学条件可能跨窗口，仍需片段级审核，不能仅凭切分成功认定语义完整。
 BM25统计索引与embedding/Qdrant使用同一批准片段；Qdrant payload包含溯源和模型名，校验请求快照中的point身份及payload，不证明医学相关性。
-新collection可配置HNSW参数；小数据可能全扫描。向量已存储不等于HNSW已经参与查询，已有collection也不会因修改默认配置自动更新。
-KnowledgeIndexBuildRunner显式启用离线构建，复用批准语料同步入口，生成本地片段/模型/实际collection配置清单；数量或身份不一致时拒绝成功。
+新collection可配置HNSW参数；小数据可能全扫描。向量已存储不等于HNSW已经参与查询，已有collection也不会因修改默认配置自动更新。离线清单读取Qdrant实际`indexed_vectors_count`；字段缺失记为-1（未知），不能把未知伪装成0。2026-10-07本机观察到collection为12 points、0 indexed vectors、1024维Cosine、m=16、ef_construct=100、full_scan_threshold=10000KB；这与小collection走精确扫描相符，不证明线上其他实例配置相同。
+KnowledgeIndexBuildRunner显式启用离线构建，复用批准语料同步入口，生成本地片段/模型/实际collection配置清单；数量或身份不一致时拒绝成功。清单不包含患者query和资料正文。
 
 ## 在线检索
 

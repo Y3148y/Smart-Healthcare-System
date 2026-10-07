@@ -22,7 +22,7 @@ class KnowledgeIndexBuildTest {
     @Test void corpusFingerprintIsStableAcrossOrderingAndChangesWithContent() {
         var one = new Evidence("头痛资料", "https://source.invalid/a", "头痛持续时间说明", 0);
         var two = new Evidence("胸痛资料", "https://source.invalid/b", "胸痛需要评估", 0);
-        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 1024, "Cosine", 16, 100, 10000);
+        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 0, 1024, "Cosine", 16, 100, 10000);
         var first = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1", List.of(one, two), 2, configuration);
         var reordered = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1", List.of(two, one), 2, configuration);
         var changed = KnowledgeIndexBuildManifest.create("triage-v3", "embedding-v1", "section-window-v1",
@@ -32,7 +32,8 @@ class KnowledgeIndexBuildTest {
         assertNotEquals(first.corpusSha256(), changed.corpusSha256());
         assertEquals(64, first.corpusSha256().length());
         assertEquals(2, first.chunkCount());
-        assertEquals(2, first.schemaVersion());
+        assertEquals(3, first.schemaVersion());
+        assertEquals(0, first.collectionIndexedVectorsCount());
         assertEquals("section-window-v1", first.chunkingProfile());
         assertEquals(1024, first.vectorSize());
         assertEquals(10000, first.fullScanThresholdKb());
@@ -40,7 +41,7 @@ class KnowledgeIndexBuildTest {
 
     @Test void provenanceCannotDescribeDifferentOrDuplicateChunks() {
         var corpus = List.of(new Evidence("Fixture", "https://source.invalid", "Fixture body", 1));
-        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 1024, "Cosine", 16, 100, 10000);
+        var configuration = new QdrantSemanticIndex.CollectionConfiguration("green", 2, 2, 1024, "Cosine", 16, 100, 10000);
         var chunks = new com.aihospital.knowledge.domain.MarkdownChunker().split("fixture", "Fixture",
                 "https://source.invalid", "Fixture body");
         assertThrows(IllegalArgumentException.class, () -> KnowledgeIndexBuildManifest.createWithProvenance(
@@ -70,7 +71,7 @@ class KnowledgeIndexBuildTest {
         var semantic = mock(QdrantSemanticIndex.class);
         when(semantic.indexedCount(corpus)).thenReturn(1);
         when(semantic.collectionConfiguration()).thenReturn(
-                new QdrantSemanticIndex.CollectionConfiguration("green", 1, 1024, "Cosine", 16, 100, 10000));
+                new QdrantSemanticIndex.CollectionConfiguration("green", 1, 1, 1024, "Cosine", 16, 100, 10000));
         var runner = new KnowledgeIndexBuildRunner(catalog, local, semantic, new ObjectMapper());
         Path manifest = outputDir.resolve("build.json");
         ReflectionTestUtils.setField(runner, "collection", "triage-v3");
@@ -85,7 +86,8 @@ class KnowledgeIndexBuildTest {
         assertTrue(content.contains("chunkingProfile"));
         assertTrue(content.contains("hnswEfConstruct"));
         assertTrue(content.contains("vectorSize"));
-        assertEquals(3, new ObjectMapper().readTree(content).path("schemaVersion").asInt());
+        assertEquals(4, new ObjectMapper().readTree(content).path("schemaVersion").asInt());
+        assertEquals(1, new ObjectMapper().readTree(content).path("collectionIndexedVectorsCount").asInt());
         assertEquals(chunks.get(0).chunkId(), new ObjectMapper().readTree(content).path("chunks").get(0).path("chunkId").asText());
         assertFalse(content.contains("本地知识正文不得写入清单"));
         assertFalse(content.contains("API_KEY"));

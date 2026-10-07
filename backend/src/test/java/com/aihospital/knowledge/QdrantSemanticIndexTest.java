@@ -128,6 +128,26 @@ class QdrantSemanticIndexTest {
         } finally { server.stop(0); }
     }
 
+    @Test
+    void reportsExistingCollectionIndexStateInsteadOfAssumingHnswIsBuilt() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/collections/index-state", exchange -> respond(exchange, 200,
+                "{\"result\":{\"status\":\"green\",\"points_count\":12,\"indexed_vectors_count\":0,"
+                        + "\"config\":{\"params\":{\"vectors\":{\"size\":1024,\"distance\":\"Cosine\"}},"
+                        + "\"hnsw_config\":{\"m\":16,\"ef_construct\":100,\"full_scan_threshold\":10000}}}}"));
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            ReflectionTestUtils.setField(index, "qdrantUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            ReflectionTestUtils.setField(index, "collection", "index-state");
+            var actual = index.collectionConfiguration();
+            assertEquals(12, actual.pointCount());
+            assertEquals(0, actual.indexedVectorsCount(), "small collection may use exact scan without HNSW vectors");
+            assertEquals(1024, actual.vectorSize());
+            assertEquals(10000, actual.fullScanThresholdKb());
+        } finally { server.stop(0); }
+    }
+
     private static void respond(com.sun.net.httpserver.HttpExchange exchange, int status, String body) throws java.io.IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add("Content-Type", "application/json");

@@ -19,6 +19,7 @@ public record KnowledgeIndexBuildManifest(
         int chunkCount,
         int indexedChunkCount,
         int collectionPointCount,
+        int collectionIndexedVectorsCount,
         String collectionStatus,
         int vectorSize,
         String distance,
@@ -60,8 +61,9 @@ public record KnowledgeIndexBuildManifest(
         if (!expected.equals(actual)) throw new IllegalArgumentException("Index provenance does not match the approved corpus");
         var entries = sourceChunks.stream().map(ChunkEntry::from)
                 .sorted(java.util.Comparator.comparing(ChunkEntry::documentId).thenComparingInt(ChunkEntry::ordinal)).toList();
-        return new KnowledgeIndexBuildManifest(3, base.collection(), base.embeddingModel(), base.chunkingProfile(),
+        return new KnowledgeIndexBuildManifest(4, base.collection(), base.embeddingModel(), base.chunkingProfile(),
                 base.corpusSha256(), base.chunkCount(), base.indexedChunkCount(), base.collectionPointCount(),
+                base.collectionIndexedVectorsCount(),
                 base.collectionStatus(), base.vectorSize(), base.distance(), base.hnswM(), base.hnswEfConstruct(),
                 base.fullScanThresholdKb(), entries);
     }
@@ -77,12 +79,14 @@ public record KnowledgeIndexBuildManifest(
         if (indexedChunkCount < 0 || indexedChunkCount > corpus.size())
             throw new IllegalArgumentException("Indexed chunk count is outside corpus bounds");
         if (configuration.status() == null || configuration.status().isBlank()
-                || configuration.pointCount() < indexedChunkCount || configuration.vectorSize() < 1
+                || configuration.pointCount() < indexedChunkCount || configuration.indexedVectorsCount() < -1
+                || configuration.indexedVectorsCount() > configuration.pointCount() || configuration.vectorSize() < 1
                 || configuration.distance() == null || configuration.distance().isBlank() || configuration.hnswM() < 2
                 || configuration.hnswEfConstruct() < 1 || configuration.fullScanThresholdKb() < 0)
             throw new IllegalArgumentException("Qdrant collection configuration is inconsistent with the index build");
-        return new KnowledgeIndexBuildManifest(2, collection, embeddingModel, chunkingProfile,
-                fingerprint(corpus), corpus.size(), indexedChunkCount, configuration.pointCount(), configuration.status(),
+        return new KnowledgeIndexBuildManifest(3, collection, embeddingModel, chunkingProfile,
+                fingerprint(corpus), corpus.size(), indexedChunkCount, configuration.pointCount(),
+                configuration.indexedVectorsCount(), configuration.status(),
                 configuration.vectorSize(), configuration.distance(), configuration.hnswM(),
                 configuration.hnswEfConstruct(), configuration.fullScanThresholdKb(), List.of());
     }
