@@ -27,7 +27,7 @@ export function evaluateCase(item, report) {
   const selected = report.retrieval.evidence.map(e => e.title);
   const dependencyPassed = report.semanticStatus === 'READY' && ['OK', 'EMPTY'].includes(report.rerankStatus);
   const expectationMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
-  return {id:item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
+  return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
     dependencyPassed, expectationMet, passed:dependencyPassed && expectationMet,
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
     extraSelectionsForReview:item.expectedTitle === null ? selected : selected.filter(title => title !== item.expectedTitle),
@@ -38,7 +38,21 @@ export function evaluateCase(item, report) {
 }
 
 export function summarize(results) {
+  const covered = results.filter(r => r.expectedTitle !== null);
+  const durations = results.map(r => r.elapsedMs).filter(v => Number.isFinite(v) && v >= 0).sort((a,b)=>a-b);
+  const percentile = p => durations.length ? durations[Math.ceil(p * durations.length) - 1] : null;
+  const targetMetrics = covered.length ? {
+    denominator: covered.length,
+    candidateTargetHitRate: covered.filter(r => r.candidates.some(c => c.title === r.expectedTitle)).length / covered.length,
+    finalTargetHitRate: covered.filter(r => r.selected.includes(r.expectedTitle)).length / covered.length,
+    finalTargetMrr: covered.reduce((sum,r) => {
+      const rank = r.selected.indexOf(r.expectedTitle);
+      return sum + (rank < 0 ? 0 : 1 / (rank + 1));
+    },0) / covered.length,
+    interpretation: 'Single expected document-title target, not exhaustive relevance labels or precision.'
+  } : null;
   return {cases:results.length, passed:results.filter(r=>r.passed).length,
+    targetMetrics, retrievalLatencyMs:{measuredCases:durations.length,p50:percentile(0.5),p95:percentile(0.95)},
     failedIds:results.filter(r=>!r.passed).map(r=>r.id),
     dependencyFailures:results.filter(r=>!r.dependencyPassed).length,
     coveredTopicHits:results.filter(r=>r.expectedTitle !== null && r.expectationMet).length,

@@ -42,6 +42,7 @@ try {
   const output = resolve(directory, '../../.codex-rag-evaluation', reportFileName(dataset.labelVersion, randomUUID()));
   mkdirSync(dirname(output),{recursive:true});
   writeFileSync(output,JSON.stringify({schemaVersion:1,time:new Date().toISOString(),labelVersion:dataset.labelVersion,
+    split:dataset.split ?? 'UNSPECIFIED',labelAuthor:dataset.labelAuthor ?? 'UNSPECIFIED',
     reviewStatus:dataset.reviewStatus,corpus:before,runtime:await request('admin/knowledge/runtime'),summary,results},null,2)+'\n');
   console.log(JSON.stringify({summary,output}));
   process.exitCode = summary.failedIds.length || !corpusStable ? 1 : 0;

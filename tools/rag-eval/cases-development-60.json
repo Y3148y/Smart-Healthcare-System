@@ -1,0 +1,370 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "published-topic-development-60-v1",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "split": "DEVELOPMENT_ONLY",
+  "labelAuthor": "IMPLEMENTATION_AUTHOR",
+  "note": "60条作者编制工程主题查询；同主题变体共享groupId，未建立独立留出集。无覆盖标签以当前发布资料主题为范围，不是医学判断。不用于宣布医学准确率或独立验收。",
+  "cases": [
+    {
+      "id": "common-cold-1",
+      "groupId": "common-cold",
+      "query": "流鼻涕 鼻塞 日常照护",
+      "expectedTitle": "普通感冒：症状、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "common-cold-2",
+      "groupId": "common-cold",
+      "query": "鼻塞流鼻涕怎么办",
+      "expectedTitle": "普通感冒：症状、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "common-cold-3",
+      "groupId": "common-cold",
+      "query": "感冒了，鼻子不通气",
+      "expectedTitle": "普通感冒：症状、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "common-cold-4",
+      "groupId": "common-cold",
+      "query": "普通感冒一般持续多久",
+      "expectedTitle": "普通感冒：症状、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "common-cold-5",
+      "groupId": "common-cold",
+      "query": "我流鼻涕，想了解感冒照护",
+      "expectedTitle": "普通感冒：症状、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "migraine-1",
+      "groupId": "migraine",
+      "query": "偏头痛 两天",
+      "expectedTitle": "偏头痛：表现、记录与就医条件（一般健康科普）"
+    },
+    {
+      "id": "migraine-2",
+      "groupId": "migraine",
+      "query": "偏头疼有什么注意事项",
+      "expectedTitle": "偏头痛：表现、记录与就医条件（一般健康科普）"
+    },
+    {
+      "id": "migraine-3",
+      "groupId": "migraine",
+      "query": "偏头痛怎么记录发作情况",
+      "expectedTitle": "偏头痛：表现、记录与就医条件（一般健康科普）"
+    },
+    {
+      "id": "migraine-4",
+      "groupId": "migraine",
+      "query": "我反复偏头疼，如何准备看医生",
+      "expectedTitle": "偏头痛：表现、记录与就医条件（一般健康科普）"
+    },
+    {
+      "id": "migraine-5",
+      "groupId": "migraine",
+      "query": "了解偏头痛的常见表现",
+      "expectedTitle": "偏头痛：表现、记录与就医条件（一般健康科普）"
+    },
+    {
+      "id": "sore-throat-1",
+      "groupId": "sore-throat",
+      "query": "咽痛 一周没好",
+      "expectedTitle": "咽痛：一般照护和就医条件（一般健康科普）"
+    },
+    {
+      "id": "sore-throat-2",
+      "groupId": "sore-throat",
+      "query": "嗓子疼怎么照护",
+      "expectedTitle": "咽痛：一般照护和就医条件（一般健康科普）"
+    },
+    {
+      "id": "sore-throat-3",
+      "groupId": "sore-throat",
+      "query": "喉咙痛，一周没有改善",
+      "expectedTitle": "咽痛：一般照护和就医条件（一般健康科普）"
+    },
+    {
+      "id": "sore-throat-4",
+      "groupId": "sore-throat",
+      "query": "咽痛时有哪些就医条件",
+      "expectedTitle": "咽痛：一般照护和就医条件（一般健康科普）"
+    },
+    {
+      "id": "sore-throat-5",
+      "groupId": "sore-throat",
+      "query": "吞咽疼痛，想了解咽痛资料",
+      "expectedTitle": "咽痛：一般照护和就医条件（一般健康科普）"
+    },
+    {
+      "id": "period-pain-1",
+      "groupId": "period-pain",
+      "query": "痛经 比平时严重",
+      "expectedTitle": "痛经：表现、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "period-pain-2",
+      "groupId": "period-pain",
+      "query": "来月经肚子疼",
+      "expectedTitle": "痛经：表现、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "period-pain-3",
+      "groupId": "period-pain",
+      "query": "经期疼痛比以前更重",
+      "expectedTitle": "痛经：表现、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "period-pain-4",
+      "groupId": "period-pain",
+      "query": "痛经影响日常活动怎么办",
+      "expectedTitle": "痛经：表现、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "period-pain-5",
+      "groupId": "period-pain",
+      "query": "想了解痛经的就医条件",
+      "expectedTitle": "痛经：表现、照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "broken-arm-1",
+      "groupId": "broken-arm",
+      "query": "手腕摔伤 疑似骨折",
+      "expectedTitle": "手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"
+    },
+    {
+      "id": "broken-arm-2",
+      "groupId": "broken-arm",
+      "query": "摔倒后手臂疑似骨折",
+      "expectedTitle": "手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"
+    },
+    {
+      "id": "broken-arm-3",
+      "groupId": "broken-arm",
+      "query": "手腕骨折等待就医时注意什么",
+      "expectedTitle": "手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"
+    },
+    {
+      "id": "broken-arm-4",
+      "groupId": "broken-arm",
+      "query": "想了解手臂骨折的就医资料",
+      "expectedTitle": "手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"
+    },
+    {
+      "id": "broken-arm-5",
+      "groupId": "broken-arm",
+      "query": "手臂受伤，怀疑骨头断了",
+      "expectedTitle": "手臂或手腕疑似骨折：就医与等待期间注意事项（一般健康科普）"
+    },
+    {
+      "id": "chest-pain-1",
+      "groupId": "chest-pain",
+      "query": "胸痛伴出汗气短",
+      "expectedTitle": "胸痛：立即求助与进一步评估（一般健康科普）"
+    },
+    {
+      "id": "chest-pain-2",
+      "groupId": "chest-pain",
+      "query": "胸口痛还冒汗",
+      "expectedTitle": "胸痛：立即求助与进一步评估（一般健康科普）"
+    },
+    {
+      "id": "chest-pain-3",
+      "groupId": "chest-pain",
+      "query": "突然持续胸痛怎么办",
+      "expectedTitle": "胸痛：立即求助与进一步评估（一般健康科普）"
+    },
+    {
+      "id": "chest-pain-4",
+      "groupId": "chest-pain",
+      "query": "胸痛向手臂放射",
+      "expectedTitle": "胸痛：立即求助与进一步评估（一般健康科普）"
+    },
+    {
+      "id": "chest-pain-5",
+      "groupId": "chest-pain",
+      "query": "想了解胸痛立即求助的情况",
+      "expectedTitle": "胸痛：立即求助与进一步评估（一般健康科普）"
+    },
+    {
+      "id": "anaphylaxis-1",
+      "groupId": "anaphylaxis",
+      "query": "严重过敏 嘴唇突然肿胀 呼吸困难",
+      "expectedTitle": "严重过敏反应：危险表现与求助（一般健康科普）"
+    },
+    {
+      "id": "anaphylaxis-2",
+      "groupId": "anaphylaxis",
+      "query": "过敏后嘴唇肿呼吸困难",
+      "expectedTitle": "严重过敏反应：危险表现与求助（一般健康科普）"
+    },
+    {
+      "id": "anaphylaxis-3",
+      "groupId": "anaphylaxis",
+      "query": "想了解严重过敏反应的危险表现",
+      "expectedTitle": "严重过敏反应：危险表现与求助（一般健康科普）"
+    },
+    {
+      "id": "anaphylaxis-4",
+      "groupId": "anaphylaxis",
+      "query": "突然过敏，喉咙肿胀",
+      "expectedTitle": "严重过敏反应：危险表现与求助（一般健康科普）"
+    },
+    {
+      "id": "anaphylaxis-5",
+      "groupId": "anaphylaxis",
+      "query": "严重过敏反应什么时候求助",
+      "expectedTitle": "严重过敏反应：危险表现与求助（一般健康科普）"
+    },
+    {
+      "id": "stroke-1",
+      "groupId": "stroke",
+      "query": "单侧手臂无力 口角歪斜 言语含糊",
+      "expectedTitle": "脑卒中症状：突发异常不能等待（一般健康科普）"
+    },
+    {
+      "id": "stroke-2",
+      "groupId": "stroke",
+      "query": "突然说话含糊嘴角歪",
+      "expectedTitle": "脑卒中症状：突发异常不能等待（一般健康科普）"
+    },
+    {
+      "id": "stroke-3",
+      "groupId": "stroke",
+      "query": "脑卒中有什么突发表现",
+      "expectedTitle": "脑卒中症状：突发异常不能等待（一般健康科普）"
+    },
+    {
+      "id": "stroke-4",
+      "groupId": "stroke",
+      "query": "中风症状为什么不能等",
+      "expectedTitle": "脑卒中症状：突发异常不能等待（一般健康科普）"
+    },
+    {
+      "id": "stroke-5",
+      "groupId": "stroke",
+      "query": "一侧手臂突然无力，想了解卒中资料",
+      "expectedTitle": "脑卒中症状：突发异常不能等待（一般健康科普）"
+    },
+    {
+      "id": "dizziness-1",
+      "groupId": "dizziness",
+      "query": "头晕 周围旋转 如何注意安全",
+      "expectedTitle": "头晕：表现、安全照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "dizziness-2",
+      "groupId": "dizziness",
+      "query": "眩晕时周围在旋转",
+      "expectedTitle": "头晕：表现、安全照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "dizziness-3",
+      "groupId": "dizziness",
+      "query": "头晕时怎么避免摔倒",
+      "expectedTitle": "头晕：表现、安全照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "dizziness-4",
+      "groupId": "dizziness",
+      "query": "想了解头晕的安全照护",
+      "expectedTitle": "头晕：表现、安全照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "dizziness-5",
+      "groupId": "dizziness",
+      "query": "反复头晕的就医条件",
+      "expectedTitle": "头晕：表现、安全照护与就医条件（一般健康科普）"
+    },
+    {
+      "id": "stomach-ache-1",
+      "groupId": "stomach-ache",
+      "query": "腹痛 反复发作",
+      "expectedTitle": "腹痛：就医条件与诊断边界（一般健康科普）"
+    },
+    {
+      "id": "stomach-ache-2",
+      "groupId": "stomach-ache",
+      "query": "肚子疼反复出现",
+      "expectedTitle": "腹痛：就医条件与诊断边界（一般健康科普）"
+    },
+    {
+      "id": "stomach-ache-3",
+      "groupId": "stomach-ache",
+      "query": "腹痛持续不缓解怎么办",
+      "expectedTitle": "腹痛：就医条件与诊断边界（一般健康科普）"
+    },
+    {
+      "id": "stomach-ache-4",
+      "groupId": "stomach-ache",
+      "query": "想了解腹痛的就医条件",
+      "expectedTitle": "腹痛：就医条件与诊断边界（一般健康科普）"
+    },
+    {
+      "id": "stomach-ache-5",
+      "groupId": "stomach-ache",
+      "query": "突然严重腹痛的求助资料",
+      "expectedTitle": "腹痛：就医条件与诊断边界（一般健康科普）"
+    },
+    {
+      "id": "cough-1",
+      "groupId": "cough",
+      "query": "咳嗽超过三周",
+      "expectedTitle": "咳嗽：照护、持续时间与就医条件（一般健康科普）"
+    },
+    {
+      "id": "cough-2",
+      "groupId": "cough",
+      "query": "一直咳嗽三个星期",
+      "expectedTitle": "咳嗽：照护、持续时间与就医条件（一般健康科普）"
+    },
+    {
+      "id": "cough-3",
+      "groupId": "cough",
+      "query": "长期咳嗽什么时候就医",
+      "expectedTitle": "咳嗽：照护、持续时间与就医条件（一般健康科普）"
+    },
+    {
+      "id": "cough-4",
+      "groupId": "cough",
+      "query": "想了解咳嗽的一般照护",
+      "expectedTitle": "咳嗽：照护、持续时间与就医条件（一般健康科普）"
+    },
+    {
+      "id": "cough-5",
+      "groupId": "cough",
+      "query": "咳嗽持续四周需要注意什么",
+      "expectedTitle": "咳嗽：照护、持续时间与就医条件（一般健康科普）"
+    },
+    {
+      "id": "no-coverage-1",
+      "groupId": "no-coverage-1",
+      "query": "查询医院停车收费",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-2",
+      "groupId": "no-coverage-2",
+      "query": "糖尿病胰岛素剂量怎么调整",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-3",
+      "groupId": "no-coverage-3",
+      "query": "我想查询白内障手术预约",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-4",
+      "groupId": "no-coverage-4",
+      "query": "牙齿矫正价格",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-5",
+      "groupId": "no-coverage-5",
+      "query": "帮我配置路由器网络",
+      "expectedTitle": null
+    }
+  ]
+}
