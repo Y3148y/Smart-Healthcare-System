@@ -4,6 +4,7 @@ import { api, streamResult } from '../../api'
 import AssessmentCard from './components/AssessmentCard.vue'
 import AnswerSources from './components/AnswerSources.vue'
 import { recoverConversation } from './recoverConversation'
+import { responseDuration } from './responseDuration'
 import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
 
 const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRunning:boolean}>()
@@ -133,7 +134,7 @@ async function requestHumanReview(sessionId:string,reason:string){
       <div v-if="!activeConversation?.messages.length && !pendingMessage" class="bubble ai">您好，我是门诊预问诊助手。为了帮助您更好地分诊，请描述不适部位、持续时间及是否伴随发热、胸痛或呼吸困难。</div>
       <template v-for="message in activeConversation?.messages || []" :key="message.id">
         <div class="bubble" :class="message.role==='USER'?'user':'ai'">{{ message.content }}</div>
-        <small v-if="replyDurations[message.id]!==undefined" class="response-duration">本次请求用时 {{ replyDurations[message.id].toFixed(1) }} 秒</small>
+        <small v-if="message.role==='ASSISTANT' && responseDuration(replyDurations[message.id],message.provenance)" class="response-duration">{{ responseDuration(replyDurations[message.id],message.provenance)!.label }} {{ responseDuration(replyDurations[message.id],message.provenance)!.seconds.toFixed(1) }} 秒</small>
         <AnswerSources v-if="message.role==='ASSISTANT' && !assessmentsForMessage(message.id).length" :evidence="message.provenance?.answerEvidence" />
         <aside v-if="message.role==='ASSISTANT' && !assessmentsForMessage(message.id).length && serviceMessages(message.provenance).length" class="service-notice"><b>本轮科室服务查询</b><p v-for="(item,index) in serviceMessages(message.provenance)" :key="index">{{ item }}</p></aside>
         <details v-if="message.role==='ASSISTANT' && message.provenance" class="answer-provenance"><summary>本次回答如何产生</summary><p>{{ answerMethod(message.provenance) }}</p><p>{{ evidenceMethod(message.provenance) }}</p><p>{{ message.provenance.localToolCalls?`执行了 ${message.provenance.localToolCalls} 项本地工具${message.provenance.toolFailures?`，其中 ${message.provenance.toolFailures} 项失败`:''}`:'未执行本地工具' }}。这里的本地工具不代表已连接独立医院 MCP 服务。</p></details>
