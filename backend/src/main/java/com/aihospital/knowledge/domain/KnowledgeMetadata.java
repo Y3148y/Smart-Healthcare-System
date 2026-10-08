@@ -2,6 +2,9 @@ package com.aihospital.knowledge.domain;
 
 import java.net.URI;
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Set;
 
@@ -9,7 +12,43 @@ import java.util.Set;
 public record KnowledgeMetadata(int schemaVersion, String language, String contentKind,
         List<Source> sources, List<String> topics, List<String> population,
         List<String> exclusions, List<String> prerequisites, List<String> evidenceUses,
-        String permissionStatus, String permissionEvidence) {
+        String permissionStatus, String permissionEvidence, IntakeAudit intakeAudit) {
+    public record SourceSnapshot(String file, String sourceId, String sha256) {
+        public SourceSnapshot {
+            if (file == null || !file.matches("source(?:\\.[a-z]+)?\\.en\\.md"))
+                throw new IllegalArgumentException("Invalid source snapshot filename");
+            bounded(sourceId, 128);
+            if (sha256 == null || !sha256.matches("[a-f0-9]{64}"))
+                throw new IllegalArgumentException("Invalid source snapshot hash");
+        }
+    }
+    public record IntakeAudit(String documentId, String provenanceSha256, String contentSha256,
+                              List<String> extractionWarnings, List<SourceSnapshot> sourceSnapshots) {
+        public IntakeAudit {
+            bounded(documentId, 160);
+            if (provenanceSha256 == null || !provenanceSha256.matches("[a-f0-9]{64}")
+                    || contentSha256 == null || !contentSha256.matches("[a-f0-9]{64}"))
+                throw new IllegalArgumentException("Invalid intake audit hash");
+            extractionWarnings = extractionWarnings == null ? List.of() : List.copyOf(extractionWarnings);
+            if (extractionWarnings.size() > 100) throw new IllegalArgumentException("Too many extraction warnings");
+            extractionWarnings.forEach(value -> bounded(value, 500));
+            if (sourceSnapshots == null || sourceSnapshots.isEmpty() || sourceSnapshots.size() > 8
+                    || sourceSnapshots.stream().anyMatch(value -> value == null))
+                throw new IllegalArgumentException("Invalid source snapshot manifest");
+            sourceSnapshots = List.copyOf(sourceSnapshots);
+            if (sourceSnapshots.stream().map(SourceSnapshot::file).distinct().count() != sourceSnapshots.size()
+                    || sourceSnapshots.stream().map(SourceSnapshot::sourceId).distinct().count() != sourceSnapshots.size())
+                throw new IllegalArgumentException("Duplicate source snapshot identity");
+        }
+    }
+
+    /** Backward-compatible constructor for callers and stored records predating intake audit manifests. */
+    public KnowledgeMetadata(int schemaVersion, String language, String contentKind, List<Source> sources,
+            List<String> topics, List<String> population, List<String> exclusions, List<String> prerequisites,
+            List<String> evidenceUses, String permissionStatus, String permissionEvidence) {
+        this(schemaVersion, language, contentKind, sources, topics, population, exclusions, prerequisites,
+                evidenceUses, permissionStatus, permissionEvidence, null);
+    }
     public record Source(String sourceId, String publisher, String url, Instant fetchedAt,
                          String rawSha256) {
         public Source {
@@ -43,9 +82,22 @@ public record KnowledgeMetadata(int schemaVersion, String language, String conte
         if (permissionEvidence != null && permissionEvidence.length() > 2000)
             throw new IllegalArgumentException("Permission evidence is too long");
         if ("permitted".equals(permissionStatus)) bounded(permissionEvidence, 2000);
+        if (intakeAudit != null) {
+            if (intakeAudit.sourceSnapshots().size() != sources.size())
+                throw new IllegalArgumentException("Intake audit source manifest is incomplete");
+            for (SourceSnapshot snapshot : intakeAudit.sourceSnapshots()) {
+                sources.stream().filter(item -> item.sourceId().equals(snapshot.sourceId())).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("Intake audit source does not match metadata"));
+            }
+        }
     }
 
     public boolean mayPublish() { return "permitted".equals(permissionStatus); }
+    public void validateBody(String body) {
+        if (intakeAudit == null) return;
+        if (body == null || !intakeAudit.contentSha256().equals(sha256(body)))
+            throw new IllegalArgumentException("Intake audit content hash does not match the submitted body");
+    }
     public String sourceLabel() { return sources.stream().map(Source::url).reduce((a, b) -> a + " | " + b).orElseThrow(); }
     private static List<String> terms(List<String> values) {
         if (values == null) return List.of();
@@ -56,5 +108,11 @@ public record KnowledgeMetadata(int schemaVersion, String language, String conte
     private static void bounded(String value, int maximum) {
         if (value == null || value.isBlank() || value.length() > maximum)
             throw new IllegalArgumentException("Invalid knowledge metadata field");
+    }
+    private static String sha256(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 }

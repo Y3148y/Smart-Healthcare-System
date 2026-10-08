@@ -2,12 +2,13 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../../api'
 import type { KnowledgeDocument } from './types'
-import { parseKnowledgeIntake, parseKnowledgeMarkdown, type IntakeMetadata } from './knowledgeIntake'
+import { parseKnowledgeIntake, parseKnowledgeMarkdown, type IntakeAudit, type IntakeMetadata } from './knowledgeIntake'
 
 const emit = defineEmits<{ saved: [document: KnowledgeDocument] }>()
 interface Source { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }
 interface InitialMetadata { language: string; contentKind: string; topics: string[]; population: string[]; permissionStatus?: string;
-  exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null; sources: Source[] }
+  exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null; sources: Source[];
+  intakeAudit?: IntakeAudit }
 const props = defineProps<{ documentId?: string; initialMetadata?: InitialMetadata }>()
 const busy = ref(false), reading = ref(false), error = ref('')
 const intakeMetadata = ref<IntakeMetadata>(), intakeWarnings = ref<string[]>([])
@@ -91,6 +92,7 @@ async function submit() {
           topics: terms(form.topics), population: terms(form.population),
           exclusions: terms(form.exclusions), prerequisites: terms(form.prerequisites),
           evidenceUses: [...new Set([form.evidenceUse, ...(originalMetadata?.evidenceUses.slice(1) || [])])], permissionStatus: form.permissionStatus,
+          intakeAudit: originalMetadata?.intakeAudit || undefined,
           permissionEvidence: form.permissionEvidence.trim() || null }
     const document = await api<KnowledgeDocument>(props.documentId
       ? '/admin/knowledge/' + encodeURIComponent(props.documentId) + '/metadata' : '/admin/knowledge/documents', {

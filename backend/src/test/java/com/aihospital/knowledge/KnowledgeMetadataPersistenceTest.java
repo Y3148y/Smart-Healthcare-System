@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,6 +45,30 @@ class KnowledgeMetadataPersistenceTest {
         assertEquals(declared, restored.documentMetadata(document.id()));
         assertEquals("READY", restored.documentDetails(document.id()).document().status());
         assertEquals(catalog.documentChunks(document.id()), restored.documentChunks(document.id()));
+    }
+
+    @Test void canonicalIntakeAuditManifestPersistsAndIsBoundToSubmittedBody() throws Exception {
+        String body = "# Synthetic source summary\n\nNon-medical fixture.";
+        String contentHash = java.util.HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(body.getBytes(StandardCharsets.UTF_8)));
+        var source = new KnowledgeMetadata.Source("fixture-source", "Test fixture",
+                "https://example.invalid/source", Instant.parse("2026-10-06T00:00:00Z"), "a".repeat(64));
+        var audit = new KnowledgeMetadata.IntakeAudit("original-fixture", "b".repeat(64), contentHash,
+                List.of("TABLE_REQUIRES_REVIEW"), List.of(new KnowledgeMetadata.SourceSnapshot(
+                        "source.en.md", source.sourceId(), source.rawSha256())));
+        var metadata = new KnowledgeMetadata(1, "zh-CN", "reviewed_summary", List.of(source), List.of("fixture"),
+                List.of(), List.of(), List.of(), List.of("general_information"), "pending", null, audit);
+
+        var created = catalog.addDocument("Canonical audit fixture", body, metadata);
+        assertEquals(audit, store.find(created.id()).metadata().intakeAudit());
+        var restored = new InMemoryKnowledgeCatalog();
+        restored.restorePersistedDocuments(store.loadOrSeed(List.of()));
+        assertEquals(audit, restored.documentMetadata(created.id()).intakeAudit());
+
+        int before = catalog.documents().size();
+        assertThrows(IllegalArgumentException.class,
+                () -> catalog.addDocument("Tampered canonical audit", body + " changed", metadata));
+        assertEquals(before, catalog.documents().size(), "mismatched body hash must not persist a document");
     }
 
     @Test void unresolvedOrRestrictedPermissionCannotPublish() {

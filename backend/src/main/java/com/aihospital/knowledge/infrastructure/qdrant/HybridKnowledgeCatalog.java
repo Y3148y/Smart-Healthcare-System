@@ -115,6 +115,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body,
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
+        if (metadata != null) metadata.validateBody(body);
         return persistNewDocument(local.addDocument(title, body, metadata));
     }
     @Override public com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {

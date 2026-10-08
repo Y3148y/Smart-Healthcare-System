@@ -10,7 +10,9 @@ interface MetadataResponse {
   clinicalReview: string
   metadata?: { language: string; contentKind: string; topics: string[]; population: string[]; exclusions: string[];
     prerequisites: string[]; evidenceUses: string[]; permissionStatus: string; permissionEvidence: string | null;
-    sources: { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }[] }
+    sources: { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }[];
+    intakeAudit?: { documentId: string; provenanceSha256: string; contentSha256: string; extractionWarnings: string[];
+      sourceSnapshots: { file: string; sourceId: string; sha256: string }[] } }
 }
 interface Chunk { chunkId: string; documentVersion: string; sectionPath: string[]; start: number; end: number;
   positionUnit: string; contentSha256: string; chunkingVersion: string }
@@ -52,8 +54,18 @@ watch(() => props.documentId, async id => {
         <b>{{ source.publisher }} · {{ source.sourceId }}</b><p>{{ source.url }}</p>
         <small>采集时间：{{ source.fetchedAt || '未知' }} · 原始快照哈希：{{ source.rawSha256 || '未知' }}</small>
       </article>
+      <details v-if="metadata.metadata.intakeAudit">
+        <summary>导入审计（来源快照正文未上传）</summary>
+        <p>原始资料 ID：{{ metadata.metadata.intakeAudit.documentId }}</p>
+        <p>待审正文 SHA-256：{{ metadata.metadata.intakeAudit.contentSha256 }}</p>
+        <p>provenance.json SHA-256：{{ metadata.metadata.intakeAudit.provenanceSha256 }}</p>
+        <p v-if="metadata.metadata.intakeAudit.extractionWarnings.length">抽取告警：{{ metadata.metadata.intakeAudit.extractionWarnings.join('、') }}</p>
+        <article v-for="snapshot in metadata.metadata.intakeAudit.sourceSnapshots" :key="snapshot.sourceId" class="admin-segment">
+          <b>{{ snapshot.file }} · {{ snapshot.sourceId }}</b><p>源快照 SHA-256：{{ snapshot.sha256 }}</p>
+        </article>
+      </details>
     </template>
-    <small>来源声明和管理员审批不代表临床审核。当前适用范围字段尚未用于在线过滤。</small>
+    <small>来源声明和管理员审批不代表临床审核。当前适用范围字段尚未用于在线过滤；服务端保存导入审计哈希和快照清单，不保存原始网页快照。</small>
     <details v-if="chunks.length"><summary>片段溯源（{{ chunks.length }}）</summary>
       <article v-for="(chunk, i) in chunks" :key="chunk.chunkId" class="admin-segment">
         <b>片段 {{ i + 1 }} · {{ chunk.sectionPath.join(' / ') || '正文' }}</b>

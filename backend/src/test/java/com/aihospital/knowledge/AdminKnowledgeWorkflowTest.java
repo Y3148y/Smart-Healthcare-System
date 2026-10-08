@@ -1,6 +1,7 @@
 package com.aihospital.knowledge;
 
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
+import com.aihospital.knowledge.api.AdminKnowledgeController;
 import com.aihospital.shared.security.JwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,8 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -62,6 +65,31 @@ class AdminKnowledgeWorkflowTest {
                 .andExpect(status().isUnauthorized());
         mvc.perform(post("/api/admin/knowledge/documents").contentType("application/json").content("{}")
                 .header("Authorization", patient)).andExpect(status().isForbidden());
+    }
+
+    @Test void canonicalImportPersistsClientVerifiedAuditManifestWithoutApproving() throws Exception {
+        String body = "# Synthetic knowledge\n\nNon-medical import fixture.";
+        String bodyHash = java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                .digest(body.getBytes(StandardCharsets.UTF_8)));
+        var source = new com.aihospital.knowledge.domain.KnowledgeMetadata.Source("fixture-source", "Test fixture",
+                "https://example.invalid/source", java.time.Instant.parse("2026-10-06T00:00:00Z"), "a".repeat(64));
+        var audit = new com.aihospital.knowledge.domain.KnowledgeMetadata.IntakeAudit("original-fixture",
+                "b".repeat(64), bodyHash, List.of("TABLE_REQUIRES_REVIEW"),
+                List.of(new com.aihospital.knowledge.domain.KnowledgeMetadata.SourceSnapshot(
+                        "source.en.md", source.sourceId(), "c".repeat(64))));
+        var metadata = new com.aihospital.knowledge.domain.KnowledgeMetadata(1, "zh-CN", "reviewed_summary",
+                List.of(source), List.of("fixture"), List.of(), List.of(), List.of(),
+                List.of("general_information"), "pending", null, audit);
+        var request = new AdminKnowledgeController.ImportDocument("Canonical import fixture", body, metadata);
+        var response = mvc.perform(post("/api/admin/knowledge/documents").header("Authorization", admin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_REVIEW"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String id = json.readTree(response).path("id").asText();
+        mvc.perform(get("/api/admin/knowledge/" + id + "/metadata").header("Authorization", admin()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.metadata.intakeAudit.documentId").value("original-fixture"))
+                .andExpect(jsonPath("$.metadata.intakeAudit.contentSha256").value(bodyHash))
+                .andExpect(jsonPath("$.metadata.intakeAudit.sourceSnapshots[0].sha256").value("c".repeat(64)));
     }
 
     @Test void debugProducesRequestLocalCandidatesAndBoundedMetadataWithoutPatientText() throws Exception {

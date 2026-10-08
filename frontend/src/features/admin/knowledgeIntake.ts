@@ -1,6 +1,9 @@
 export interface IntakeSource { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }
+export interface IntakeAudit { documentId: string; provenanceSha256: string; contentSha256: string;
+  extractionWarnings: string[]; sourceSnapshots: { file: string; sourceId: string; sha256: string }[] }
 export interface IntakeMetadata { language: string; contentKind: string; topics: string[]; population: string[];
-  exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null; sources: IntakeSource[] }
+  exclusions: string[]; prerequisites: string[]; evidenceUses: string[]; permissionEvidence: string | null;
+  sources: IntakeSource[]; intakeAudit?: IntakeAudit }
 export interface IntakeCandidate { title: string; body: string; metadata: IntakeMetadata; warnings: string[] }
 
 async function sha256(text: string): Promise<string> {
@@ -37,12 +40,17 @@ export async function parseKnowledgeMarkdown(files: Record<string, string>): Pro
       throw new Error('缺少来源快照或来源快照哈希不一致')
   }
   if (!names.has('source.en.md') || !Array.isArray(audit.metadata.sources)
+      || audit.metadata.sources.length !== audit.sourceSnapshots.length
       || audit.metadata.sources.some((source: IntakeSource) => !ids.has(source.sourceId)))
     throw new Error('来源快照不完整')
-  return parseKnowledgeIntake(JSON.stringify({schemaVersion: 1, reviewStatus: 'PENDING', title: header.title,
+  const candidate = await parseKnowledgeIntake(JSON.stringify({schemaVersion: 1, reviewStatus: 'PENDING', title: header.title,
     body: match[2], extraction: {contentSha256: await sha256(match[2]), warnings: audit.extractionWarnings ?? []}, metadata: {
       ...audit.metadata, permissionStatus: 'pending', permissionEvidence: null
     }}), true)
+  candidate.metadata.intakeAudit = { documentId: header.documentId, provenanceSha256: header.provenanceSha256,
+    contentSha256: await sha256(match[2]), extractionWarnings: audit.extractionWarnings ?? [],
+    sourceSnapshots: audit.sourceSnapshots }
+  return candidate
 }
 
 export async function parseKnowledgeIntake(text: string, canonical = false): Promise<IntakeCandidate> {

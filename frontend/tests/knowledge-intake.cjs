@@ -33,6 +33,10 @@ test('canonical multi-source draft strips metadata and never grants permission',
   assert.equal(result.metadata.sources.length, 2)
   assert.equal(result.metadata.contentKind, 'reviewed_summary')
   assert.equal(result.metadata.permissionEvidence, null)
+  assert.equal(result.metadata.intakeAudit.documentId, 'fixture')
+  assert.equal(result.metadata.intakeAudit.contentSha256, createHash('sha256').update(result.body).digest('hex'))
+  assert.equal(result.metadata.intakeAudit.provenanceSha256, createHash('sha256').update(files['provenance.json']).digest('hex'))
+  assert.equal(result.metadata.intakeAudit.sourceSnapshots.length, 2)
 })
 test('canonical draft requires original source snapshots and bound provenance', async () => {
   for (const mutate of [f => delete f['source.nlm.en.md'], f => f['source.en.md'] += 'changed',
@@ -64,6 +68,16 @@ test('canonical provenance retains warnings but cannot grant permission', async 
   assert.equal(result.warnings[0], 'TABLE_REQUIRES_REVIEW')
   assert.equal(result.metadata.permissionStatus, 'pending')
   assert.equal(result.metadata.permissionEvidence, null)
+  assert.deepEqual(Array.from(result.metadata.intakeAudit.extractionWarnings), ['TABLE_REQUIRES_REVIEW'])
+})
+test('canonical source manifest must cover metadata source identities exactly', async () => {
+  const files = canonicalFixture(), audit = JSON.parse(files['provenance.json'])
+  audit.metadata.sources.pop()
+  files['provenance.json'] = JSON.stringify(audit)
+  const parts = files['document.zh-CN.md'].split('\n'), header = JSON.parse(parts[1])
+  header.provenanceSha256 = createHash('sha256').update(files['provenance.json']).digest('hex')
+  parts[1] = JSON.stringify(header); files['document.zh-CN.md'] = parts.join('\n')
+  await assert.rejects(parseMarkdown(files), /来源快照不完整/)
 })
 function fixture() {
   const body = '# Heading\n\nCondition and exception.'
