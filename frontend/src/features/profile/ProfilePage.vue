@@ -4,17 +4,18 @@ import { api } from '../../api'
 type Profile={displayName:string;birthDate:string|null;allergies:string;medications:string;healthBackground:string;version:number;updatedAt:string|null;source:string}
 const form=reactive<Profile>({displayName:'',birthDate:null,allergies:'',medications:'',healthBackground:'',version:0,updatedAt:null,source:'PATIENT_SELF_REPORT'})
 const loading=ref(true),saving=ref(false),confirmed=ref(false),error=ref(''),notice=ref(''),conflict=ref(false)
-async function load(){loading.value=true;error.value='';try{Object.assign(form,await api<Profile>('/patient/profile'));confirmed.value=false;conflict.value=false;notice.value=''}catch(e:any){error.value=e.message}finally{loading.value=false}}
-async function save(){if(saving.value||loading.value||!confirmed.value)return;saving.value=true;error.value='';notice.value='';try{Object.assign(form,await api<Profile>('/patient/profile',{method:'PUT',body:JSON.stringify({...form,selfReportConfirmed:confirmed.value})}));notice.value='资料已保存';confirmed.value=false;conflict.value=false}catch(e:any){error.value=e.message;conflict.value=error.value.includes('其他页面更新')}finally{saving.value=false}}
+const loaded=ref(false)
+async function load(){if(saving.value)return;loading.value=true;loaded.value=false;error.value='';try{Object.assign(form,await api<Profile>('/patient/profile'));loaded.value=true;confirmed.value=false;conflict.value=false;notice.value=''}catch(e:any){error.value=e.message}finally{loading.value=false}}
+async function save(){if(!loaded.value||saving.value||loading.value||!confirmed.value||conflict.value)return;saving.value=true;error.value='';notice.value='';try{Object.assign(form,await api<Profile>('/patient/profile',{method:'PUT',body:JSON.stringify({...form,selfReportConfirmed:confirmed.value})}));notice.value='资料已保存';confirmed.value=false;conflict.value=false}catch(e:any){error.value=e.message;conflict.value=error.value.includes('其他页面更新')}finally{saving.value=false}}
 onMounted(load)
 </script>
 <template>
   <section class="profile-page" aria-labelledby="profile-heading">
     <header><h1 id="profile-heading">我的资料</h1><p>仅保存您本人填写的信息，不是医院病历，也不会自动生成诊断。</p></header>
     <p v-if="loading" role="status">正在加载资料…</p>
-    <p v-if="error" role="alert" class="error">{{ error }} <button v-if="conflict || (!form.version && !saving)" type="button" @click="load">重新加载（放弃本页修改）</button></p>
+    <p v-if="error" role="alert" class="error">{{ error }} <button v-if="!saving && !loading" type="button" @click="load">重新加载（放弃本页修改）</button></p>
     <p v-if="notice" role="status" class="success">{{ notice }}</p>
-    <form v-if="!loading" @submit.prevent="save">
+    <form v-if="!loading && loaded" @submit.prevent="save">
       <fieldset :disabled="saving"><legend>基础信息</legend><div class="basic-grid">
         <label>称呼<input v-model.trim="form.displayName" required maxlength="80" autocomplete="nickname"></label>
         <label>出生日期（选填，仅支持成年人）<input v-model="form.birthDate" type="date"></label>
