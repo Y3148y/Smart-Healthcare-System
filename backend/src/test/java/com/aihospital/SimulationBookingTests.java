@@ -37,6 +37,26 @@ class SimulationBookingTests {
 
     private String token(String patient) { return "Bearer " + jwt.issue(patient, "PATIENT"); }
 
+    @Test void missingOrBlankBookingIdentityCannotBypassSessionGateOrDeductSlots() throws Exception {
+        String patient = "invalid-booking-" + UUID.randomUUID();
+        Doctor before = booking.doctors("骨科").get(0);
+        for (Map<String, String> invalid : List.of(
+                Map.of("doctorId", before.id()),
+                Map.of("doctorId", before.id(), "sessionId", " "),
+                Map.of("sessionId", "walk-in"),
+                Map.of("doctorId", " ", "sessionId", "walk-in"),
+                Map.of("doctorId", before.id(), "sessionId", "x".repeat(101)))) {
+            var body = new java.util.HashMap<>(invalid);
+            body.put("idempotencyKey", UUID.randomUUID().toString());
+            mvc.perform(post("/api/appointments").header("Authorization", token(patient))
+                    .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
+                    .andExpect(status().isBadRequest());
+        }
+        assertEquals(before.remaining(), booking.doctors("骨科").stream()
+                .filter(d -> d.id().equals(before.id())).findFirst().orElseThrow().remaining());
+        assertTrue(booking.appointments(patient).isEmpty());
+    }
+
     @Test
     void bookingPersistsDecrementsOnceAndIsPrivate() throws Exception {
         String patient = "booking-" + UUID.randomUUID();

@@ -20,6 +20,21 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class DispositionConsistencyTest {
+    @Test void successfulReceiptReplayDoesNotRebookOrReassessLaterSessionRisk() {
+        var store = mock(com.aihospital.booking.domain.BookingStore.class);
+        var catalog = mock(DoctorCatalogService.class);
+        var slots = mock(com.aihospital.catalog.domain.SlotStore.class);
+        var conversations = mock(TriageConversationService.class);
+        var doctor = new Doctor("d1", "测试医生", "医师", "测试科", "上午", "2026-10-03", 0, 1, 0);
+        var prior = new Appointment("a1", "a1", "patient", doctor, "模拟预约", "s1", LocalDateTime.now());
+        when(store.appointmentByKey("patient", "key")).thenReturn(java.util.Optional.of(prior));
+        var service = new BookingApplicationService(new SimulationBookingService(store, catalog, slots, conversations));
+        assertSame(prior, service.book("d1", "s1", "patient", "key"));
+        verifyNoInteractions(conversations, catalog, slots);
+        verify(store, never()).saveAppointment(any(), anyString());
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> service.book("other", "s1", "patient", "key")).getStatusCode().value());
+    }
     @Test void jsonAndProgressCallsShareTheSameSessionGuardAndReleaseItAfterCompletion() throws Exception {
         var store = mock(TriageStore.class);
         var engine = mock(TriageEngine.class);
@@ -128,15 +143,21 @@ class DispositionConsistencyTest {
 
     @Test
     void bookingRejectsPendingRiskEvenIfHistoricResultStillHasDoctor() {
-        SimulationBookingService booking = mock(SimulationBookingService.class);
+        var store = mock(com.aihospital.booking.domain.BookingStore.class);
+        var catalog = mock(com.aihospital.catalog.application.DoctorCatalogService.class);
+        var slots = mock(com.aihospital.catalog.domain.SlotStore.class);
         TriageConversationService conversations = mock(TriageConversationService.class);
+        var booking = new SimulationBookingService(store, catalog, slots, conversations);
+        when(conversations.requireOwner("s1", "patient")).thenReturn(new com.aihospital.triage.domain.TriageRecords.Session(
+                "s1", "test", "test", "已完成分诊", LocalDateTime.now(), LocalDateTime.now()));
         Doctor doctor = new Doctor("d1", "测试医生", "医师", "全科医学科", "上午", "2026-10-03", 1, 1, 0);
         when(conversations.latestResult("s1", "patient")).thenReturn(new TriageResult("s1", "待补充信息", 55,
                 "全科医学科", doctor, "", "", List.of(), List.of(), List.of(), "DEMO", "", LocalDateTime.now(),
                 null, true, ""));
 
         assertThrows(ResponseStatusException.class,
-                () -> new BookingApplicationService(booking, conversations).book("d1", "s1", "patient", "key"));
-        verifyNoInteractions(booking);
+                () -> new BookingApplicationService(booking).book("d1", "s1", "patient", "key"));
+        verifyNoInteractions(catalog, slots);
+        verify(store, never()).saveAppointment(any(), anyString());
     }
 }

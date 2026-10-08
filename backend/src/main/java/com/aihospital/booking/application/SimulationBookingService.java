@@ -40,6 +40,9 @@ public class SimulationBookingService {
 
     @Transactional
     public Appointment book(String doctorId, String sessionId, String patient, String idempotencyKey) {
+        if (doctorId == null || doctorId.isBlank() || doctorId.length() > 100
+                || sessionId == null || sessionId.isBlank() || sessionId.length() > 100)
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "须提供有效的医生及会话标识；独立模拟预约请明确使用walk-in");
         if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 64)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少有效的预约幂等键");
         var prior = store.appointmentByKey(patient, idempotencyKey);
@@ -50,7 +53,7 @@ public class SimulationBookingService {
             return existing;
         }
 
-        if (sessionId != null && !sessionId.isBlank() && !"walk-in".equals(sessionId)) {
+        if (!"walk-in".equals(sessionId)) {
             var session = triage.requireOwner(sessionId, patient);
             var result = triage.latestResult(sessionId, patient);
             if (!"已完成分诊".equals(session.status()) || result == null || !result.grounded()

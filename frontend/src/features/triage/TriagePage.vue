@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { api, streamResult } from '../../api'
 import AssessmentCard from './components/AssessmentCard.vue'
 import AnswerSources from './components/AnswerSources.vue'
 import { recoverConversation } from './recoverConversation'
 import { responseDuration } from './responseDuration'
+import { conversationProcessing, conversationSendBlocked } from './conversationProcessing'
 import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
 
 const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRunning:boolean}>()
@@ -13,6 +14,8 @@ const question=ref(''), activeConversation=ref<Conversation|null>(null), eligibl
 const pendingMessage=ref(''), triage=ref<Result|null>(null), triageStatus=ref(''), triageRunning=ref(false)
 const sessionList=ref<ChatSession[]>(props.sessions)
 const elapsedSeconds=ref(0), replyDurations=ref<Record<string,number>>({})
+const processing=computed(()=>conversationProcessing(activeConversation.value?.session.status,triageRunning.value))
+const sendBlocked=computed(()=>conversationSendBlocked(activeConversation.value?.session.status,triageRunning.value))
 let elapsedTimer:ReturnType<typeof setInterval>|undefined
 onUnmounted(()=>{if(elapsedTimer)clearInterval(elapsedTimer)})
 watch(()=>props.sessions,value=>sessionList.value=value)
@@ -61,7 +64,7 @@ function serviceMessages(meta?:ResponseProvenance|null):string[]{
   return meta?.answerEvidence?.serviceNotice?.messages || []
 }
 async function startTriage(){
-  if(triageRunning.value)return
+  if(sendBlocked.value)return
   const content=normalizeUserText(question.value)
   if(!content)return
   const previousUserCount=activeConversation.value?.messages.filter(message=>message.role==='USER').length||0
@@ -78,8 +81,9 @@ async function startTriage(){
     const lastReply=replies[replies.length-1]
     if(lastReply)replyDurations.value[lastReply.id]=(performance.now()-started)/1000
     triageStatus.value=triage.value?'分诊建议已生成':'等待您补充信息'
-    sessionList.value=await api<ChatSession[]>('/triage/sessions')
-    emit('updated')
+    // A sidebar refresh failure must not turn an already persisted reply into a failed turn.
+    try{sessionList.value=await api<ChatSession[]>('/triage/sessions');emit('updated')}
+    catch{emit('notify','本轮回答已保存，会话列表暂未刷新；已显示的结果仍可查看')}
   }catch(e:any){
     triageStatus.value='分诊请求失败'
     let saved=false,processing=false,completed=false
@@ -145,13 +149,14 @@ async function requestHumanReview(sessionId:string,reason:string){
       <small v-if="triageRunning" class="response-duration">已用时 {{ elapsedSeconds.toFixed(1) }} 秒</small>
     </div>
     <div class="chat-boundary">仅供挂号参考，不构成诊断；如有急症请立即线下就医。</div>
+    <div v-if="processing && !triageRunning" class="triage-stage-note" role="status">本轮问题已保存，后台仍在处理，请勿重复提交。<button type="button" class="text-btn" @click="openConversation(activeConversation!.session.id)">刷新处理结果</button></div>
     <div v-if="activeConversation?.session.status==='建议尽快就医'" class="triage-stage-note">本次结果建议尽快到线下医疗机构评估，因此不提供模拟号源预约。若症状加重或出现胸痛、呼吸困难、意识改变等情况，请立即前往急诊或拨打 120。</div>
     <div v-if="activeConversation?.humanReview" class="human-review-status">人工导诊申请已提交 · {{ activeConversation.humanReview.status==='PENDING'?'等待处理':activeConversation.humanReview.status }}</div>
     <div v-else-if="activeConversation" class="manual-review-access"><button type="button" class="review-button" @click="requestHumanReview(activeConversation.session.id,'患者主动申请人工导诊')">申请人工导诊（非实时）</button></div>
     <div v-if="!activeConversation" class="eligibility-row"><label class="eligibility-check"><input v-model="eligible" type="checkbox"> 我已年满 18 岁、为本人提问，且不处于孕产期。</label><details class="eligibility-details"><summary>适用范围与孕产提醒</summary><p>本系统不提供孕产期常规预问诊。如果您正在或可能怀孕、近期分娩，请停止普通分诊并咨询线下医疗人员。孕期或可能怀孕时如有大量或持续出血，或伴剧烈腹痛、头晕晕厥，请立即寻求急诊帮助；少量出血也请尽快联系线下医疗人员。</p><p>勾选仅是一次性自我声明，不代表系统已核实孕产状态；后续提到可能怀孕时，系统会暂停普通号源推荐。急症请立即线下求助。</p></details></div>
     <form class="chat-input" @submit.prevent="startTriage">
       <textarea v-model="question" placeholder="例如：我最近咳嗽得厉害，胸闷，痰多。"></textarea>
-      <button class="primary" type="submit" :disabled="triageRunning || !question.trim() || (!activeConversation && !eligible)">{{ triageRunning ? '生成中…' : '发送' }}</button>
+      <button class="primary" type="submit" :disabled="sendBlocked || !question.trim() || (!activeConversation && !eligible)">{{ processing ? '处理中…' : activeConversation?.session.status==='紧急提示' ? '已停止普通问诊' : '发送' }}</button>
     </form>
   </div>
 </section>
