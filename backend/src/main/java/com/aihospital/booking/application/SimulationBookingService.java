@@ -53,8 +53,8 @@ public class SimulationBookingService {
         if (sessionId != null && !sessionId.isBlank() && !"walk-in".equals(sessionId)) {
             var session = triage.requireOwner(sessionId, patient);
             var result = triage.latestResult(sessionId, patient);
-            if ("紧急提示".equals(session.status()) || "待补充信息".equals(session.status())
-                    || result == null || !result.grounded())
+            if (!"已完成分诊".equals(session.status()) || result == null || !result.grounded()
+                    || !com.aihospital.triage.domain.Disposition.isBookable(result.riskLevel()))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该分诊会话当前不允许普通预约，请线下就医或申请人工导诊");
             boolean recommended = result.doctor() != null && doctorId.equals(result.doctor().id())
                     || result.candidates() != null && result.candidates().stream().anyMatch(candidate ->

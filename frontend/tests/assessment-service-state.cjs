@@ -63,6 +63,23 @@ test('current conversation refusal hides booking actions without removing the hi
   assert.ok(html.includes('当前会话暂不提供模拟预约'))
   assert.ok(!html.includes('请切换到最新分诊版本'))
 })
+
+test('unknown risk or unfinished conversation cannot offer a historical booking action',async()=>{
+  const doctor={id:'test',name:'Test doctor'}
+  for(const state of [undefined,'处理中','待重试','新会话','unknown']) {
+    const html=await render({doctor},{currentSessionStatus:state})
+    assert.ok(html.includes('Test doctor'))
+    assert.ok(!html.includes('模拟预约 Test doctor 的号源'))
+  }
+  for(const riskLevel of ['', 'unknown']) {
+    assert.ok(!(await render({doctor,riskLevel},{currentSessionStatus:'已完成分诊'}))
+      .includes('模拟预约 Test doctor 的号源'))
+  }
+  for(const riskLevel of ['普通','多科室参考']) {
+    assert.ok((await render({doctor,riskLevel},{currentSessionStatus:'已完成分诊'}))
+      .includes('模拟预约 Test doctor 的号源'))
+  }
+})
 test('completed conversation can show a booking action again',async()=>{
   const html=await render({doctor:{id:'test',name:'Test doctor'}},{currentSessionStatus:'已完成分诊'})
   assert.ok(/<button[^>]*>模拟预约 Test doctor/.test(html))

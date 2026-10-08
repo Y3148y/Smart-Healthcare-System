@@ -26,6 +26,7 @@ public class TriageConversationService {
     private final TriageEngine triageEngine;
     private final DoctorCatalogService catalog;
     private final com.aihospital.observation.domain.CallLogStore calls;
+    private final Set<String> inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TriageConversationService.class);
 
     public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
@@ -74,8 +75,19 @@ public class TriageConversationService {
 
     public Conversation send(String id,String patient,String text,
             java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress) {
-        java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates=progress==null?stage->{}:progress;
         Session session = requireOwner(id, patient);
+        if (!inFlight.add(id))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该会话正在处理，请等待或刷新会话核对");
+        try {
+            return sendOwned(id, patient, text, progress, session);
+        } finally {
+            inFlight.remove(id);
+        }
+    }
+
+    private Conversation sendOwned(String id,String patient,String text,
+            java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress, Session session) {
+        java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates=progress==null?stage->{}:progress;
         if ("紧急提示".equals(session.status()))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "紧急会话不能继续普通分诊，请立即寻求线下帮助");
         String content = text == null ? "" : text.trim();

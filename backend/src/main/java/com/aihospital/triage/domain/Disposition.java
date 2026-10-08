@@ -31,7 +31,7 @@ public final class Disposition {
      * emergency, not urgent, and not awaiting information.
      */
     public static boolean isBookable(String riskLevel) {
-        return !EMERGENCY.equals(riskLevel) && !URGENT.equals(riskLevel) && !PENDING.equals(riskLevel);
+        return ROUTINE.equals(riskLevel) || MULTI.equals(riskLevel);
     }
 
     /**
@@ -42,7 +42,6 @@ public final class Disposition {
     public static String sessionStatus(String riskLevel) {
         if (EMERGENCY.equals(riskLevel)) return "紧急提示";
         if (URGENT.equals(riskLevel)) return "建议尽快就医";
-        if (PENDING.equals(riskLevel)) return PENDING;
-        return "已完成分诊";
+        return isBookable(riskLevel) ? "已完成分诊" : PENDING;
     }
 }

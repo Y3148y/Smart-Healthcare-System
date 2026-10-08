@@ -9,8 +9,8 @@ const traceExpanded=ref(false)
 const shown=computed(()=>props.assessments.find(item=>item.version===selectedVersion.value)||props.anchor)
 const latestVersion=computed(()=>props.assessments[props.assessments.length-1]?.version)
 const isBookable=computed(()=>shown.value.version===latestVersion.value && shown.value.result.grounded
-  && (!props.currentSessionStatus || props.currentSessionStatus==='已完成分诊')
-  && !['待补充信息','紧急','尽快就医'].includes(shown.value.result.riskLevel))
+  && props.currentSessionStatus==='已完成分诊'
+  && ['普通','多科室参考'].includes(shown.value.result.riskLevel))
 const serviceMessage=computed(()=>{
   const result=shown.value.result
   if(result.riskLevel==='紧急')return '请立即寻求急诊帮助，不等待普通号源'
