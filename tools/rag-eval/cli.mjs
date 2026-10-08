@@ -41,7 +41,7 @@ try {
   const after = await snapshot();
   const corpusStable = before.sha256 === after.sha256;
   const summary = {...summarize(results),corpusStable};
-  const output = resolve(directory, '../../.codex-rag-evaluation', reportFileName(dataset.labelVersion, randomUUID()));
+  const output = resolve(directory, '../../reports/rag', reportFileName(dataset.labelVersion, randomUUID()));
   mkdirSync(dirname(output),{recursive:true});
   writeFileSync(output,JSON.stringify({schemaVersion:1,time:new Date().toISOString(),labelVersion:dataset.labelVersion,
     split:dataset.split ?? 'UNSPECIFIED',labelAuthor:dataset.labelAuthor ?? 'UNSPECIFIED',

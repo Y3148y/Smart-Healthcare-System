@@ -65,7 +65,7 @@ tools/rag-eval的npm test验证评估器；npm run evaluate:published测试发�
 当前60条只是DEVELOPMENT_ONLY，尚无独立留出或穷举相关片段标签。
 `cases-development-60-v2.json`保留v1全部查询和主题，仅更新新发布文档标题；两版标签均保留。可用 `node cli.mjs cases-development-60-v2.json`复验新稿，不以旧标题结果代替新版本质量验证。
 单目标文档命中率与MRR不能称完整Recall或Precision；额外候选需核对片段及条件。检索p50/p95不是整个患者回答耗时，依赖失败单独记录。
-报告仅存本机.codex-rag-evaluation，不上传令牌或患者对话；报告包含检索到的来源片段。开发集通过不证明最终回答受支持，不能以调整标签掩盖失败。
+报告仅存本机reports/rag/，不上传令牌或患者对话；报告包含检索到的来源片段。开发集通过不证明最终回答受支持，不能以调整标签掩盖失败。
 
 ## 未完成的验收
 

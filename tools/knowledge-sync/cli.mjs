@@ -3,7 +3,7 @@
  * knowledge-sync CLI
  *
  *   sources    打印登记表摘要
- *   fetch      抓取到期/指定来源，只记录哈希与元数据（快照落在 gitignore 的 cache/）
+ *   fetch      抓取到期/指定来源，只记录哈希与元数据（快照落在 gitignore 的 knowledge/sources/）
  *   diff       对比 state.json，生成差异报告（只报位置与长度，不复制原文）
  *   proposals  为新增/变更来源生成改写工作单
  *   intake     校验快照哈希，生成本地正文与元数据待审包（不发布）
@@ -118,7 +118,7 @@ async function commandFetch() {
     }
   }
   saveState(state);
-  console.log(`\n已写 state.json（${Object.keys(records).length} 条）。原文快照在 cache/，已被 git 忽略。`);
+  console.log(`\n已写 state.json（${Object.keys(records).length} 条）。原文快照在 knowledge/sources/，已被 git 忽略。`);
 }
 
 async function commandDiff() {
@@ -128,7 +128,7 @@ async function commandDiff() {
   const lines = [
     `# 知识源同步报告 ${stamp()}`,
     '',
-    '> 报告只记录状态、哈希与差异位置，不复制任何原文。快照在 gitignore 的 `cache/`。',
+    '> 报告只记录状态、哈希与差异位置，不复制任何原文。快照在 gitignore 的 `knowledge/sources/`。',
     '',
     '| 来源 | 状态 | HTTP | sha256 | 字节 | 首次差异位置 | 备注 |',
     '| --- | --- | --- | --- | --- | --- | --- |',
@@ -164,9 +164,9 @@ async function commandDiff() {
   const path = join(REPORTS_DIR, `sync-${stamp()}.md`);
   writeFileSync(path, lines.join('\n'), 'utf8');
   console.log(`差异报告：${path}`);
-  console.log(`变更 ${changes} 条。原始快照与本报告都不入库（reports/ 已 git 忽略）。`);
+  console.log(`变更 ${changes} 条。原始快照与本报告都不入库（reports/knowledge-sync/ 已 git 忽略）。`);
   console.log('下一步：对 new/updated 来源运行 `npm run proposals`，人工改写后再提语料 commit。');
-  console.log('旧快照保留在 cache/<id>/previous.html，差异位置已在上表给出；原文不入库。');
+  console.log('旧快照保留在 knowledge/sources/<id>/previous.html，差异位置已在上表给出；原文不入库。');
 }
 
 async function commandProposals() {
@@ -181,7 +181,7 @@ async function commandProposals() {
     return record?.status === 'new' || (!record && source.fetchMode === 'auto');
   });
   const written = writeWorksheets([...fresh, ...candidates], state.sources);
-  console.log(`生成改写工作单 ${written.length} 份 → reports/proposals/`);
+  console.log(`生成改写工作单 ${written.length} 份 → reports/knowledge-sync/proposals/`);
   for (const path of written) console.log(`  ${path}`);
   if (written.length === 0) console.log('  （没有 new/updated 来源；先跑 npm run fetch）');
 }

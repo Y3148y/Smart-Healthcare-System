@@ -12,8 +12,8 @@ export const TOOL_DIR = resolve(HERE, '..');
 export const ROOT = resolve(TOOL_DIR, '..', '..');
 export const REGISTRY_PATH = join(TOOL_DIR, 'sources.json');
 export const STATE_PATH = join(TOOL_DIR, 'state.json');
-export const CACHE_DIR = join(TOOL_DIR, 'cache');
-export const REPORTS_DIR = join(TOOL_DIR, 'reports');
+export const CACHE_DIR = join(ROOT, 'knowledge', 'sources');
+export const REPORTS_DIR = join(ROOT, 'reports', 'knowledge-sync');
 export const CORPUS_DIR = join(ROOT, 'backend', 'src', 'main', 'resources', 'knowledge');
 
 export function loadRegistry() {

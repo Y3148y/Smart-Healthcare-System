@@ -15,6 +15,13 @@ backend/data/
 .vscode/
 .DS_Store
 /.codex-*/
+/knowledge/corpus/
+/knowledge/sources/
+/knowledge/reference/
+/knowledge/releases/
+/knowledge/history/
+/reports/
+/scripts/local/
 tools/knowledge-sync/cache/
 tools/knowledge-sync/reports/
 tools/knowledge-sync/node_modules/
