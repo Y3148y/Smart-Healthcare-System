@@ -4,6 +4,7 @@ import { api, setToken } from './api'
 import TriagePage from './features/triage/TriagePage.vue'
 import HomePage from './features/home/HomePage.vue'
 import BookingPage from './features/booking/BookingPage.vue'
+import { bookingRequestKeys } from './features/booking/bookingRequestKeys'
 import VisitsPage from './features/visits/VisitsPage.vue'
 import AdminPage from './features/admin/AdminPage.vue'
 import ProfilePage from './features/profile/ProfilePage.vue'
@@ -18,6 +19,7 @@ const clearStored=()=>{try{localStorage.clear()}catch{}}
 const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), loginName=ref('zhangsan'), password=ref('123456'), role=ref(isDemoEntry?initialRole:(readStored('ai-hospital-role')||initialRole)), displayName=ref(isDemoEntry?(initialRole==='ADMIN'?'系统管理员':loginFromForm.toLowerCase()==='lisi'?'李四':'张三'):(readStored('ai-hospital-name')||(initialRole==='ADMIN'?'系统管理员':'张三')))
 const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([]), knowledge=ref<any[]>([]), tools=ref<any[]>([]), calls=ref<any[]>([]), reviews=ref<HumanReviewQueueItem[]>([]), dashboard=ref<any>(null), aiRuntime=ref<any>(null), knowledgeRuntime=ref<any>(null)
 const bookingRunning=ref(false), toast=ref('')
+const bookingKeys=bookingRequestKeys(()=>crypto.randomUUID())
 const adminReady=ref(false)
 const patientReady=ref(false)
 const depts=computed(()=>['全部',...new Set(doctors.value.map(d=>d.department))])
@@ -58,9 +60,10 @@ async function book(d:Doctor, sessionId='walk-in'){
   if(bookingRunning.value)return
   bookingRunning.value=true
   try{
-    const a:any=await api('/appointments',{method:'POST',body:JSON.stringify({doctorId:d.id,sessionId,idempotencyKey:crypto.randomUUID()})})
+    const a:any=await api('/appointments',{method:'POST',body:JSON.stringify({doctorId:d.id,sessionId,idempotencyKey:bookingKeys.get(d.id,d.date,d.period,sessionId)})})
+    bookingKeys.complete(d.id,d.date,d.period,sessionId)
     window.location.assign(patientRoute('visits',{booked:a.registrationNo}))
-  }catch(e:any){showToast(`预约未完成：${e.message}`)}finally{bookingRunning.value=false}
+  }catch(e:any){showToast(`预约结果待确认：${e.message}。请先查看我的就诊；本页重试相同号源会复用请求标识。`)}finally{bookingRunning.value=false}
 }
 async function toggleTool(t:any){try{const next=await api<any>(`/admin/tools/${t.code}/toggle`,{method:'PATCH'});tools.value=tools.value.map(x=>x.code===t.code?next:x)}catch(e:any){showToast(e.message)}}
 async function runTool(tool:any){const key=['doctor_schedule_search','department_search'].includes(tool.code)?'department':'query';const value=prompt(key==='department'?'请输入科室名称':'请输入检索问题或症状');if(!value)return;try{const result:any=await api(`/admin/tools/${tool.code}/run`,{method:'POST',body:JSON.stringify({[key]:value})});showToast(result.trace?.success?`实际调用成功：${result.trace.outcome}`:`工具调用失败：${result.trace?.error||'未知错误'}`);calls.value=await api<any[]>('/admin/calls')}catch(e:any){showToast(`工具调用失败：${e?.message||'请求失败'}`)}}
