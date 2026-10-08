@@ -9,6 +9,17 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnswerDraftValidatorTest {
+    @Test void limitationCannotRecordEvidenceAsAdopted() {
+        var error=assertThrows(AnswerDraftValidator.InvalidDraftException.class,
+                ()->AnswerDraftValidator.check(draft("LIMITATION","[\"E1\"]"),refs));
+        assertEquals("OUTPUT_LIMITATION_REFERENCES_INVALID",error.code());
+    }
+    @Test void duplicateJsonFieldsCannotReplaceEarlierContent() {
+        String original=draft("GENERAL_INFORMATION","[\"E1\"]");
+        assertThrows(com.fasterxml.jackson.core.JsonProcessingException.class,
+                ()->AnswerDraftValidator.check(original.replace("\"text\":\"general reference\"",
+                        "\"text\":\"earlier content\",\"text\":\"general reference\""),refs));
+    }
     @Test void paragraphKindFailureHasSafeSpecificCode() {
         var error=assertThrows(AnswerDraftValidator.InvalidDraftException.class,
                 ()->AnswerDraftValidator.check(draft("SERVICE_INFORMATION","[]"),refs));

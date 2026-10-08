@@ -8,6 +8,7 @@ import java.util.*;
 /** Schema and reference integrity only; does not certify medical correctness. */
 final class AnswerDraftValidator {
     private static final ObjectMapper JSON = new ObjectMapper()
+            .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     record Checked(String text, List<String> adopted, List<String> uncovered, Draft draft) {}
@@ -40,6 +41,10 @@ final class AnswerDraftValidator {
             if (!allowed.containsAll(paragraph.referenceIds())) throw new InvalidReferenceException();
             if (paragraph.kind().equals("GENERAL_INFORMATION") && paragraph.referenceIds().isEmpty())
                 throw new InvalidReferenceException();
+            if (paragraph.kind().equals("LIMITATION") && !paragraph.referenceIds().isEmpty())
+                throw new InvalidDraftException("LIMITATION_REFERENCES_INVALID");
+            if (new HashSet<>(paragraph.referenceIds()).size() != paragraph.referenceIds().size())
+                throw new InvalidDraftException("REFERENCE_DUPLICATE");
             adopted.addAll(paragraph.referenceIds());
             text.add(paragraph.text());
         }
