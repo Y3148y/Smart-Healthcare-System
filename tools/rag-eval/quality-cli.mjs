@@ -33,14 +33,14 @@ try {
       throw new Error('Relevance label references a chunk outside the frozen corpus');
     byId.set(label.id,label);
   }
-  const retrieval=[],answers=[];
+  const retrieval=[],answers=[],cases=[];
   let unlabelled=0,unreviewedAnswers=0;
   const known=new Set(report.results.map(r=>r.id));
   if (known.size !== report.results.length) throw new Error('Duplicate report case id');
   if (labels.cases.some(l=>!known.has(l.id))) throw new Error('Label id not present in report');
   for(const result of report.results) {
     const label=byId.get(result.id);
-    if (!label) {unlabelled++;continue;}
+    if (!label) {unlabelled++;cases.push({id:result.id,status:'UNLABELLED'});continue;}
     const ranking=(result.selectedEvidence ?? []).map(e=>{
       if (!Array.isArray(e.chunkReferences) || e.chunkReferences.length !== 1)
         throw new Error('Selected evidence identity is missing or ambiguous');
@@ -51,7 +51,14 @@ try {
         throw new Error('Selected excerpt does not match its chunk fingerprint');
       return e.chunkReferences[0];
     });
-    retrieval.push(retrievalQuality(ranking,label,Number(kArgument)));
+    const quality=retrievalQuality(ranking,label,Number(kArgument));
+    retrieval.push(quality);
+    const relevant=new Set(label.relevant.map(identity));
+    const selected=[...new Map(ranking.map(chunk=>[identity(chunk),chunk])).values()].slice(0,Number(kArgument));
+    const selectedIds=new Set(selected.map(identity));
+    cases.push({id:result.id,status:'LABELLED',retrieval:quality,
+      missed:label.relevant.filter(chunk=>!selectedIds.has(identity(chunk))),
+      extra:selected.filter(chunk=>!relevant.has(identity(chunk)))});
     if (label.answerReview) answers.push(answerQuality(label.answerReview));
     else unreviewedAnswers++;
   }
@@ -59,7 +66,7 @@ try {
     reviewStatus:labels.reviewStatus ?? 'UNSPECIFIED',clinicalReview:labels.clinicalReview ?? 'UNSPECIFIED',
     split:labels.split ?? 'UNSPECIFIED',
     reportCases:report.results.length,unlabelled,unreviewedAnswers,
-    summary:summarizeQuality(retrieval,answers)},null,2));
+    summary:summarizeQuality(retrieval,answers),cases},null,2));
 } catch(error) {
   // Do not print label bodies or patient text on parse errors.
   console.error(error instanceof SyntaxError ? 'Invalid JSON input' : error.message);

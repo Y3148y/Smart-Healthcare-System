@@ -32,6 +32,22 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     assert.equal(result.unreviewedAnswers,1);assert.equal(result.summary.recallAtK.value,1);
     assert.equal(result.reviewStatus,'UNSPECIFIED');assert.equal(result.split,'UNSPECIFIED');
     assert.equal(result.summary.answerCorrectness.value,null);
+    assert.deepEqual(result.cases[0].missed,[]);
+    assert.deepEqual(result.cases[0].extra,[]);
+    assert.equal(result.cases[0].retrieval.hits,1);
+    assert.deepEqual(result.cases[1],{id:'two',status:'UNLABELLED'});
+    const unrelated={...chunk,text:'A separate synthetic fixture.',
+      contentSha256:createHash('sha256').update('A separate synthetic fixture.').digest('hex')};
+    const expanded=[{id:'fixture',chunks:[chunk,unrelated]}];
+    const expandedHash=createHash('sha256').update(JSON.stringify(expanded)).digest('hex');
+    writeFileSync(report,JSON.stringify({corpus:{sha256:expandedHash,approved:expanded},results:[
+      {id:'one',selectedEvidence:[{excerpt:unrelated.text,chunkReferences:[unrelated]}]}]}));
+    writeFileSync(labels,JSON.stringify({...label,corpusSha256:expandedHash}));
+    const missed=JSON.parse(run().stdout);
+    assert.deepEqual(missed.cases[0].missed,[chunk]);
+    assert.deepEqual(missed.cases[0].extra,[unrelated]);
+    assert.equal(missed.cases[0].retrieval.recallAtK,0);
+    writeFileSync(report,JSON.stringify(source));
     writeFileSync(labels,JSON.stringify({...label,corpusSha256:'old'}));
     assert.equal(run().status,1);
     writeFileSync(labels,JSON.stringify({...label,cases:[{id:'one',exhaustive:true,

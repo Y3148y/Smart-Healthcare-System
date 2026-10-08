@@ -1,0 +1,371 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "author-specific-question-60-v3",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "labelReviewStatus": "AUTHOR_DRAFT_NOT_INDEPENDENTLY_REVIEWED",
+  "split": "DEVELOPMENT_ONLY",
+  "labelAuthor": "IMPLEMENTATION_AUTHOR",
+  "note": "New explicit questions; chunk relevance labels frozen before first v3 retrieval. Author has seen earlier v2 rankings. Not independently reviewed, not held out, not clinical acceptance. Previous datasets and reports remain unchanged.",
+  "cases": [
+    {
+      "id": "sore-throat-specific-1",
+      "groupId": "sore-throat",
+      "query": "资料中咽痛常见表现有哪些，通常多久改善？",
+      "expectedTitle": "咽痛：表现、一般照护与就医条件"
+    },
+    {
+      "id": "sore-throat-specific-2",
+      "groupId": "sore-throat",
+      "query": "咽痛有哪些非药物照护，盐水漱口和含片有什么限制？",
+      "expectedTitle": "咽痛：表现、一般照护与就医条件"
+    },
+    {
+      "id": "sore-throat-specific-3",
+      "groupId": "sore-throat",
+      "query": "咽痛可能有哪些背景，是否都属于细菌感染？",
+      "expectedTitle": "咽痛：表现、一般照护与就医条件"
+    },
+    {
+      "id": "sore-throat-specific-4",
+      "groupId": "sore-throat",
+      "query": "咽痛一周不改善、反复或有颈部肿块时，资料建议怎样求助？",
+      "expectedTitle": "咽痛：表现、一般照护与就医条件"
+    },
+    {
+      "id": "sore-throat-specific-5",
+      "groupId": "sore-throat",
+      "query": "咽痛时哪些吞咽或呼吸表现需要立即求助？",
+      "expectedTitle": "咽痛：表现、一般照护与就医条件"
+    },
+    {
+      "id": "abdominal-pain-specific-1",
+      "groupId": "abdominal-pain",
+      "query": "腹痛是否只来自胃，疼痛强弱能否说明病情严重程度？",
+      "expectedTitle": "腹痛：可能背景与就医条件"
+    },
+    {
+      "id": "abdominal-pain-specific-2",
+      "groupId": "abdominal-pain",
+      "query": "餐后腹部饱胀、反酸和恶心有哪些可能背景，能凭此确诊吗？",
+      "expectedTitle": "腹痛：可能背景与就医条件"
+    },
+    {
+      "id": "abdominal-pain-specific-3",
+      "groupId": "abdominal-pain",
+      "query": "腹痛持续、反复或超过一周时，资料有哪些医疗评估条件？",
+      "expectedTitle": "腹痛：可能背景与就医条件"
+    },
+    {
+      "id": "abdominal-pain-specific-4",
+      "groupId": "abdominal-pain",
+      "query": "腹痛伴呕血、黑便或腹部僵硬触痛时应怎样求助？",
+      "expectedTitle": "腹痛：可能背景与就医条件"
+    },
+    {
+      "id": "abdominal-pain-specific-5",
+      "groupId": "abdominal-pain",
+      "query": "突然右下腹痛或向腹股沟放射的腹痛有哪些可能关联？",
+      "expectedTitle": "腹痛：可能背景与就医条件"
+    },
+    {
+      "id": "anaphylaxis-specific-1",
+      "groupId": "anaphylaxis",
+      "query": "没有皮疹能不能排除严重过敏反应？",
+      "expectedTitle": "严重过敏反应：危险表现与就医边界"
+    },
+    {
+      "id": "anaphylaxis-specific-2",
+      "groupId": "anaphylaxis",
+      "query": "严重过敏有哪些呼吸和意识表现？",
+      "expectedTitle": "严重过敏反应：危险表现与就医边界"
+    },
+    {
+      "id": "anaphylaxis-specific-3",
+      "groupId": "anaphylaxis",
+      "query": "食物过敏和食物不耐受是否一样，成人会首次食物过敏吗？",
+      "expectedTitle": "严重过敏反应：危险表现与就医边界"
+    },
+    {
+      "id": "anaphylaxis-specific-4",
+      "groupId": "anaphylaxis",
+      "query": "能在家吃可疑食物来验证过敏吗，医疗人员通常如何评估？",
+      "expectedTitle": "严重过敏反应：危险表现与就医边界"
+    },
+    {
+      "id": "anaphylaxis-specific-5",
+      "groupId": "anaphylaxis",
+      "query": "严重过敏等待急救时，感觉好些能站起来走动吗？",
+      "expectedTitle": "严重过敏反应：危险表现与就医边界"
+    },
+    {
+      "id": "dizziness-specific-1",
+      "groupId": "dizziness",
+      "query": "头晕和眩晕的感受有什么区别？",
+      "expectedTitle": "头晕：表现、安全照护与医疗评估"
+    },
+    {
+      "id": "dizziness-specific-2",
+      "groupId": "dizziness",
+      "query": "头晕时如何安全活动，能开车或爬梯吗？",
+      "expectedTitle": "头晕：表现、安全照护与医疗评估"
+    },
+    {
+      "id": "dizziness-specific-3",
+      "groupId": "dizziness",
+      "query": "头晕有哪些可能背景，能据这些关联自行诊断吗？",
+      "expectedTitle": "头晕：表现、安全照护与医疗评估"
+    },
+    {
+      "id": "dizziness-specific-4",
+      "groupId": "dizziness",
+      "query": "持续头晕，或突然头晕伴视力、言语和肢体变化，资料怎样区分求助？",
+      "expectedTitle": "头晕：表现、安全照护与医疗评估"
+    },
+    {
+      "id": "dizziness-specific-5",
+      "groupId": "dizziness",
+      "query": "头晕就医时医生通常检查哪些方面，所有人都需要影像吗？",
+      "expectedTitle": "头晕：表现、安全照护与医疗评估"
+    },
+    {
+      "id": "period-pain-specific-1",
+      "groupId": "period-pain",
+      "query": "资料中的痛经有哪些常见表现和时间特点？",
+      "expectedTitle": "痛经：表现、照护与就医评估"
+    },
+    {
+      "id": "period-pain-specific-2",
+      "groupId": "period-pain",
+      "query": "痛经有哪些非药物照护方式？",
+      "expectedTitle": "痛经：表现、照护与就医评估"
+    },
+    {
+      "id": "period-pain-specific-3",
+      "groupId": "period-pain",
+      "query": "原发性和继发性痛经有什么区别？",
+      "expectedTitle": "痛经：表现、照护与就医评估"
+    },
+    {
+      "id": "period-pain-specific-4",
+      "groupId": "period-pain",
+      "query": "痛经加重、影响生活或非经期也疼，何时联系医疗人员？",
+      "expectedTitle": "痛经：表现、照护与就医评估"
+    },
+    {
+      "id": "period-pain-specific-5",
+      "groupId": "period-pain",
+      "query": "痛经医疗评估可能包括哪些检查，治疗都一样吗？",
+      "expectedTitle": "痛经：表现、照护与就医评估"
+    },
+    {
+      "id": "broken-arm-specific-1",
+      "groupId": "broken-arm",
+      "query": "手腕骨折、脱位和严重扭伤能仅凭症状区分吗，如何确认？",
+      "expectedTitle": "手臂或腕部疑似骨折：就医与恢复注意事项"
+    },
+    {
+      "id": "broken-arm-specific-2",
+      "groupId": "broken-arm",
+      "query": "疑似手臂骨折等待就医时，受伤手和戒指如何处理？",
+      "expectedTitle": "手臂或腕部疑似骨折：就医与恢复注意事项"
+    },
+    {
+      "id": "broken-arm-specific-3",
+      "groupId": "broken-arm",
+      "query": "手臂或腕部骨折常见恢复多久，是否都相同时长？",
+      "expectedTitle": "手臂或腕部疑似骨折：就医与恢复注意事项"
+    },
+    {
+      "id": "broken-arm-specific-4",
+      "groupId": "broken-arm",
+      "query": "手臂骨折石膏护理有哪些禁忌和需要及时求助的变化？",
+      "expectedTitle": "手臂或腕部疑似骨折：就医与恢复注意事项"
+    },
+    {
+      "id": "broken-arm-specific-5",
+      "groupId": "broken-arm",
+      "query": "有哪些降低再次骨折风险的日常方式？",
+      "expectedTitle": "手臂或腕部疑似骨折：就医与恢复注意事项"
+    },
+    {
+      "id": "chest-pain-specific-1",
+      "groupId": "chest-pain",
+      "query": "资料中胸痛伴出汗、气短或持续压迫感的求助建议是什么？",
+      "expectedTitle": "胸痛：立即求助与进一步评估"
+    },
+    {
+      "id": "chest-pain-specific-2",
+      "groupId": "chest-pain",
+      "query": "胸痛反复或很快消失但仍担心，需不需要医疗评估？",
+      "expectedTitle": "胸痛：立即求助与进一步评估"
+    },
+    {
+      "id": "chest-pain-specific-3",
+      "groupId": "chest-pain",
+      "query": "胸痛可能有哪些心脏以外的背景，能直接据此确诊吗？",
+      "expectedTitle": "胸痛：立即求助与进一步评估"
+    },
+    {
+      "id": "chest-pain-specific-4",
+      "groupId": "chest-pain",
+      "query": "为什么可能是肌肉痛或胃酸也不能排除胸痛危险？",
+      "expectedTitle": "胸痛：立即求助与进一步评估"
+    },
+    {
+      "id": "chest-pain-specific-5",
+      "groupId": "chest-pain",
+      "query": "胸痛资料列出的冠心病风险因素有哪些？",
+      "expectedTitle": "胸痛：立即求助与进一步评估"
+    },
+    {
+      "id": "common-cold-specific-1",
+      "groupId": "common-cold",
+      "query": "普通感冒通常多久好转，症状持续时长能替代变化评估吗？",
+      "expectedTitle": "普通感冒：表现、一般照护、传播与就医条件"
+    },
+    {
+      "id": "common-cold-specific-2",
+      "groupId": "common-cold",
+      "query": "普通感冒有哪些日常照护，儿童热蒸汽和蜂蜜有哪些限制？",
+      "expectedTitle": "普通感冒：表现、一般照护、传播与就医条件"
+    },
+    {
+      "id": "common-cold-specific-3",
+      "groupId": "common-cold",
+      "query": "抗生素能加快普通感冒恢复吗，维生素预防的证据如何？",
+      "expectedTitle": "普通感冒：表现、一般照护、传播与就医条件"
+    },
+    {
+      "id": "common-cold-specific-4",
+      "groupId": "common-cold",
+      "query": "普通感冒如何传播，有哪些减少传播的方法？",
+      "expectedTitle": "普通感冒：表现、一般照护、传播与就医条件"
+    },
+    {
+      "id": "common-cold-specific-5",
+      "groupId": "common-cold",
+      "query": "普通感冒何时就医，先好转后加重是否需评估？",
+      "expectedTitle": "普通感冒：表现、一般照护、传播与就医条件"
+    },
+    {
+      "id": "cough-specific-1",
+      "groupId": "cough",
+      "query": "咳嗽通常多久缓解，能只靠时长确定病因吗？",
+      "expectedTitle": "咳嗽：病程、一般照护与就医条件"
+    },
+    {
+      "id": "cough-specific-2",
+      "groupId": "cough",
+      "query": "咳嗽非药物照护有哪些，蜂蜜和热饮有什么年龄限制？",
+      "expectedTitle": "咳嗽：病程、一般照护与就医条件"
+    },
+    {
+      "id": "cough-specific-3",
+      "groupId": "cough",
+      "query": "咳嗽有哪些可能原因，反酸和新用药是否值得说明？",
+      "expectedTitle": "咳嗽：病程、一般照护与就医条件"
+    },
+    {
+      "id": "cough-specific-4",
+      "groupId": "cough",
+      "query": "咳嗽超过三周或迅速加重，资料列出哪些医疗求助条件？",
+      "expectedTitle": "咳嗽：病程、一般照护与就医条件"
+    },
+    {
+      "id": "cough-specific-5",
+      "groupId": "cough",
+      "query": "咳嗽医疗评估可能做哪些检查，抗生素是否通常都需要？",
+      "expectedTitle": "咳嗽：病程、一般照护与就医条件"
+    },
+    {
+      "id": "migraine-specific-1",
+      "groupId": "migraine",
+      "query": "偏头痛发作通常持续多久，恢复期是否还会疲惫？",
+      "expectedTitle": "偏头痛：表现、病程、就医条件与日常管理"
+    },
+    {
+      "id": "migraine-specific-2",
+      "groupId": "migraine",
+      "query": "偏头痛头痛日记记录什么，规律生活怎样帮助管理？",
+      "expectedTitle": "偏头痛：表现、病程、就医条件与日常管理"
+    },
+    {
+      "id": "migraine-specific-3",
+      "groupId": "migraine",
+      "query": "偏头痛诱因有哪些，所有人都要禁食同类食物吗？",
+      "expectedTitle": "偏头痛：表现、病程、就医条件与日常管理"
+    },
+    {
+      "id": "migraine-specific-4",
+      "groupId": "migraine",
+      "query": "偏头痛评估是否人人都要MRI或CT，医生会问什么？",
+      "expectedTitle": "偏头痛：表现、病程、就医条件与日常管理"
+    },
+    {
+      "id": "migraine-specific-5",
+      "groupId": "migraine",
+      "query": "偏头痛资料中哪些新出现的头痛或神经表现需立即求助？",
+      "expectedTitle": "偏头痛：表现、病程、就医条件与日常管理"
+    },
+    {
+      "id": "stroke-specific-1",
+      "groupId": "stroke",
+      "query": "卒中FAST提醒关注哪些表现？",
+      "expectedTitle": "卒中警示：突然神经症状与立即求助"
+    },
+    {
+      "id": "stroke-specific-2",
+      "groupId": "stroke",
+      "query": "疑似卒中症状现在消失，是否可以放弃急救评估？",
+      "expectedTitle": "卒中警示：突然神经症状与立即求助"
+    },
+    {
+      "id": "stroke-specific-3",
+      "groupId": "stroke",
+      "query": "缺血性与出血性卒中有什么区别，为什么要尽快求助？",
+      "expectedTitle": "卒中警示：突然神经症状与立即求助"
+    },
+    {
+      "id": "stroke-specific-4",
+      "groupId": "stroke",
+      "query": "卒中资料列出的风险因素有哪些？",
+      "expectedTitle": "卒中警示：突然神经症状与立即求助"
+    },
+    {
+      "id": "stroke-specific-5",
+      "groupId": "stroke",
+      "query": "卒中医疗评估通常检查哪些方面，可以只聊天判断类型吗？",
+      "expectedTitle": "卒中警示：突然神经症状与立即求助"
+    },
+    {
+      "id": "no-coverage-specific-1",
+      "groupId": "no-coverage-specific-1",
+      "query": "医院停车每小时多少钱？",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-specific-2",
+      "groupId": "no-coverage-specific-2",
+      "query": "请给我个人胰岛素剂量调整方案。",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-specific-3",
+      "groupId": "no-coverage-specific-3",
+      "query": "白内障手术该预约哪个科室的医生？",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-specific-4",
+      "groupId": "no-coverage-specific-4",
+      "query": "牙齿矫正具体价格是多少？",
+      "expectedTitle": null
+    },
+    {
+      "id": "no-coverage-specific-5",
+      "groupId": "no-coverage-specific-5",
+      "query": "帮我预测明天彩票号码。",
+      "expectedTitle": null
+    }
+  ]
+}
