@@ -33,7 +33,10 @@ async function snapshot() {
   return {approved,sha256:createHash('sha256').update(JSON.stringify(approved)).digest('hex')};
 }
 try {
-  const login = await request('auth/login',{method:'POST',body:JSON.stringify({username:process.env.RAG_EVAL_USERNAME || 'admin',password:process.env.RAG_EVAL_PASSWORD || '123456'})});
+  const password=process.env.RAG_EVAL_PASSWORD;
+  if (typeof password !== 'string' || !password.trim())
+    throw new Error('RAG_EVAL_PASSWORD must be supplied through the process environment');
+  const login = await request('auth/login',{method:'POST',body:JSON.stringify({username:process.env.RAG_EVAL_USERNAME || 'admin',password})});
   token = login.token;
   if (typeof token !== 'string' || !token) throw new Error('Evaluation authentication failed');
   const before = await snapshot(), results = [];

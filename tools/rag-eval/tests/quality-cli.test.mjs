@@ -4,14 +4,27 @@ import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+
+test('live evaluation does not silently use a hardcoded login password',()=>{
+  const env={...process.env};delete env.RAG_EVAL_PASSWORD;
+  const result=spawnSync(process.execPath,[new URL('../cli.mjs',import.meta.url).pathname.replace(/^\/(\w:)/,'$1')],
+    {encoding:'utf8',env});
+  assert.equal(result.status,2);
+  assert.match(result.stderr,/RAG_EVAL_PASSWORD must be supplied/);
+});
 test('offline scoring rejects corpus drift and separates missing labels',()=>{
   const dir=mkdtempSync(join(tmpdir(),'rag-quality-'));
   try {
     const report=join(dir,'report.json'),labels=join(dir,'labels.json');
-    const chunk={documentVersion:'v1',contentSha256:'a'.repeat(64)};
-    writeFileSync(report,JSON.stringify({corpus:{sha256:'snapshot'},results:[
-      {id:'one',selectedEvidence:[{chunkReferences:[chunk]}]},{id:'two',selectedEvidence:[]}]}));
-    const label={schemaVersion:1,corpusSha256:'snapshot',cases:[{id:'one',exhaustive:true,relevant:[chunk]}]};
+    const chunk={documentVersion:'v1',text:'Synthetic fixture, not medical information.',
+      contentSha256:createHash('sha256').update('Synthetic fixture, not medical information.').digest('hex')};
+    const approved=[{id:'fixture',chunks:[chunk]}];
+    const snapshot=createHash('sha256').update(JSON.stringify(approved)).digest('hex');
+    const source={corpus:{sha256:snapshot,approved},results:[
+      {id:'one',selectedEvidence:[{excerpt:chunk.text,chunkReferences:[chunk]}]},{id:'two',selectedEvidence:[]}]};
+    writeFileSync(report,JSON.stringify(source));
+    const label={schemaVersion:1,corpusSha256:snapshot,cases:[{id:'one',exhaustive:true,relevant:[chunk]}]};
     const run=()=>spawnSync(process.execPath,[new URL('../quality-cli.mjs',import.meta.url).pathname.replace(/^\/(\w:)/,'$1'),report,labels],{encoding:'utf8'});
     writeFileSync(labels,JSON.stringify(label));
     const valid=run();assert.equal(valid.status,0,valid.stderr);
@@ -21,5 +34,14 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     assert.equal(result.summary.answerCorrectness.value,null);
     writeFileSync(labels,JSON.stringify({...label,corpusSha256:'old'}));
     assert.equal(run().status,1);
+    writeFileSync(labels,JSON.stringify({...label,cases:[{id:'one',exhaustive:true,
+      relevant:[{...chunk,contentSha256:'a'.repeat(64)}]}]}));
+    assert.equal(run().status,1,'Invented relevant identities cannot produce quality scores');
+    writeFileSync(labels,JSON.stringify(label));
+    writeFileSync(report,JSON.stringify({...source,corpus:{...source.corpus,approved:[]}}));
+    assert.equal(run().status,1,'Modified snapshots cannot retain the old fingerprint');
+    writeFileSync(report,JSON.stringify({...source,results:[{id:'one',selectedEvidence:[
+      {excerpt:'A different excerpt cannot borrow a relevant identity.',chunkReferences:[chunk]}]}]}));
+    assert.equal(run().status,1,'Selected excerpts cannot borrow another chunk identity');
   } finally {rmSync(dir,{recursive:true,force:true});}
 });

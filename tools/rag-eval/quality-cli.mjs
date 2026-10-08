@@ -1,5 +1,6 @@
 // Offline scoring; no network calls, credentials or automatic medical labels.
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 import {retrievalQuality,answerQuality,summarizeQuality} from './quality.mjs';
 
 try {
@@ -10,14 +11,32 @@ try {
   if (!Array.isArray(report.results) || labels.schemaVersion !== 1 || !Array.isArray(labels.cases)
       || !labels.corpusSha256 || labels.corpusSha256 !== report.corpus?.sha256)
     throw new Error('Labels must match the exact report corpus snapshot');
+  const approved=report.corpus.approved;
+  if (!Array.isArray(approved)
+      || createHash('sha256').update(JSON.stringify(approved)).digest('hex') !== report.corpus.sha256)
+    throw new Error('Complete unchanged corpus snapshot required');
+  const identity=chunk=>`${chunk.documentVersion}:${chunk.contentSha256}`;
+  const corpusIds=new Set();
+  for (const document of approved) {
+    if (!Array.isArray(document.chunks)) throw new Error('Complete corpus chunks required');
+    for (const chunk of document.chunks) {
+      if (typeof chunk.text !== 'string' || !chunk.text.trim()
+          || createHash('sha256').update(chunk.text).digest('hex') !== chunk.contentSha256)
+        throw new Error('Corpus chunk content does not match its fingerprint');
+      corpusIds.add(identity(chunk));
+    }
+  }
   const byId=new Map();
   for(const label of labels.cases) {
     if (typeof label.id !== 'string' || byId.has(label.id)) throw new Error('Invalid or duplicate label id');
+    if (!Array.isArray(label.relevant) || label.relevant.some(chunk=>!corpusIds.has(identity(chunk))))
+      throw new Error('Relevance label references a chunk outside the frozen corpus');
     byId.set(label.id,label);
   }
   const retrieval=[],answers=[];
   let unlabelled=0,unreviewedAnswers=0;
   const known=new Set(report.results.map(r=>r.id));
+  if (known.size !== report.results.length) throw new Error('Duplicate report case id');
   if (labels.cases.some(l=>!known.has(l.id))) throw new Error('Label id not present in report');
   for(const result of report.results) {
     const label=byId.get(result.id);
@@ -25,6 +44,11 @@ try {
     const ranking=(result.selectedEvidence ?? []).map(e=>{
       if (!Array.isArray(e.chunkReferences) || e.chunkReferences.length !== 1)
         throw new Error('Selected evidence identity is missing or ambiguous');
+      if (!corpusIds.has(identity(e.chunkReferences[0])))
+        throw new Error('Selected evidence references a chunk outside the frozen corpus');
+      if (typeof e.excerpt !== 'string'
+          || createHash('sha256').update(e.excerpt).digest('hex') !== e.chunkReferences[0].contentSha256)
+        throw new Error('Selected excerpt does not match its chunk fingerprint');
       return e.chunkReferences[0];
     });
     retrieval.push(retrievalQuality(ranking,label,Number(kArgument)));
