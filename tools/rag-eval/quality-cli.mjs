@@ -32,6 +32,8 @@ try {
     else unreviewedAnswers++;
   }
   console.log(JSON.stringify({labelVersion:labels.labelVersion ?? null,reviewer:labels.reviewer ?? null,
+    reviewStatus:labels.reviewStatus ?? 'UNSPECIFIED',clinicalReview:labels.clinicalReview ?? 'UNSPECIFIED',
+    split:labels.split ?? 'UNSPECIFIED',
     reportCases:report.results.length,unlabelled,unreviewedAnswers,
     summary:summarizeQuality(retrieval,answers)},null,2));
 } catch(error) {

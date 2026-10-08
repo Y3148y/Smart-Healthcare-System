@@ -17,6 +17,7 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     const valid=run();assert.equal(valid.status,0,valid.stderr);
     const result=JSON.parse(valid.stdout);assert.equal(result.unlabelled,1);
     assert.equal(result.unreviewedAnswers,1);assert.equal(result.summary.recallAtK.value,1);
+    assert.equal(result.reviewStatus,'UNSPECIFIED');assert.equal(result.split,'UNSPECIFIED');
     assert.equal(result.summary.answerCorrectness.value,null);
     writeFileSync(labels,JSON.stringify({...label,corpusSha256:'old'}));
     assert.equal(run().status,1);
