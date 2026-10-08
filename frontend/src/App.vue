@@ -84,6 +84,7 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
       <p v-else-if="page==='profile'" role="status">正在验证身份…</p>
     </template>
     <AdminPage v-else :ready="adminReady" :page="adminPage" :knowledge="knowledge" :tools="tools" :calls="calls" :reviews="reviews" :runtime="aiRuntime" :knowledge-runtime="knowledgeRuntime" :admin-route="adminRoute" :patient-route="patientRoute" @add-knowledge="addKnowledge" @approve-knowledge="approveKnowledge" @toggle-tool="toggleTool" @run-tool="runTool" @handle-review="handleReview" />
+    <footer class="knowledge-license" aria-label="资料许可说明"><small>整理资料包含公共部门信息，依据 <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a> 使用（Contains public sector information licensed under the Open Government Licence v3.0）。补充资料：Source: MedlinePlus, National Library of Medicine。中文内容经整理，不代表来源机构认可或临床审核。</small></footer>
     <div v-if="toast" class="toast">{{ toast }}</div>
   </main>
 </template>
