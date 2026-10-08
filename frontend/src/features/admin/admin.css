@@ -49,3 +49,4 @@
 .account-popover p { margin: 8px 0; color: #40536a; }
 .account-popover small { display: block; color: #7b8998; line-height: 1.5; }
 .account-logout { margin-top: 14px; padding: 8px 12px; color: #b42318; border: 1px solid #f0c9c5; border-radius: 7px; }
+.admin-call-order { padding: 12px 16px; background: #f7fbff; border: 1px solid #e2edf7; border-radius: 8px; }

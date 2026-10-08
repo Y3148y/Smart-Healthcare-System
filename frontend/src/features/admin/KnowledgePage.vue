@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { api } from '../../api'
 import { label, sources, time } from './types'
 import type { DocumentDetail, KnowledgeDocument, KnowledgeRuntime } from './types'
@@ -8,6 +8,7 @@ import KnowledgeProvenancePanel from './KnowledgeProvenancePanel.vue'
 const documents = ref<KnowledgeDocument[]>([]), runtime = ref<KnowledgeRuntime>({}), detail = ref<DocumentDetail | null>(null)
 const loading = ref(false), busy = ref(false), detailLoading = ref(false), error = ref(''), notice = ref('')
 const filter = ref('ALL'), keyword = ref(''), editor = ref(false)
+const detailTarget = ref(''), detailPanel = ref<HTMLElement | null>(null), errorNotice = ref<HTMLElement | null>(null)
 const filtered = computed(() => documents.value.filter(d => (filter.value === 'ALL' || d.status === filter.value) && d.title.includes(keyword.value.trim())))
 async function load() {
   loading.value = true; error.value = ''
@@ -16,10 +17,16 @@ async function load() {
   finally { loading.value = false }
 }
 async function view(id: string) {
+  if (detail.value?.document.id === id) { detail.value = null; return }
   detailLoading.value = true; detail.value = null; error.value = ''
-  try { detail.value = await api<DocumentDetail>(`/admin/knowledge/${encodeURIComponent(id)}/details`) }
-  catch (e: any) { error.value = e.message || '详情加载失败' }
-  finally { detailLoading.value = false }
+  detailTarget.value = id
+  try {
+    detail.value = await api<DocumentDetail>(`/admin/knowledge/${encodeURIComponent(id)}/details`)
+    await nextTick(); detailPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } catch (e: any) {
+    error.value = e.message || '详情加载失败'
+    await nextTick(); errorNotice.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  } finally { detailLoading.value = false; detailTarget.value = '' }
 }
 async function saved(document: KnowledgeDocument) {
   editor.value = false
@@ -61,14 +68,14 @@ onMounted(load)
 <template>
   <div class="admin-workspace">
     <div class="admin-title"><div><h2>医学知识库</h2><p>正文、来源声明和审批状态保存到数据库；审批与向量同步状态分别展示。</p></div><div class="admin-actions"><button class="mini" :disabled="loading || busy" @click="load">刷新</button><button class="mini" :disabled="busy" @click="sync">{{ busy ? '处理中…' : '同步向量索引' }}</button><button class="primary" @click="editor = !editor">{{ editor ? '收起录入' : '新增资料' }}</button></div></div>
-    <p v-if="error" class="admin-error" role="alert">{{ error }}</p><p v-if="notice" class="admin-notice" role="status">{{ notice }}</p>
+    <p v-if="error" ref="errorNotice" class="admin-error" role="alert">{{ error }}</p><p v-if="notice" class="admin-notice" role="status">{{ notice }}</p>
     <KnowledgeImportForm v-if="editor" @saved="saved" />
     <div class="admin-toolbar"><label>标题<input v-model="keyword" placeholder="筛选资料标题"></label><label>审批状态<select v-model="filter"><option value="ALL">全部</option><option value="READY">已审批</option><option value="PENDING_REVIEW">待审批</option></select></label><span>{{ filtered.length }} 份资料 · 最近检索模式：{{ runtime.mode || '未检测' }}</span></div>
-    <div class="table-card admin-scroll"><table><thead><tr><th>资料标题</th><th>片段数</th><th>审批状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody><tr v-for="d in filtered" :key="d.id"><td><b>{{ d.title }}</b></td><td>{{ d.chunks }}</td><td><span class="admin-badge" :class="{ok:d.status==='READY'}">{{ d.status==='READY'?'已审批':'待审批' }}</span></td><td>{{ time(d.updatedAt) }}</td><td><button class="mini" :disabled="detailLoading" @click="view(d.id)">查看原文与片段</button></td></tr><tr v-if="!filtered.length"><td colspan="5" class="empty">{{ loading?'正在加载…':'没有匹配的资料' }}</td></tr></tbody></table></div>
+    <div class="table-card admin-scroll"><table><thead><tr><th>资料标题</th><th>片段数</th><th>审批状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody><tr v-for="d in filtered" :key="d.id"><td><b>{{ d.title }}</b></td><td>{{ d.chunks }}</td><td><span class="admin-badge" :class="{ok:d.status==='READY'}">{{ d.status==='READY'?'已审批':'待审批' }}</span></td><td>{{ time(d.updatedAt) }}</td><td><button class="mini" :disabled="detailLoading" :aria-expanded="detail?.document.id===d.id" @click="view(d.id)">{{ detailLoading && detailTarget===d.id ? '正在读取详情…' : detail?.document.id===d.id ? '收起详情' : d.status==='PENDING_REVIEW' ? '查看并审核' : '查看原文与片段' }}</button></td></tr><tr v-if="!filtered.length"><td colspan="5" class="empty">{{ loading?'正在加载…':'没有匹配的资料' }}</td></tr></tbody></table></div>
     <p v-if="detailLoading" role="status">正在加载文档详情…</p>
     <KnowledgeProvenancePanel v-if="detail" :key="detail.document.id + detail.document.updatedAt" :document-id="detail.document.id"
       :pending="detail.document.status === 'PENDING_REVIEW'" @corrected="view(detail.document.id)" />
     <button v-if="detail?.document.status === 'READY'" class="mini" :disabled="busy" @click="withdraw(detail.document.id)">撤回到待审批</button>
-    <section v-if="detail" class="table-card admin-document" aria-label="文档详情"><div class="admin-title"><h3>{{ detail.document.title }}</h3><div class="admin-actions"><button v-if="detail.document.status==='PENDING_REVIEW'" class="primary" :disabled="busy" @click="approve(detail.document.id)">核对后审批通过</button><button class="mini" @click="detail=null">关闭详情</button></div></div><p>来源：{{ detail.source }}</p><div class="admin-source-links"><a v-for="url in sources(detail.source)" :key="url" :href="url" target="_blank" rel="noopener noreferrer">{{ url }}</a></div><p>向量状态：<b>{{ label(detail.indexStatus) }}</b> · 本进程已验证或写入 {{ detail.indexedChunks }}/{{ detail.segments.length }} 个片段</p><small>{{ detail.indexNote }}</small><details><summary>查看完整原文</summary><pre>{{ detail.document.body }}</pre></details><h4>片段预览（{{ detail.segments.length }}）</h4><article v-for="(segment, i) in detail.segments" :key="i" class="admin-segment"><b>片段 {{ i+1 }}</b><p>{{ segment.excerpt }}</p></article></section>
+    <section v-if="detail" ref="detailPanel" class="table-card admin-document" aria-label="文档详情"><div class="admin-title"><div><h3>{{ detail.document.title }}</h3><p>{{ detail.document.status==='PENDING_REVIEW' ? '待审批：请先核对来源、原文和片段；确认后可在此审批。' : '已审批资料：可查看内容，或撤回到待审批。' }}</p></div><div class="admin-actions"><button v-if="detail.document.status==='PENDING_REVIEW'" class="primary" :disabled="busy" @click="approve(detail.document.id)">核对后审批通过</button><button class="mini" @click="detail=null">关闭详情</button></div></div><p>来源：{{ detail.source }}</p><div class="admin-source-links"><a v-for="url in sources(detail.source)" :key="url" :href="url" target="_blank" rel="noopener noreferrer">{{ url }}</a></div><p>向量状态：<b>{{ label(detail.indexStatus) }}</b> · 本进程已验证或写入 {{ detail.indexedChunks }}/{{ detail.segments.length }} 个片段</p><small>{{ detail.indexNote }}</small><details><summary>查看完整原文</summary><pre>{{ detail.document.body }}</pre></details><h4>片段预览（{{ detail.segments.length }}）</h4><article v-for="(segment, i) in detail.segments" :key="i" class="admin-segment"><b>片段 {{ i+1 }}</b><p>{{ segment.excerpt }}</p></article></section>
   </div>
 </template>
