@@ -45,9 +45,13 @@ export function evaluateCase(item, report) {
   // so count each title once and retain its first rank instead of inflating duplicates.
   const selected = [...new Set(selectedEvidence.map(e => e.title))];
   const dependencyPassed = report.semanticStatus === 'READY' && ['OK', 'EMPTY'].includes(report.rerankStatus);
+  const rerankSkipped = report.rerankStatus === 'DISABLED_BY_CONFIGURATION';
+  const configuredBypassReady = rerankSkipped && report.semanticStatus === 'READY'
+    && report.mode === 'HYBRID_QDRANT_UNRERANKED';
+  const operationalPassed = dependencyPassed || configuredBypassReady;
   const expectationMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
   return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
-    dependencyPassed, expectationMet, passed:dependencyPassed && expectationMet,
+    dependencyPassed, rerankSkipped, operationalPassed, expectationMet, passed:dependencyPassed && expectationMet,
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
     selectedEvidence,
     extraSelectionsForReview:item.expectedTitle === null ? selected : selected.filter(title => title !== item.expectedTitle),
@@ -79,7 +83,9 @@ export function summarize(results) {
   return {cases:results.length, passed:results.filter(r=>r.passed).length,
     targetMetrics, retrievalLatencyMs:{measuredCases:durations.length,p50:percentile(0.5),p95:percentile(0.95)},
     failedIds:results.filter(r=>!r.passed).map(r=>r.id),
-    dependencyFailures:results.filter(r=>!r.dependencyPassed).length,
+    dependencyFailures:results.filter(r=>!(r.operationalPassed ?? r.dependencyPassed)).length,
+    rerankSkippedCases:results.filter(r=>r.rerankSkipped).length,
+    configuredModeTargetPasses:results.filter(r=>(r.operationalPassed ?? r.dependencyPassed) && r.expectationMet).length,
     coveredTopicHits:results.filter(r=>r.expectedTitle !== null && r.expectationMet).length,
     coveredTopicCases:results.filter(r=>r.expectedTitle !== null).length,
     noCoverageFalseSelections:results.filter(r=>r.expectedTitle === null && r.selected.length).length,

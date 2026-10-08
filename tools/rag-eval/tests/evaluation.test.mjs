@@ -17,6 +17,23 @@ test('target ranks and latency use explicit denominators, preserving unknown dur
   assert.equal(summarize([]).retrievalLatencyMs.p95,null);
 });
 const report = {semanticStatus:'READY',rerankStatus:'OK',retrieval:{evidence:[{title:'Fixture'}]},candidates:[]};
+test('explicit bypass is not a provider failure or a strict reranked pass', () => {
+  const item={id:'bypass',query:'fixture',expectedTitle:'Fixture'};
+  const bypass={...report,rerankStatus:'DISABLED_BY_CONFIGURATION',mode:'HYBRID_QDRANT_UNRERANKED'};
+  const result=evaluateCase(item,bypass);
+  assert.equal(result.passed,false);
+  assert.equal(result.operationalPassed,true);
+  assert.equal(summarize([result]).dependencyFailures,0);
+  assert.equal(summarize([result]).rerankSkippedCases,1);
+  assert.equal(summarize([result]).configuredModeTargetPasses,1);
+  for(const invalid of [{...bypass,semanticStatus:'SEARCH_UNAVAILABLE'},
+    {...bypass,mode:'DEPENDENCY_BLOCKED_UNRERANKED'},
+    {...bypass,rerankStatus:'HTTP_403:AllocationQuota.FreeTierOnly'}]) {
+    const failed=evaluateCase(item,invalid);
+    assert.equal(failed.operationalPassed,false);
+    assert.equal(summarize([failed]).dependencyFailures,1);
+  }
+});
 test('false selection fails even when dependencies succeed', () => {
   const result = evaluateCase({id:'absent',query:'fixture',expectedTitle:null},report);
   assert.equal(result.passed,false);
