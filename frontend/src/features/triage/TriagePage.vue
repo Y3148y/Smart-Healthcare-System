@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { api, streamResult } from '../../api'
 import AssessmentCard from './components/AssessmentCard.vue'
+import { recoverConversation } from './recoverConversation'
 import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
 
 const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRunning:boolean}>()
@@ -79,17 +80,24 @@ async function startTriage(){
     emit('updated')
   }catch(e:any){
     triageStatus.value='分诊请求失败'
-    let saved=false
+    let saved=false,processing=false,completed=false
     if(activeConversation.value){
-      try{
-        const latest=await api<Conversation>(`/triage/sessions/${activeConversation.value.session.id}`)
-        const userMessages=latest.messages.filter(message=>message.role==='USER')
-        saved=userMessages.length>previousUserCount && userMessages[userMessages.length-1]?.content===content
-        if(saved)applyConversation(latest)
-      }catch{}
+      triageStatus.value='连接中断，正在核对已保存的结果…'
+      const id=activeConversation.value.session.id
+      const recovered=await recoverConversation(()=>api<Conversation>(`/triage/sessions/${id}`),previousUserCount,content)
+      saved=recovered.saved;processing=recovered.processing
+      if(saved && recovered.conversation){
+        applyConversation(recovered.conversation)
+        const lastReply=recovered.conversation.messages[recovered.conversation.messages.length-1]
+        completed=!processing && lastReply?.role==='ASSISTANT'
+        if(completed){
+          replyDurations.value[lastReply.id]=(performance.now()-started)/1000
+          emit('updated')
+        }
+      }
     }
     if(!saved)question.value=content
-    emit('notify',saved?'症状已保存；本次分析未完成，请补充信息后重试':`分诊失败：${e?.message||'请检查后端服务'}`)
+    emit('notify',completed?'连接已恢复，本轮结果已加载':processing?'问题已保存，后台仍在处理；请稍后打开该会话查看，不要重复提交':saved?'问题已保存，但本轮未完成；可重新打开会话核对状态':`分诊失败：${e?.message||'请检查后端服务'}`)
   }finally{if(elapsedTimer)clearInterval(elapsedTimer);elapsedTimer=undefined;pendingMessage.value='';triageRunning.value=false}
 }
 async function openConversation(id:string){
