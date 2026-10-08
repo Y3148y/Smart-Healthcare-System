@@ -54,7 +54,7 @@ KnowledgeIndexBuildRunner显式启用离线构建，复用批准语料同步入�
 
 本轮问题与有界上下文 → BM25及百炼embedding/Qdrant多路候选 → 单一RRF融合 → 百炼rerank → 按资料去重（每份资料最多保留一个片段）→ 有界片段 → 生成及回答核对。
 阈值、候选深度和依赖要求由配置控制。rag-live要求语义检索与rerank可用；其他配置可提供标识明确的本地降级，故障不能伪装成无医学资料。
-免费重排额度耗尽时，可显式临时设置 `ai.rerank.enabled=false` 与 `ai.retrieval.require-rerank=false`。这会完全跳过重排请求，按现有RRF顺序选留，标记 `DISABLED_BY_CONFIGURATION` / `UNRERANKED`；不修改rag-live的默认严格要求。仍保留语义依赖闸门、引用校验及回答核对。未重排结果的质量须单独评估，不能沿用重排版通过率；评估器现有严格依赖通过指标不会把此模式算为完整通过。
+免费重排额度耗尽时，可显式临时设置 `ai.rerank.enabled=false` 与 `ai.retrieval.require-rerank=false`。这会完全跳过重排请求，按前述向量路线保留与RRF补足策略选留，标记 `DISABLED_BY_CONFIGURATION` / `UNRERANKED`；不修改rag-live的默认严格要求。仍保留语义依赖闸门、引用校验及回答核对。未重排结果的质量须单独评估，不能沿用重排版通过率；评估器现有严格依赖通过指标不会把此模式算为完整通过。
 诊断保留各路排名、BM25实际词项贡献、重排分数及选留理由；患者端不展示内部评分。评估报告保留候选片段、哈希和chunk版本引用；只保存在本机忽略目录。重排传输错误提供脱敏分类（超时、DNS、连接、TLS、HTTP状态、无效响应等），不记录异常原文、密钥或患者query。模型不调用工具也不负责修补召回。
 同一词可出现在其他主题的警示条件里。例如感冒稿提到胸痛需评估，不意味着胸痛患者患感冒；标题不同不一定毫无关联，得分高也不代表可用于推断病因。
 生成与回答核对共用适用性约束：病程、护理、病因和就医条件不能跨症状背景套用，伴随警示不能证明主要疾病。这是提示约束，不是确定性医学判断；合同测试只证明两处接入，实际模型遵守程度仍需生成评估。
@@ -73,13 +73,12 @@ KnowledgeIndexBuildRunner显式启用离线构建，复用批准语料同步入�
 tools/knowledge-sync的npm test验证抽取、来源约束和待审导入；npm run audit:corpus报告应用资源，不代表数据库库存。
 tools/rag-eval的npm test验证评估器；npm run evaluate:published测试发布主题，npm run evaluate:development运行60条固定作者开发查询。
 同主题变体带groupId，报告记录split、labelAuthor和前后语料指纹。修正后的评估器按唯一文档标题计算目标排名，保留所选/候选片段原文、SHA-256及匹配的chunkId/版本，便于回看错误来自哪个具体片段；本地报告因此含公开来源摘录，只保存在忽略目录。此前报告不含这些字段，不能追溯补造。
-当前60条只是DEVELOPMENT_ONLY，尚无独立留出或穷举相关片段标签。
-quality.mjs提供另行评审的片段Recall@k/Precision@k/MRR、答案正确性与逐断言忠实度计算。片段指标要求穷举相关标签并按文档版本与正文哈希匹配；去重后计分，空分母及未审保持未知。当前尚未提供完整真实标签或质量成绩，不能将计算器测试称为准确率评测。
+当前60条只是DEVELOPMENT_ONLY；本机另有14条作者草案标签（9正例、5无覆盖），其余未标注，没有独立留出审核。
+quality.mjs提供另行评审的片段Recall@k/Precision@k/MRR、答案正确性与逐断言忠实度计算。片段指标要求穷举相关标签并按文档版本与正文哈希匹配；去重后计分，空分母及未审保持未知。作者草案已用于开发诊断，但完整标签和人工答案审核仍未完成，不能将计算器测试或模型核对称为医学准确率评测。
 离线评分入口：`node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签需schemaVersion=1、corpusSha256与报告完全一致；cases中按id给exhaustive=true、relevant片段版本/哈希数组，可附answerReview（correctness及逐断言support）。报告缺失或歧义的片段身份拒绝计分；缺标签、未评回答单列，不自动补标。标签与含正文报告仍保存在本机，不公开患者数据。
 新评估快照包含全部批准片段正文，不仅召回候选。`review-packet-cli.mjs`将其转为本机待评审包：逐题查看完整冻结语料、标注相关片段和参考答案；初始exhaustive=false，不根据模型分数或预设标题自动标注。旧报告没有全部正文时拒绝生成，不能把未召回片段漏出召回率分母。输出文件不可覆盖旧评审。
 临时禁用重排且require-semantic=true时，RRF候选中的纯词法命中仍保留诊断，但最终只采用同时在原向量阈值候选内的片段，纯词法项标记unconfirmed_lexical_only_without_rerank。此约束不提高阈值、不按症状写特殊分支，也不代表医学适用性已验证；可能损失仅词法可找到的有效资料，须用固定集复测。启用重排及其他本地配置不变。
 质量评分输出同时保留标签版本、标注者、审核状态、临床审核状态及数据划分；缺失记UNSPECIFIED。作者诊断草案不能因计算出了数值就变成独立验收，开发集不能改名为留出集。
-离线评分入口：`node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签需schemaVersion=1、corpusSha256与报告完全一致；cases中按id给exhaustive=true、relevant片段版本/哈希数组，可附answerReview（correctness及逐断言support）。报告缺失或歧义的片段身份拒绝计分；缺标签、未评回答单列，不自动补标。标签与含正文报告仍保存在本机，不公开患者数据。
 最终选留片段也单独保存与语料快照匹配的chunk版本引用，不依赖候选列表间接查找。相同标题存在多个匹配版本时保留全部匹配，不任取第一份；无匹配时为空，不能伪造溯源。这些引用只证明片段身份，不证明适用性或回答支持。
 评估快照和片段引用保留数据库提供的章节路径、序号与正文位置，帮助区分「腹痛章节中的胸痛警示」与胸痛通用资料；旧报告缺字段仍记为空或未知，不按标题推造上下文。
 `cases-development-60-v2.json`保留v1全部查询和主题，仅更新新发布文档标题；两版标签均保留。可用 `node cli.mjs cases-development-60-v2.json`复验新稿，不以旧标题结果代替新版本质量验证。

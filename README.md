@@ -41,6 +41,8 @@ SSE 推送真实处理阶段，正文检查完成后一次返回，尚非逐 tok
 
 默认允许明确标识的本地检索降级；rag-live 要求向量与重排依赖。demo 对话不调用外部 LLM，检索依赖按配置独立启用。详细事实与限制见 [RAG 设计与验证](docs/RAG.md)。
 
+额度不足时可显式设置 `ai.rerank.enabled=false` 和 `ai.retrieval.require-rerank=false`；两者必须同时配置，否则严格配置拒绝启动。此模式保留向量检索与RRF，标记为未重排，不等于严格RAG验收通过；不要关闭安全或回答依据核对来绕过依赖故障。
+
 ## 本地运行
 
 需要 JDK 17、Maven 和 Node.js 20+。项目根目录打开两个终端：
@@ -72,10 +74,13 @@ cd backend
 mvn clean test
 # 另一个终端
 cd frontend
+npm test
 npm run build
 ```
 
 普通测试不调用真实模型，外部 RAG 集成测试需显式启用。不要使用 JDK 25 跑当前 Mockito 测试。工程测试通过不代表临床验收。
+
+可重复评估入口见 [RAG工程验证](docs/RAG.md)：主题目标命中、片段Recall/Precision/MRR和答案正确性/忠实度是不同指标。质量计算需要版本绑定的人工标签；缺标签时保持未知，作者开发标签不能冒充独立留出评估。报告与医学正文保留本机，不公开提交。
 
 | 目录 | 内容 |
 | --- | --- |
