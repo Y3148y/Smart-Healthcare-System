@@ -45,6 +45,18 @@ test('candidate report retains exact excerpt and matching corpus chunk identity 
   assert.equal(result.candidates[0].excerpt,excerpt);
   assert.equal(result.candidates[0].chunkReferences[0].chunkId,'chunk-1');
   assert.equal(result.selectedEvidence[0].excerpt,excerpt);
+  assert.deepEqual(result.selectedEvidence[0].chunkReferences,result.candidates[0].chunkReferences);
+});
+test('final evidence does not borrow another excerpt identity or hide duplicate-title ambiguity', () => {
+  const excerpt='conditional statement';
+  const hash=createHash('sha256').update(excerpt).digest('hex');
+  const document=version=>({title:'Same',chunks:[{chunkId:version,documentVersion:version,contentSha256:hash}]});
+  const result=evaluateCase({id:'identity',query:'fixture',expectedTitle:'Same'}, {
+    ...report, corpus:{approved:[document('v1'),document('v2')]},
+    retrieval:{evidence:[{title:'Same',excerpt},{title:'Same',excerpt:'different excerpt'}]},
+  });
+  assert.deepEqual(result.selectedEvidence[0].chunkReferences.map(c=>c.documentVersion),['v1','v2']);
+  assert.deepEqual(result.selectedEvidence[1].chunkReferences,[]);
 });
 test('missing negative label and duplicate IDs fail dataset validation', () => {
   const dataset={schemaVersion:1,labelVersion:'fixture',reviewStatus:'NOT_CLINICALLY_REVIEWED',cases:[{id:'one',query:'fixture'}]};

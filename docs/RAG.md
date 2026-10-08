@@ -63,6 +63,7 @@ tools/knowledge-sync的npm test验证抽取、来源约束和待审导入；npm 
 tools/rag-eval的npm test验证评估器；npm run evaluate:published测试发布主题，npm run evaluate:development运行60条固定作者开发查询。
 同主题变体带groupId，报告记录split、labelAuthor和前后语料指纹。修正后的评估器按唯一文档标题计算目标排名，保留所选/候选片段原文、SHA-256及匹配的chunkId/版本，便于回看错误来自哪个具体片段；本地报告因此含公开来源摘录，只保存在忽略目录。此前报告不含这些字段，不能追溯补造。
 当前60条只是DEVELOPMENT_ONLY，尚无独立留出或穷举相关片段标签。
+最终选留片段也单独保存与语料快照匹配的chunk版本引用，不依赖候选列表间接查找。相同标题存在多个匹配版本时保留全部匹配，不任取第一份；无匹配时为空，不能伪造溯源。这些引用只证明片段身份，不证明适用性或回答支持。
 `cases-development-60-v2.json`保留v1全部查询和主题，仅更新新发布文档标题；两版标签均保留。可用 `node cli.mjs cases-development-60-v2.json`复验新稿，不以旧标题结果代替新版本质量验证。
 单目标文档命中率与MRR不能称完整Recall或Precision；额外候选需核对片段及条件。检索p50/p95不是整个患者回答耗时，依赖失败单独记录。
 报告仅存本机reports/rag/，不上传令牌或患者对话；报告包含检索到的来源片段。开发集通过不证明最终回答受支持，不能以调整标签掩盖失败。

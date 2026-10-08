@@ -28,9 +28,16 @@ export function validateCases(dataset) {
 export function evaluateCase(item, report) {
   if (!Array.isArray(report?.retrieval?.evidence) || !Array.isArray(report.candidates)
       || report.retrieval.evidence.some(e => typeof e.title !== 'string')) throw new Error('Invalid retrieval report');
+  const referencesFor = (title, hash) => hash ? (report.corpus?.approved ?? [])
+    .filter(d => d.title === title).flatMap(document => (document.chunks ?? [])
+      .filter(chunk => chunk.contentSha256 === hash).map(chunk => ({
+        chunkId:chunk.chunkId, documentVersion:chunk.documentVersion,
+        contentSha256:chunk.contentSha256, chunkingVersion:chunk.chunkingVersion,
+      }))) : [];
   const selectedEvidence = report.retrieval.evidence.map(e => ({
     title:e.title, source:e.source, excerpt:e.excerpt, score:e.score,
     contentSha256:typeof e.excerpt === 'string' ? sha256(e.excerpt) : null,
+    chunkReferences:referencesFor(e.title, typeof e.excerpt === 'string' ? sha256(e.excerpt) : null),
   }));
   // One document may contribute several selected chunks. Topic labels are document-level,
   // so count each title once and retain its first rank instead of inflating duplicates.
@@ -45,13 +52,7 @@ export function evaluateCase(item, report) {
     elapsedMs:report.elapsedMs,
     candidates:report.candidates.map(c => {
       const contentSha256 = typeof c.excerpt === 'string' ? sha256(c.excerpt) : null;
-      const document = report.corpus?.approved?.find(d => d.title === c.title);
-      const chunkReferences = contentSha256 && document
-        ? document.chunks.filter(chunk => chunk.contentSha256 === contentSha256).map(chunk => ({
-            chunkId:chunk.chunkId, documentVersion:chunk.documentVersion,
-            contentSha256:chunk.contentSha256, chunkingVersion:chunk.chunkingVersion,
-          }))
-        : [];
+      const chunkReferences = referencesFor(c.title, contentSha256);
       return {title:c.title, source:c.source, excerpt:c.excerpt, contentSha256, chunkReferences,
         lexicalRank:c.lexicalRank, lexicalScore:c.lexicalScore,
       semanticRank:c.semanticRank, semanticScore:c.semanticScore, fusedScore:c.fusedScore,
