@@ -1,0 +1,15 @@
+const test=require('node:test')
+const assert=require('node:assert/strict')
+const fs=require('node:fs')
+const path=require('node:path')
+
+test('admin account control opens an accessible menu with demo disclosure and logout',()=>{
+  const app=fs.readFileSync(path.join(__dirname,'..','src','App.vue'),'utf8')
+  const css=fs.readFileSync(path.join(__dirname,'..','src','features','admin','admin.css'),'utf8')
+  assert.match(app,/<details v-else class="account-menu">/)
+  assert.match(app,/<summary class="user-menu" :aria-label=/)
+  assert.match(app,/本机演示账号，不代表已接入医院生产管理系统/)
+  assert.match(app,/<button type="button" class="account-logout" @click="logout">退出登录<\/button>/)
+  assert.match(app,/function logout\(\)\{[^}]*history\.replaceState\(\{\},'',window\.location\.pathname\)/)
+  assert.match(css,/\.account-menu > summary:focus-visible/)
+})

@@ -41,3 +41,11 @@
 .admin-check input {width:auto}
 @media(max-width:1100px) {.admin-status-grid {grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px) {.admin-status-grid {grid-template-columns:1fr}.admin-toolbar label{width:100%}.admin-document{padding:16px}}
+.account-menu { position: relative; }
+.account-menu > summary { list-style: none; cursor: pointer; }
+.account-menu > summary::-webkit-details-marker { display: none; }
+.account-menu > summary:focus-visible { outline: 3px solid #91c5ff; outline-offset: 3px; border-radius: 8px; }
+.account-popover { position: absolute; z-index: 8; top: calc(100% + 12px); right: 0; width: 280px; padding: 18px; background: #fff; border: 1px solid #e3ebf4; border-radius: 12px; box-shadow: 0 12px 32px #243b531f; }
+.account-popover p { margin: 8px 0; color: #40536a; }
+.account-popover small { display: block; color: #7b8998; line-height: 1.5; }
+.account-logout { margin-top: 14px; padding: 8px 12px; color: #b42318; border: 1px solid #f0c9c5; border-radius: 7px; }
