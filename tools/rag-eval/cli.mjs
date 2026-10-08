@@ -27,7 +27,8 @@ async function snapshot() {
     const chunks = await request(`admin/knowledge/${encodeURIComponent(document.id)}/chunks`);
     approved.push({id:document.id,title:document.title,chunks:chunks.map(c=>({chunkId:c.chunkId,documentVersion:c.documentVersion,
       contentSha256:c.contentSha256,chunkingVersion:c.chunkingVersion,
-      sectionPath:c.sectionPath,ordinal:c.ordinal,start:c.start,end:c.end,positionUnit:c.positionUnit}))});
+      sectionPath:c.sectionPath,ordinal:c.ordinal,start:c.start,end:c.end,positionUnit:c.positionUnit,
+      text:c.text,source:c.source}))});
   }
   return {approved,sha256:createHash('sha256').update(JSON.stringify(approved)).digest('hex')};
 }

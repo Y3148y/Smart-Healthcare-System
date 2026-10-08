@@ -198,8 +198,12 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         var reranked = !rerankEnabled ? new BailianReranker.Result(List.of(), "DISABLED_BY_CONFIGURATION")
                 : reranker == null ? new BailianReranker.Result(List.of(), "NOT_CONFIGURED") : reranker.rank(query, pool, limit);
         boolean blocked = requireSemantic && !denseOk || requireRerank && !Set.of("OK", "EMPTY").contains(reranked.status());
+        boolean requireDenseConfirmation = !rerankEnabled && requireSemantic;
+        Set<String> denseConfirmed = new HashSet<>();
+        dense.forEach(e -> denseConfirmed.add(Bm25Retriever.key(e)));
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
-                : pool.stream().limit(limit).toList();
+                : pool.stream().filter(e -> !requireDenseConfirmation || denseConfirmed.contains(Bm25Retriever.key(e)))
+                        .limit(limit).toList();
         String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
         lastMode = mode;
@@ -211,6 +215,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).evidence().score() : null,
                 kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
+                : requireDenseConfirmation && c.semanticRank == 0 ? "unconfirmed_lexical_only_without_rerank"
                 : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k",
                 c.lexicalRank == 0 ? List.of() : requestLexicalIndex.explain(query, c.evidence))).toList();
         var report = new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()

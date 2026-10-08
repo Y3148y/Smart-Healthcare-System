@@ -12,13 +12,15 @@ import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
     @Test void explicitBypassDoesNotCallRerankAndCannotBypassRequiredSemantic() {
+        var local = new InMemoryKnowledgeCatalog();
+        var confirmed = local.approvedCorpus().stream().filter(e -> e.title().contains("呼吸")).findFirst().orElseThrow();
         var semantic = mock(QdrantSemanticIndex.class);
         when(semantic.ensureIndexed(anyList())).thenReturn(true);
         when(semantic.status()).thenReturn("READY");
         when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
-                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "READY"));
+                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(confirmed), "READY"));
         var reranker = mock(BailianReranker.class);
-        var catalog = new HybridKnowledgeCatalog(new InMemoryKnowledgeCatalog(), semantic, reranker);
+        var catalog = new HybridKnowledgeCatalog(local, semantic, reranker);
         ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
         ReflectionTestUtils.setField(catalog, "requireSemantic", true);
         var report = catalog.inspect("咳嗽", 3, 0.28);
@@ -26,6 +28,13 @@ class HybridRetrievalPipelineTest {
         assertEquals("HYBRID_QDRANT_UNRERANKED", report.mode());
         assertTrue(report.retrieval().grounded());
         verifyNoInteractions(reranker);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
+                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "READY"));
+        var lexicalOnly = catalog.inspect("咳嗽",3,0.28);
+        assertFalse(lexicalOnly.retrieval().grounded());
+        assertFalse(lexicalOnly.candidates().isEmpty());
+        assertTrue(lexicalOnly.candidates().stream().allMatch(c ->
+                "unconfirmed_lexical_only_without_rerank".equals(c.reason())));
         ReflectionTestUtils.setField(catalog, "requireRerank", true);
         assertThrows(IllegalStateException.class, catalog::validateConfiguration);
         assertFalse(catalog.inspect("咳嗽", 3, 0.28).retrieval().grounded());
