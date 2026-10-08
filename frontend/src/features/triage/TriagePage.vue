@@ -6,6 +6,7 @@ import AnswerSources from './components/AnswerSources.vue'
 import { recoverConversation } from './recoverConversation'
 import { responseDuration } from './responseDuration'
 import { conversationProcessing, conversationSendBlocked } from './conversationProcessing'
+import { selectionVersion } from './selectionVersion'
 import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
 
 const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRunning:boolean}>()
@@ -13,6 +14,7 @@ const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],updated:[],notify:
 const question=ref(''), activeConversation=ref<Conversation|null>(null), eligible=ref(false)
 const pendingMessage=ref(''), triage=ref<Result|null>(null), triageStatus=ref(''), triageRunning=ref(false)
 const sessionList=ref<ChatSession[]>(props.sessions)
+const selection=selectionVersion()
 const elapsedSeconds=ref(0), replyDurations=ref<Record<string,number>>({})
 const processing=computed(()=>conversationProcessing(activeConversation.value?.session.status,triageRunning.value))
 const sendBlocked=computed(()=>conversationSendBlocked(activeConversation.value?.session.status,triageRunning.value))
@@ -67,6 +69,7 @@ async function startTriage(){
   if(sendBlocked.value)return
   const content=normalizeUserText(question.value)
   if(!content)return
+  selection.next()
   const previousUserCount=activeConversation.value?.messages.filter(message=>message.role==='USER').length||0
   question.value='';triageRunning.value=true;triageStatus.value='正在提交请求…';pendingMessage.value=content
   const started=performance.now()
@@ -108,18 +111,25 @@ async function startTriage(){
 }
 async function openConversation(id:string){
   if(triageRunning.value)return
-  try{applyConversation(await api<Conversation>(`/triage/sessions/${id}`));question.value=''}
-  catch(e:any){emit('notify',`会话加载失败：${e?.message||'请求失败'}`)}
+  const version=selection.next()
+  try{
+    const conversation=await api<Conversation>(`/triage/sessions/${id}`)
+    if(!selection.isCurrent(version))return
+    applyConversation(conversation);question.value=''
+  }
+  catch(e:any){if(selection.isCurrent(version))emit('notify',`会话加载失败：${e?.message||'请求失败'}`)}
 }
 function newConversation(){
   if(triageRunning.value)return
+  selection.next()
   activeConversation.value=null;triage.value=null;question.value='';pendingMessage.value='';eligible.value=false
 }
 async function requestHumanReview(sessionId:string,reason:string){
   if(!activeConversation.value||activeConversation.value.humanReview){emit('notify','该会话已提交人工导诊申请');return}
   try{
     const review=await api<HumanReview>(`/triage/sessions/${sessionId}/human-review`,{method:'POST',body:JSON.stringify({reason})})
-    activeConversation.value={...activeConversation.value,humanReview:review}
+    if(activeConversation.value?.session.id===sessionId)
+      activeConversation.value={...activeConversation.value,humanReview:review}
     emit('notify','人工导诊申请已记录，状态：等待处理')
   }catch(e:any){emit('notify',`人工导诊申请失败：${e?.message||'请求失败'}`)}
 }
