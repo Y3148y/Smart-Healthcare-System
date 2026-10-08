@@ -66,6 +66,19 @@ npm run dev -- --host 127.0.0.1 --port 5188
 
 若本机npm转发参数异常，可在frontend目录直接执行 `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5188 --strictPort`；strictPort防止端口占用时悄悄换端口。
 
+本地启动MySQL与Qdrant开发依赖时，从项目根目录设置密码并启动：
+
+```powershell
+$env:MYSQL_ROOT_PASSWORD = Read-Host 'MySQL local root password'
+docker compose up -d mysql qdrant
+$env:AI_DB_URL = 'jdbc:mysql://127.0.0.1:3306/ai_hospital?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
+$env:AI_DB_USER = 'root'
+$env:AI_DB_PASSWORD = $env:MYSQL_ROOT_PASSWORD
+$env:AI_QDRANT_URL = 'http://127.0.0.1:6333'
+```
+
+Compose端口只绑定本机；其MySQL root凭据仅供本机开发。医院部署需单独建立最小权限DB用户、配置网络访问控制与有认证的向量服务，不应直接复用此开发Compose。
+
 真实模型通过进程环境变量 AI_MODE=openai-compatible、AI_BASE_URL、AI_MODEL、AI_API_KEY 配置。向量检索配置 AI_EMBEDDING_MODEL、AI_EMBEDDING_API_KEY、AI_EMBEDDING_BASE_URL、AI_QDRANT_URL；重排配置 AI_RERANK_MODEL、AI_RERANK_URL 与对应密钥变量。实际默认值以 backend/src/main/resources/application*.yml 为准。
 
 密钥不得写入文件或 GitHub。演示认证仅限本地，对外部署前必须关闭 AI_DEMO_AUTH_ENABLED 并接入正式认证。
