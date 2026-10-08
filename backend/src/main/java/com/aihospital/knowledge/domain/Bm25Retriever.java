@@ -7,7 +7,8 @@ import java.util.*;
 public final class Bm25Retriever {
     private Bm25Retriever() {}
     public record TermContribution(String term, int documentFrequency, int termFrequency,
-                                   double inverseDocumentFrequency, double score) {}
+                                   double inverseDocumentFrequency, double score,
+                                   int titleTermFrequency, int bodyTermFrequency) {}
 
     public static List<Evidence> search(String query, List<Evidence> corpus, int limit, double minimum) {
         return index(corpus).search(query, limit, minimum);
@@ -40,7 +41,12 @@ public final class Bm25Retriever {
                 if (key(corpus.get(i)).equals(key(evidence))) { position = i; break; }
             }
             if (position < 0) return List.of();
-            return contributions(tokens(query).keySet(), documents.get(position));
+            Evidence origin = corpus.get(position);
+            Map<String, Integer> title = tokens(origin.title()), body = tokens(origin.excerpt());
+            return contributions(tokens(query).keySet(), documents.get(position)).stream()
+                    .map(term -> new TermContribution(term.term(), term.documentFrequency(), term.termFrequency(),
+                            term.inverseDocumentFrequency(), term.score(), title.getOrDefault(term.term(), 0),
+                            body.getOrDefault(term.term(), 0))).toList();
         }
 
         private List<TermContribution> contributions(Set<String> queryTerms, Map<String, Integer> document) {
@@ -51,7 +57,7 @@ public final class Bm25Retriever {
                 int df = frequencies.get(term);
                 double idf = Math.log(1 + (corpus.size() - df + 0.5) / (df + 0.5));
                 double score = idf * tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * length(document) / average));
-                result.add(new TermContribution(term, df, tf, idf, score));
+                result.add(new TermContribution(term, df, tf, idf, score, 0, 0));
             }
             return List.copyOf(result);
         }
