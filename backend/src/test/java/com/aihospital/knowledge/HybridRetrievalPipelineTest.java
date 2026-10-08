@@ -11,6 +11,40 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void explicitBypassReservesDenseRouteBeforeRrfWithoutInventingOrDuplicatingEvidence() {
+        var local = new InMemoryKnowledgeCatalog(false);
+        for (String name : List.of("dense-one", "dense-two", "dual-one", "dual-two")) {
+            var document = local.addDocument(name, name.startsWith("dual") ? "目标任务目标任务" : "不同的测试正文" + name);
+            local.approveDocument(document.id());
+        }
+        var corpus = local.approvedCorpus();
+        var dense = List.of("dense-one", "dense-two", "dual-one", "dual-two").stream()
+                .map(name -> corpus.stream().filter(e -> name.equals(e.title())).findFirst().orElseThrow()).toList();
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
+                .thenReturn(new QdrantSemanticIndex.SearchResult(dense, "READY"));
+        var reranker = mock(BailianReranker.class);
+        var catalog = new HybridKnowledgeCatalog(local, semantic, reranker);
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
+        ReflectionTestUtils.setField(catalog, "requireSemantic", true);
+        var report = catalog.inspect("目标任务", 3, 0.28);
+        assertEquals(List.of("dense-one", "dense-two"), report.retrieval().evidence().stream()
+                .limit(2).map(com.aihospital.shared.model.Models.Evidence::title).toList());
+        assertEquals(3, report.retrieval().evidence().size());
+        assertTrue(report.retrieval().evidence().get(2).title().startsWith("dual"));
+        assertEquals(3, report.retrieval().evidence().stream().map(com.aihospital.knowledge.domain.Bm25Retriever::key).distinct().count());
+        assertEquals(2, report.candidates().stream().filter(c -> c.kept()
+                && "selected_semantic_reserve_without_rerank".equals(c.reason())).count());
+        assertEquals("dense-one", catalog.inspect("目标任务", 1, 0.28).retrieval().evidence().get(0).title());
+        verifyNoInteractions(reranker);
+        // Ordinary rerank remains authoritative; bypass diversity is not applied.
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", true);
+        when(reranker.rank(anyString(), anyList(), anyInt()))
+                .thenReturn(new BailianReranker.Result(List.of(dense.get(3)), "OK"));
+        assertEquals(List.of(dense.get(3)), catalog.inspect("目标任务", 3, 0.28).retrieval().evidence());
+    }
+
     @Test void explicitBypassDoesNotCallRerankAndCannotBypassRequiredSemantic() {
         var local = new InMemoryKnowledgeCatalog();
         var confirmed = local.approvedCorpus().stream().filter(e -> e.title().contains("呼吸")).findFirst().orElseThrow();

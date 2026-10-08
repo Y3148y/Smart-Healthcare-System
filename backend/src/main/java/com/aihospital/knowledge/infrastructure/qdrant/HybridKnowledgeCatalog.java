@@ -201,9 +201,20 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         boolean requireDenseConfirmation = !rerankEnabled && requireSemantic;
         Set<String> denseConfirmed = new HashSet<>();
         dense.forEach(e -> denseConfirmed.add(Bm25Retriever.key(e)));
-        List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
+        // Without a cross-encoder, dual-route agreement can swamp a highly ranked
+        // dense-only answer chunk with title-only lexical matches. Reserve half
+        // of the final slots for the dense route, then fill from the RRF order.
+        // This is retrieval diversity, not an assertion of answer support.
+        Set<String> reserved = new HashSet<>();
+        if (!rerankEnabled && denseOk && !blocked) {
+            dense.stream().limit((limit + 1) / 2).forEach(e -> reserved.add(Bm25Retriever.key(e)));
+        }
+        List<Evidence> unreranked = !reserved.isEmpty()
+                ? selectUnreranked(ranked, reserved, denseConfirmed, limit, requireDenseConfirmation)
                 : pool.stream().filter(e -> !requireDenseConfirmation || denseConfirmed.contains(Bm25Retriever.key(e)))
                         .limit(limit).toList();
+        List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
+                : unreranked;
         String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
         lastMode = mode;
@@ -216,6 +227,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
                 : requireDenseConfirmation && c.semanticRank == 0 ? "unconfirmed_lexical_only_without_rerank"
+                : kept.contains(Bm25Retriever.key(c.evidence)) && reserved.contains(Bm25Retriever.key(c.evidence))
+                        ? "selected_semantic_reserve_without_rerank"
                 : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k",
                 c.lexicalRank == 0 ? List.of() : requestLexicalIndex.explain(query, c.evidence))).toList();
         var report = new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()
@@ -223,6 +236,21 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);
         recordEvent(report);
         return report;
+    }
+    private static List<Evidence> selectUnreranked(List<Candidate> ranked, Set<String> reserved,
+            Set<String> denseConfirmed, int limit, boolean requireDenseConfirmation) {
+        Map<String, Evidence> selected = new LinkedHashMap<>();
+        ranked.stream().filter(c -> reserved.contains(Bm25Retriever.key(c.evidence)))
+                .sorted(Comparator.comparingInt(c -> c.semanticRank))
+                .forEach(c -> selected.put(Bm25Retriever.key(c.evidence),
+                        new Evidence(c.evidence.title(), c.evidence.source(), c.evidence.excerpt(), c.fused)));
+        for (Candidate c : ranked) {
+            if (selected.size() >= limit) break;
+            String key = Bm25Retriever.key(c.evidence);
+            if (requireDenseConfirmation && !denseConfirmed.contains(key)) continue;
+            selected.putIfAbsent(key, new Evidence(c.evidence.title(), c.evidence.source(), c.evidence.excerpt(), c.fused));
+        }
+        return List.copyOf(selected.values());
     }
     private static final class Candidate {
         final Evidence evidence;
