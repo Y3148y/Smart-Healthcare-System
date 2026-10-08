@@ -26,7 +26,8 @@ async function snapshot() {
   for (const document of documents.filter(d=>d.status==='READY').sort((a,b)=>a.id.localeCompare(b.id))) {
     const chunks = await request(`admin/knowledge/${encodeURIComponent(document.id)}/chunks`);
     approved.push({id:document.id,title:document.title,chunks:chunks.map(c=>({chunkId:c.chunkId,documentVersion:c.documentVersion,
-      contentSha256:c.contentSha256,chunkingVersion:c.chunkingVersion}))});
+      contentSha256:c.contentSha256,chunkingVersion:c.chunkingVersion,
+      sectionPath:c.sectionPath,ordinal:c.ordinal,start:c.start,end:c.end,positionUnit:c.positionUnit}))});
   }
   return {approved,sha256:createHash('sha256').update(JSON.stringify(approved)).digest('hex')};
 }

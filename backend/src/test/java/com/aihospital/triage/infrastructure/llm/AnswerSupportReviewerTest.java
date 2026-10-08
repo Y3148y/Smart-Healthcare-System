@@ -26,6 +26,13 @@ class AnswerSupportReviewerTest {
         return PASS.replace("\"" + fields.get(code) + "\":true", "\"" + fields.get(code) + "\":false");
     }
     private final ObjectMapper json = new ObjectMapper();
+    @Test void generationAndReviewShareApplicabilityBoundaryWithoutSymptomRouting() {
+        assertTrue(MedicalAnswerInstructions.generation("一般问题",true)
+                .contains(MedicalAnswerInstructions.APPLICABILITY));
+        assertTrue(AnswerSupportReviewer.INSTRUCTIONS.contains(MedicalAnswerInstructions.APPLICABILITY));
+        assertTrue(MedicalAnswerInstructions.APPLICABILITY.contains("病程、护理、病因和就医条件"));
+        assertTrue(MedicalAnswerInstructions.APPLICABILITY.contains("不能证明患者"));
+    }
     @Test void fixedChecksRequireEveryBooleanAndServerDerivesDecision() throws Exception {
         assertEquals("PASSED", AnswerSupportReviewer.parse(PASS, draft).status());
         for (String code : List.of("UNSUPPORTED_CLAIM", "CONDITION_NOT_ESTABLISHED", "OFF_TOPIC",

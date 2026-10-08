@@ -33,6 +33,8 @@ export function evaluateCase(item, report) {
       .filter(chunk => chunk.contentSha256 === hash).map(chunk => ({
         chunkId:chunk.chunkId, documentVersion:chunk.documentVersion,
         contentSha256:chunk.contentSha256, chunkingVersion:chunk.chunkingVersion,
+        sectionPath:chunk.sectionPath ?? [], ordinal:chunk.ordinal ?? null,
+        start:chunk.start ?? null, end:chunk.end ?? null, positionUnit:chunk.positionUnit ?? null,
       }))) : [];
   const selectedEvidence = report.retrieval.evidence.map(e => ({
     title:e.title, source:e.source, excerpt:e.excerpt, score:e.score,

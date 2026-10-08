@@ -38,7 +38,8 @@ test('candidate report retains exact excerpt and matching corpus chunk identity 
   const contentSha256=createHash('sha256').update(excerpt).digest('hex');
   const result=evaluateCase({id:'trace',query:'胸痛',expectedTitle:'Chest'}, {
     ...report,
-    corpus:{approved:[{title:'Chest',chunks:[{chunkId:'chunk-1',documentVersion:'v1',contentSha256,chunkingVersion:'v3'}]}]},
+    corpus:{approved:[{title:'Chest',chunks:[{chunkId:'chunk-1',documentVersion:'v1',contentSha256,chunkingVersion:'v3',
+      sectionPath:['腹痛','伴随警示'],ordinal:2,start:10,end:30,positionUnit:'CODE_POINT'}]}]},
     candidates:[{title:'Chest',source:'https://example.invalid/source',excerpt,kept:true}],
     retrieval:{evidence:[{title:'Chest',source:'https://example.invalid/source',excerpt,score:0.8}]},
   });
@@ -46,6 +47,8 @@ test('candidate report retains exact excerpt and matching corpus chunk identity 
   assert.equal(result.candidates[0].chunkReferences[0].chunkId,'chunk-1');
   assert.equal(result.selectedEvidence[0].excerpt,excerpt);
   assert.deepEqual(result.selectedEvidence[0].chunkReferences,result.candidates[0].chunkReferences);
+  assert.deepEqual(result.selectedEvidence[0].chunkReferences[0].sectionPath,['腹痛','伴随警示']);
+  assert.equal(result.selectedEvidence[0].chunkReferences[0].start,10);
 });
 test('final evidence does not borrow another excerpt identity or hide duplicate-title ambiguity', () => {
   const excerpt='conditional statement';
@@ -57,6 +60,8 @@ test('final evidence does not borrow another excerpt identity or hide duplicate-
   });
   assert.deepEqual(result.selectedEvidence[0].chunkReferences.map(c=>c.documentVersion),['v1','v2']);
   assert.deepEqual(result.selectedEvidence[1].chunkReferences,[]);
+  assert.deepEqual(result.selectedEvidence[0].chunkReferences[0].sectionPath,[]);
+  assert.equal(result.selectedEvidence[0].chunkReferences[0].positionUnit,null);
 });
 test('missing negative label and duplicate IDs fail dataset validation', () => {
   const dataset={schemaVersion:1,labelVersion:'fixture',reviewStatus:'NOT_CLINICALLY_REVIEWED',cases:[{id:'one',query:'fixture'}]};
