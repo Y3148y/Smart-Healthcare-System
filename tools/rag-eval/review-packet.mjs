@@ -9,7 +9,7 @@ export function reviewPacket(report) {
     throw new Error('Full corpus chunk text required; candidate-only reports cannot establish exhaustive labels');
   return {schemaVersion:1,corpusSha256:report.corpus.sha256,
     reviewStatus:'UNREVIEWED',reviewer:null,clinicalReview:'NOT_REVIEWED',
-    instruction:'Read the complete frozen corpus for each query. Mark every chunk relevant or not relevant before exhaustive=true. Reference answer and factual claim review require separate judgement.',
+    instruction:'Read the complete frozen corpus for each query. Mark every chunk relevant or not relevant before exhaustive=true. Reference answer and factual claim review require separate judgement. Whole-answer faithfulness requires claimsExhaustive=true after all factual claims have been reviewed; partial review remains unknown.',
     corpus,cases:report.results.map(result=>({id:result.id,query:result.query,exhaustive:false,
       relevant:[],relevanceJudgements:[],referenceAnswer:null,answerReview:null,
       selectedEvidence:result.selectedEvidence,dependency:{semantic:result.semanticStatus,rerank:result.rerankStatus}}))};

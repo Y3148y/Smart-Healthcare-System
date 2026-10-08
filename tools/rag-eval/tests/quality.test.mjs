@@ -19,11 +19,18 @@ test('duplicates, uncovered and empty results cannot inflate quality',()=>{
   assert.equal(negative.noCoverageFalseSelection,true);
 });
 test('faithfulness is reviewed factual claims, not the support-review pass flag',()=>{
-  const answer=answerQuality({correctness:'INCORRECT',claims:[{support:'SUPPORTED'},{support:'UNSUPPORTED'}]});
+  const answer=answerQuality({correctness:'INCORRECT',claimsExhaustive:true,claims:[{support:'SUPPORTED'},{support:'UNSUPPORTED'}]});
   assert.equal(answer.faithfulness,.5);assert.equal(answer.correct,false);
   assert.equal(answerQuality({correctness:'UNREVIEWED',claims:[{support:'UNREVIEWED'}]}).faithfulness,null);
   assert.equal(answerQuality({correctness:'CORRECT',claims:[]}).faithfulness,null);
   const summary=summarizeQuality([],[answer,answerQuality({correctness:'UNREVIEWED',claims:[]})]);
   assert.deepEqual(summary.answerCorrectness,{value:0,evaluated:1});
   assert.deepEqual(summary.faithfulness,{value:.5,evaluated:1});
+});
+test('partial claim review cannot claim complete answer faithfulness',()=>{
+  for(const claimsExhaustive of [undefined,false]){
+    const result=answerQuality({correctness:'UNREVIEWED',claimsExhaustive,claims:[{support:'SUPPORTED'}]});
+    assert.equal(result.faithfulness,null);assert.equal(result.claimsExhaustive,false);
+  }
+  assert.equal(answerQuality({correctness:'CORRECT',claimsExhaustive:true,claims:[]}).faithfulness,null);
 });

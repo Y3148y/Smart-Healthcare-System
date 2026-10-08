@@ -32,7 +32,8 @@ export function answerQuality(review) {
   // No factual claims (e.g. refusal) is not a fabricated 100% faithfulness score.
   return {correct:review.correctness === 'UNREVIEWED' ? null : review.correctness === 'CORRECT',
     claimCount:review.claims.length, supported, unsupported, unreviewed,
-    faithfulness:unreviewed ? null : ratio(supported,review.claims.length)};
+    claimsExhaustive:review.claimsExhaustive === true,
+    faithfulness:review.claimsExhaustive !== true || unreviewed ? null : ratio(supported,review.claims.length)};
 }
 
 export function summarizeQuality(retrieval, answers) {
