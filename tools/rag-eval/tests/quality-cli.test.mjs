@@ -32,6 +32,24 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     assert.equal(result.unreviewedAnswers,1);assert.equal(result.summary.recallAtK.value,1);
     assert.equal(result.reviewStatus,'UNSPECIFIED');assert.equal(result.split,'UNSPECIFIED');
     assert.equal(result.summary.answerCorrectness.value,null);
+    const answerText='A synthetic generated answer, not medical information.';
+    const answerSnapshot={text:answerText,messageId:'fixture-message',traceId:'fixture-trace',
+      contentSha256:createHash('sha256').update(answerText).digest('hex')};
+    const answerReview={correctness:'CORRECT',claims:[{support:'SUPPORTED'}],
+      answerSha256:answerSnapshot.contentSha256,answerMessageId:answerSnapshot.messageId,traceId:answerSnapshot.traceId};
+    const answerLabels={...label,cases:[{...label.cases[0],answerReview}]};
+    writeFileSync(labels,JSON.stringify(answerLabels));
+    assert.equal(run().status,1,'A retrieval-only report cannot acquire fabricated answer scores');
+    const withAnswer={...source,results:[{...source.results[0],answerSnapshot},source.results[1]]};
+    writeFileSync(report,JSON.stringify(withAnswer));
+    const answerResult=run();assert.equal(answerResult.status,0,answerResult.stderr);
+    assert.equal(JSON.parse(answerResult.stdout).summary.answerCorrectness.value,1);
+    for(const override of [{text:'Changed answer'}, {messageId:'different-message'}, {traceId:'different-trace'},
+      {contentSha256:'0'.repeat(64)}]) {
+      writeFileSync(report,JSON.stringify({...withAnswer,results:[{...withAnswer.results[0],answerSnapshot:{...answerSnapshot,...override}}]}));
+      assert.equal(run().status,1,'Changed answer identity cannot reuse review');
+    }
+    writeFileSync(report,JSON.stringify(source));writeFileSync(labels,JSON.stringify(label));
     assert.deepEqual(result.cases[0].missed,[]);
     assert.deepEqual(result.cases[0].extra,[]);
     assert.equal(result.cases[0].retrieval.hits,1);

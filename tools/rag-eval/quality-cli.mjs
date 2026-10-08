@@ -59,7 +59,17 @@ try {
     cases.push({id:result.id,status:'LABELLED',retrieval:quality,
       missed:label.relevant.filter(chunk=>!selectedIds.has(identity(chunk))),
       extra:selected.filter(chunk=>!relevant.has(identity(chunk)))});
-    if (label.answerReview) answers.push(answerQuality(label.answerReview));
+    if (label.answerReview) {
+      const snapshot=result.answerSnapshot,review=label.answerReview;
+      if (!snapshot || typeof snapshot.text !== 'string' || !snapshot.text.trim()
+          || typeof snapshot.messageId !== 'string' || !snapshot.messageId
+          || typeof snapshot.traceId !== 'string' || !snapshot.traceId
+          || createHash('sha256').update(snapshot.text).digest('hex') !== snapshot.contentSha256
+          || review.answerSha256 !== snapshot.contentSha256
+          || review.answerMessageId !== snapshot.messageId || review.traceId !== snapshot.traceId)
+        throw new Error('Answer review must match the exact versioned answer snapshot');
+      answers.push(answerQuality(review));
+    }
     else unreviewedAnswers++;
   }
   console.log(JSON.stringify({labelVersion:labels.labelVersion ?? null,reviewer:labels.reviewer ?? null,
