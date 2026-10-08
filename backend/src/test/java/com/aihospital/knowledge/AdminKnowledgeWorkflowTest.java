@@ -81,11 +81,30 @@ class AdminKnowledgeWorkflowTest {
                 List.of(source), List.of("fixture"), List.of(), List.of(), List.of(),
                 List.of("general_information"), "pending", null, audit);
         var request = new AdminKnowledgeController.ImportDocument("Canonical import fixture", body, metadata);
+        String key = com.aihospital.knowledge.domain.KnowledgeImportIdentity.key(request.title(), request.body());
+        int before = catalog.documents().size();
         var response = mvc.perform(post("/api/admin/knowledge/documents").header("Authorization", admin())
+                        .header("Idempotency-Key", key)
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("PENDING_REVIEW"))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String id = json.readTree(response).path("id").asText();
+        mvc.perform(post("/api/admin/knowledge/documents").header("Authorization", admin())
+                        .header("Idempotency-Key", key).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(request)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.id").value(id));
+        assertEquals(before + 1, catalog.documents().size(), "a replay must not create a second document");
+        var changedMetadata = new com.aihospital.knowledge.domain.KnowledgeMetadata(1, "zh-CN", "reviewed_summary",
+                List.of(source), List.of("changed fixture"), List.of(), List.of(), List.of(),
+                List.of("general_information"), "pending", null, audit);
+        var conflict = new AdminKnowledgeController.ImportDocument(request.title(), body, changedMetadata);
+        mvc.perform(post("/api/admin/knowledge/documents").header("Authorization", admin())
+                        .header("Idempotency-Key", key).contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(conflict)))
+                .andExpect(status().isConflict());
+        mvc.perform(post("/api/admin/knowledge/documents").header("Authorization", admin())
+                        .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
         mvc.perform(get("/api/admin/knowledge/" + id + "/metadata").header("Authorization", admin()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.metadata.intakeAudit.documentId").value("original-fixture"))
                 .andExpect(jsonPath("$.metadata.intakeAudit.contentSha256").value(bodyHash))

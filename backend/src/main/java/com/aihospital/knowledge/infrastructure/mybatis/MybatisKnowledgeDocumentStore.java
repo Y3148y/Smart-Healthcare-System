@@ -3,6 +3,7 @@ package com.aihospital.knowledge.infrastructure.mybatis;
 import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import com.aihospital.knowledge.domain.KnowledgeMetadata;
+import com.aihospital.knowledge.domain.KnowledgeImportReceipt;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import org.springframework.stereotype.Repository;
@@ -34,8 +35,24 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
         return row == null ? null : convert(row);
     }
 
+    @Override public KnowledgeImportReceipt findImport(String idempotencyKey) {
+        Map<String, Object> row = mapper.findImport(idempotencyKey);
+        return row == null ? null : new KnowledgeImportReceipt(convert(row), String.valueOf(row.get("request_hash")));
+    }
+
     @Override @Transactional
     public void insert(StoredKnowledgeDocument document) {
+        insertDocument(document);
+    }
+
+    @Override @Transactional
+    public void insertImported(StoredKnowledgeDocument document, String idempotencyKey, String requestHash) {
+        insertDocument(document);
+        if (mapper.insertImport(idempotencyKey, requestHash, document.id(), LocalDateTime.now()) != 1)
+            throw new IllegalStateException("Knowledge import request was not persisted");
+    }
+
+    private void insertDocument(StoredKnowledgeDocument document) {
         if (mapper.insert(document.id(), document.title(), document.body(), document.source(),
                 document.status(), document.chunkCount(), document.updatedAt()) != 1)
             throw new IllegalStateException("Knowledge document was not persisted");

@@ -7,6 +7,9 @@ import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import com.aihospital.knowledge.domain.KnowledgeChunk;
 import com.aihospital.knowledge.domain.MarkdownChunker;
 import com.aihospital.knowledge.domain.KnowledgeMetadata;
+import com.aihospital.knowledge.domain.KnowledgeImportIdentity;
+import com.aihospital.knowledge.domain.KnowledgeImportConflictException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
@@ -45,6 +48,9 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     private final Map<String, String> sources = new ConcurrentHashMap<>();
     private final Map<String, KnowledgeMetadata> metadata = new ConcurrentHashMap<>();
     private final Map<String, List<Chunk>> chunks = new ConcurrentHashMap<>();
+    private final Map<String, ImportBinding> importBindings = new ConcurrentHashMap<>();
+    private final ObjectMapper importJson = new ObjectMapper();
+    private record ImportBinding(String requestHash, String documentId) {}
 
     public InMemoryKnowledgeCatalog() {
         this(true);
@@ -138,6 +144,23 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         KnowledgeDocument document = add(title, body, supplied.sourceLabel(), false);
         metadata.put(document.id(), supplied);
         return document;
+    }
+
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata supplied,
+            String idempotencyKey) {
+        if (supplied == null) throw new IllegalArgumentException("Structured knowledge metadata is required");
+        if (!KnowledgeImportIdentity.validKey(idempotencyKey, title, body))
+            throw new IllegalArgumentException("知识导入请求键无效");
+        supplied.validateBody(body);
+        String requestHash = KnowledgeImportIdentity.requestHash(title, body, supplied, importJson);
+        ImportBinding previous = importBindings.get(idempotencyKey);
+        if (previous != null) {
+            if (!previous.requestHash().equals(requestHash)) throw new KnowledgeImportConflictException();
+            return documents.get(previous.documentId());
+        }
+        KnowledgeDocument created = addDocument(title, body, supplied);
+        importBindings.put(idempotencyKey, new ImportBinding(requestHash, created.id()));
+        return created;
     }
 
     @Override public synchronized KnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata supplied) {

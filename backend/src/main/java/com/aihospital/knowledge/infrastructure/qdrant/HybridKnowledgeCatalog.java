@@ -4,9 +4,13 @@ import com.aihospital.knowledge.domain.Bm25Retriever;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
+import com.aihospital.knowledge.domain.KnowledgeImportIdentity;
+import com.aihospital.knowledge.domain.KnowledgeImportReceipt;
+import com.aihospital.knowledge.domain.KnowledgeImportConflictException;
 import com.aihospital.knowledge.infrastructure.demo.InMemoryKnowledgeCatalog;
 import com.aihospital.shared.model.Models.Evidence;
 import com.aihospital.shared.model.Models.KnowledgeDocument;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +26,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     private final QdrantSemanticIndex semantic;
     private final BailianReranker reranker;
     private final KnowledgeDocumentStore documentStore;
+    private final ObjectMapper importJson;
     @Value("${ai.retrieval.min-score:0.28}") private double lexicalMinScore = 0.28;
     @Value("${ai.retrieval.semantic-min-score:0.45}") private double semanticMinScore = 0.45;
     @Value("${ai.retrieval.rrf-k:60}") private int rrfK = 60;
@@ -82,15 +87,20 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
 
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic) {
-        this(local, semantic, null, null);
+        this(local, semantic, null, null, new ObjectMapper());
     }
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic, BailianReranker reranker) {
-        this(local, semantic, reranker, null);
+        this(local, semantic, reranker, null, new ObjectMapper());
+    }
+    public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic,
+                                  BailianReranker reranker, KnowledgeDocumentStore documentStore) {
+        this(local, semantic, reranker, documentStore, new ObjectMapper());
     }
     @Autowired
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic,
-                                  BailianReranker reranker, KnowledgeDocumentStore documentStore) {
+                                  BailianReranker reranker, KnowledgeDocumentStore documentStore, ObjectMapper importJson) {
         this.local = local; this.semantic = semantic; this.reranker = reranker; this.documentStore = documentStore;
+        this.importJson = importJson;
     }
     @PostConstruct public void validateConfiguration() {
         if (documentStore != null) {
@@ -117,6 +127,43 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
         if (metadata != null) metadata.validateBody(body);
         return persistNewDocument(local.addDocument(title, body, metadata));
+    }
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body,
+            com.aihospital.knowledge.domain.KnowledgeMetadata metadata, String idempotencyKey) {
+        if (metadata == null) throw new IllegalArgumentException("Structured knowledge metadata is required");
+        if (!KnowledgeImportIdentity.validKey(idempotencyKey, title, body))
+            throw new IllegalArgumentException("知识导入请求键无效");
+        metadata.validateBody(body);
+        String requestHash = KnowledgeImportIdentity.requestHash(title, body, metadata, importJson);
+        if (documentStore == null) return local.addDocument(title, body, metadata, idempotencyKey);
+
+        KnowledgeImportReceipt existing = documentStore.findImport(idempotencyKey);
+        if (existing != null) return replay(existing, requestHash);
+
+        KnowledgeDocument created = local.addDocument(title, body, metadata);
+        try {
+            documentStore.insertImported(local.persistedDocument(created.id()), idempotencyKey, requestHash);
+            return created;
+        } catch (RuntimeException failure) {
+            // A concurrent process may have won the unique-key insert. Read only after
+            // the failed transaction has returned/rolled back; never hide unrelated DB errors.
+            KnowledgeImportReceipt winner = documentStore.findImport(idempotencyKey);
+            if (winner == null) {
+                local.removeAfterPersistenceFailure(created.id());
+                throw failure;
+            }
+            local.removeAfterPersistenceFailure(created.id());
+            return replay(winner, requestHash);
+        }
+    }
+    private KnowledgeDocument replay(KnowledgeImportReceipt receipt, String requestHash) {
+        if (!receipt.requestHash().equals(requestHash)) throw new KnowledgeImportConflictException();
+        KnowledgeDocument existing = local.documents().stream()
+                .filter(document -> document.id().equals(receipt.document().id())).findFirst().orElse(null);
+        if (existing != null) return existing;
+        local.restorePersistedDocuments(documentStore.loadOrSeed(local.persistedDocuments()));
+        return local.documents().stream().filter(document -> document.id().equals(receipt.document().id()))
+                .findFirst().orElseThrow(() -> new IllegalStateException("Idempotent knowledge import record is inconsistent"));
     }
     @Override public com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {
         return local.documentMetadata(id);

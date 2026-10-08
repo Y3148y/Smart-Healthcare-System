@@ -14,6 +14,9 @@ public interface KnowledgeCatalog {
     default KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata metadata) {
         throw new UnsupportedOperationException("Structured knowledge import is unavailable");
     }
+    default KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata metadata, String idempotencyKey) {
+        throw new UnsupportedOperationException("Idempotent structured knowledge import is unavailable");
+    }
     default KnowledgeMetadata documentMetadata(String id) { return null; }
     default KnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata metadata) {
         throw new UnsupportedOperationException("Pending metadata update is unavailable");

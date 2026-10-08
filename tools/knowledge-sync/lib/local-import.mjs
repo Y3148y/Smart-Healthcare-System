@@ -43,12 +43,13 @@ export async function importPendingPacket(packet,{base,token,fetcher=fetch}) {
   const body=validateLocalPacket(packet);
   const url=localApiBase(base);
   if (typeof token !== 'string' || !token || /\s/.test(token)) throw new Error('ADMIN_TOKEN_REQUIRED');
+  const idempotencyKey='sha256:'+createHash('sha256').update(body.title+'\0'+body.body,'utf8').digest('hex');
   const response=await fetcher(new URL('admin/knowledge/documents',url),{
-    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+    method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token,'Idempotency-Key':idempotencyKey},
     body:JSON.stringify(body),redirect:'error',signal:AbortSignal.timeout(15000)});
   if (!response.ok) throw new Error('IMPORT_HTTP_'+response.status);
   const document=await response.json();
-  if (!document || typeof document.id !== 'string' || document.status !== 'PENDING_REVIEW')
+  if (!document || typeof document.id !== 'string' || !['PENDING_REVIEW','READY'].includes(document.status))
     throw new Error('UNEXPECTED_IMPORT_STATUS');
   return {id:document.id,status:document.status};
 }

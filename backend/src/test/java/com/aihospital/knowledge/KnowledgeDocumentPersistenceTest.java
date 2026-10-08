@@ -2,12 +2,15 @@ package com.aihospital.knowledge;
 
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
+import com.aihospital.knowledge.domain.KnowledgeImportIdentity;
+import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
 import com.aihospital.knowledge.infrastructure.demo.InMemoryKnowledgeCatalog;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDateTime;
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest(properties = "spring.datasource.url=jdbc:h2:mem:knowledge_persistence_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE")
@@ -45,5 +48,21 @@ class KnowledgeDocumentPersistenceTest {
         assertTrue(rebuiltAfterApproval.approvedCorpus().stream().anyMatch(e -> e.title().equals(title)));
         assertEquals(previewChunks, rebuiltAfterApproval.documentChunks(pending.id()),
                 "persisted body and identity must reconstruct the same provenance after restart");
+    }
+
+    @Test void importKeyUniqueConstraintRollsBackTheLosingDocumentAtomically() {
+        String title = "idempotency-test-" + UUID.randomUUID();
+        String body = "Synthetic persistence fixture.";
+        String key = KnowledgeImportIdentity.key(title, body);
+        LocalDateTime now = LocalDateTime.now();
+        var winner = new StoredKnowledgeDocument(UUID.randomUUID().toString(), title, body, "test fixture",
+                "PENDING_REVIEW", 1, now, null);
+        var loser = new StoredKnowledgeDocument(UUID.randomUUID().toString(), title, body, "test fixture",
+                "PENDING_REVIEW", 1, now, null);
+        store.insertImported(winner, key, "a".repeat(64));
+
+        assertThrows(RuntimeException.class, () -> store.insertImported(loser, key, "a".repeat(64)));
+        assertEquals(winner.id(), store.findImport(key).document().id());
+        assertNull(store.find(loser.id()), "document insertion must roll back with the duplicate key");
     }
 }

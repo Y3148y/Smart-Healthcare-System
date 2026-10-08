@@ -143,6 +143,14 @@ CREATE TABLE IF NOT EXISTS knowledge_document_metadata (
   FOREIGN KEY (document_id) REFERENCES knowledge_document(id)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_import_request (
+  idempotency_key VARCHAR(128) PRIMARY KEY,
+  request_hash CHAR(64) NOT NULL,
+  document_id VARCHAR(64) NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  FOREIGN KEY (document_id) REFERENCES knowledge_document(id)
+);
+
 CREATE TABLE IF NOT EXISTS review_access_audit (
   id VARCHAR(64) PRIMARY KEY,
   actor VARCHAR(128) NOT NULL,

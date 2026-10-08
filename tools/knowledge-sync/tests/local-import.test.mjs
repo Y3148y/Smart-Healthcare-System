@@ -22,10 +22,18 @@ test('import makes exactly one pending-create call, never an approval',async()=>
   }});
   assert.equal(calls.length,1);assert.ok(calls[0].url.endsWith('/documents'));
   assert.equal(calls[0].options.redirect,'error');assert.equal(result.status,'PENDING_REVIEW');
+  assert.match(calls[0].options.headers['Idempotency-Key'],/^sha256:[a-f0-9]{64}$/);
   assert.equal(JSON.parse(calls[0].options.body).metadata.permissionStatus,'pending');
 });
-test('missing token, backend errors and unexpected READY are not successes',async()=>{
+test('same packet retry reuses its idempotency key and an already-approved replay is a success',async()=>{
+  const keys=[];
+  for(let i=0;i<2;i++)await importPendingPacket(packet(),{token:'fixture',fetcher:async(_url,options)=>{
+    keys.push(options.headers['Idempotency-Key']);return {ok:true,json:async()=>({id:'same-id',status:i?'READY':'PENDING_REVIEW'})};
+  }});
+  assert.equal(keys[0],keys[1]);
+});
+test('missing token, backend errors and unknown status are not successes',async()=>{
   await assert.rejects(importPendingPacket(packet(),{}),/TOKEN/);
   await assert.rejects(importPendingPacket(packet(),{token:'fixture',fetcher:async()=>({ok:false,status:403})}),/HTTP_403/);
-  await assert.rejects(importPendingPacket(packet(),{token:'fixture',fetcher:async()=>({ok:true,json:async()=>({id:'x',status:'READY'})})}),/STATUS/);
+  await assert.rejects(importPendingPacket(packet(),{token:'fixture',fetcher:async()=>({ok:true,json:async()=>({id:'x',status:'BROKEN'})})}),/STATUS/);
 });

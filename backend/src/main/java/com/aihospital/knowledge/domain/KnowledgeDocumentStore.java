@@ -7,7 +7,11 @@ import java.util.List;
 public interface KnowledgeDocumentStore {
     List<StoredKnowledgeDocument> loadOrSeed(List<StoredKnowledgeDocument> bundledDocuments);
     StoredKnowledgeDocument find(String id);
+    default KnowledgeImportReceipt findImport(String idempotencyKey) { return null; }
     void insert(StoredKnowledgeDocument document);
+    default void insertImported(StoredKnowledgeDocument document, String idempotencyKey, String requestHash) {
+        throw new UnsupportedOperationException("Durable knowledge import idempotency is unavailable");
+    }
     StoredKnowledgeDocument approve(String id, int chunkCount, LocalDateTime updatedAt);
     void refreshChunkCount(String id, int chunkCount);
     default StoredKnowledgeDocument withdraw(String id, LocalDateTime updatedAt) {

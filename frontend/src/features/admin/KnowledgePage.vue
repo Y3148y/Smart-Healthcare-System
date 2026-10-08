@@ -24,7 +24,9 @@ async function view(id: string) {
 async function saved(document: KnowledgeDocument) {
   editor.value = false
   await load(); await view(document.id)
-  notice.value = '正文与来源已保存，资料待审批，尚未用于患者检索。'
+  notice.value = document.status === 'READY'
+    ? '该导入请求已对应现有已审批资料，未创建重复副本。'
+    : '正文与来源已保存，资料待审批，尚未用于患者检索。'
 }
 async function approve(id: string) {
   if (busy.value) return

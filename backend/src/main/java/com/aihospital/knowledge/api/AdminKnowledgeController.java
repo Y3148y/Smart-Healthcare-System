@@ -6,6 +6,8 @@ import com.aihospital.shared.model.Models.KnowledgeDocument;
 import com.aihospital.shared.security.RoleGuard;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,9 +57,15 @@ public class AdminKnowledgeController {
         return knowledge.updatePendingMetadata(id, metadata);
     }
     @PostMapping("/documents") public KnowledgeDocument importDocument(@RequestBody ImportDocument request,
-            @RequestHeader(value = "Authorization", required = false) String auth) {
+            @RequestHeader(value = "Authorization", required = false) String auth,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
         guard.require(auth, "ADMIN");
-        return knowledge.addDocument(request.title(), request.body(), request.metadata());
+        if (idempotencyKey == null || idempotencyKey.isBlank())
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少知识导入幂等键，请刷新页面后重试");
+        try { return knowledge.addDocument(request.title(), request.body(), request.metadata(), idempotencyKey); }
+        catch (com.aihospital.knowledge.domain.KnowledgeImportConflictException conflict) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, conflict.getMessage());
+        }
     }
     @GetMapping("/{id}/metadata") public Map<String, Object> metadata(@PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String auth) {

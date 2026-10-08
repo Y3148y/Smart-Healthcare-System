@@ -2,7 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { api } from '../../api'
 import type { KnowledgeDocument } from './types'
-import { parseKnowledgeIntake, parseKnowledgeMarkdown, type IntakeAudit, type IntakeMetadata } from './knowledgeIntake'
+import { knowledgeImportIdempotencyKey, parseKnowledgeIntake, parseKnowledgeMarkdown, type IntakeAudit, type IntakeMetadata } from './knowledgeIntake'
 
 const emit = defineEmits<{ saved: [document: KnowledgeDocument] }>()
 interface Source { sourceId: string; publisher: string; url: string; fetchedAt: string | null; rawSha256: string | null }
@@ -94,10 +94,12 @@ async function submit() {
           evidenceUses: [...new Set([form.evidenceUse, ...(originalMetadata?.evidenceUses.slice(1) || [])])], permissionStatus: form.permissionStatus,
           intakeAudit: originalMetadata?.intakeAudit || undefined,
           permissionEvidence: form.permissionEvidence.trim() || null }
+    const title = form.title.trim(), body = form.body
+    const requestBody = props.documentId ? metadata : { title, body, metadata }
+    const headers = props.documentId ? undefined : { 'Idempotency-Key': await knowledgeImportIdempotencyKey(title, body) }
     const document = await api<KnowledgeDocument>(props.documentId
       ? '/admin/knowledge/' + encodeURIComponent(props.documentId) + '/metadata' : '/admin/knowledge/documents', {
-      method: props.documentId ? 'PUT' : 'POST', body: JSON.stringify(props.documentId ? metadata
-        : { title: form.title.trim(), body: form.body, metadata })
+      method: props.documentId ? 'PUT' : 'POST', headers, body: JSON.stringify(requestBody)
     })
     emit('saved', document)
   } catch (e: any) { error.value = e.message || '提交失败' }

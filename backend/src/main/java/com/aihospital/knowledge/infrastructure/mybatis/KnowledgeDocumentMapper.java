@@ -16,6 +16,8 @@ public interface KnowledgeDocumentMapper {
 
     @Select("SELECT d.*,m.metadata_json FROM knowledge_document d LEFT JOIN knowledge_document_metadata m ON m.document_id=d.id WHERE d.id=#{id}")
     Map<String, Object> find(@Param("id") String id);
+    @Select("SELECT d.*,m.metadata_json,r.request_hash FROM knowledge_import_request r JOIN knowledge_document d ON d.id=r.document_id LEFT JOIN knowledge_document_metadata m ON m.document_id=d.id WHERE r.idempotency_key=#{key}")
+    Map<String, Object> findImport(@Param("key") String key);
     @Select("SELECT id FROM knowledge_document WHERE id=#{id} FOR UPDATE")
     String lockDocument(@Param("id") String id);
 
@@ -34,6 +36,10 @@ public interface KnowledgeDocumentMapper {
     int insert(@Param("id") String id, @Param("title") String title, @Param("body") String body,
                @Param("source") String source, @Param("status") String status,
                @Param("chunkCount") int chunkCount, @Param("updatedAt") LocalDateTime updatedAt);
+
+    @Insert("INSERT INTO knowledge_import_request(idempotency_key,request_hash,document_id,created_at) VALUES(#{key},#{hash},#{documentId},#{createdAt})")
+    int insertImport(@Param("key") String key, @Param("hash") String hash,
+                     @Param("documentId") String documentId, @Param("createdAt") LocalDateTime createdAt);
 
     @Update("UPDATE knowledge_document SET status='READY',chunk_count=#{chunkCount},updated_at=#{updatedAt} WHERE id=#{id} AND status='PENDING_REVIEW'")
     int approvePending(@Param("id") String id, @Param("chunkCount") int chunkCount,

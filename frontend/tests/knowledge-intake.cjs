@@ -11,6 +11,7 @@ const context = {exports:{}, crypto:webcrypto, TextEncoder, URL, Uint8Array}
 vm.runInNewContext(compiled, context)
 const parse = context.exports.parseKnowledgeIntake
 const parseMarkdown = context.exports.parseKnowledgeMarkdown
+const importKey = context.exports.knowledgeImportIdempotencyKey
 function canonicalFixture() {
   const metadata = fixture().metadata
   metadata.language = 'zh-CN'; metadata.contentKind = 'reviewed_summary'; metadata.evidenceUses = ['general_information']
@@ -37,6 +38,14 @@ test('canonical multi-source draft strips metadata and never grants permission',
   assert.equal(result.metadata.intakeAudit.contentSha256, createHash('sha256').update(result.body).digest('hex'))
   assert.equal(result.metadata.intakeAudit.provenanceSha256, createHash('sha256').update(files['provenance.json']).digest('hex'))
   assert.equal(result.metadata.intakeAudit.sourceSnapshots.length, 2)
+})
+test('knowledge import idempotency key is stable for retries and changes with document identity', async () => {
+  const title = 'Fixture', body = 'Body';
+  const key = await importKey(title, body)
+  assert.match(key, /^sha256:[a-f0-9]{64}$/)
+  assert.equal(await importKey(title, body), key)
+  assert.notEqual(await importKey(title, body + ' changed'), key)
+  assert.notEqual(await importKey(title + ' changed', body), key)
 })
 test('canonical draft requires original source snapshots and bound provenance', async () => {
   for (const mutate of [f => delete f['source.nlm.en.md'], f => f['source.en.md'] += 'changed',

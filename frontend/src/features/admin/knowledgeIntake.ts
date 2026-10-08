@@ -11,6 +11,11 @@ async function sha256(text: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map(value => value.toString(16).padStart(2, '0')).join('')
 }
 
+/** Stable across retries and browser reloads; the server binds this key to full metadata too. */
+export async function knowledgeImportIdempotencyKey(title: string, body: string): Promise<string> {
+  return `sha256:${await sha256(`${title}\0${body}`)}`
+}
+
 // Canonical drafts are a document plus hash-bound provenance and source snapshots.
 // No network fetch or approval is performed while reading these files.
 export async function parseKnowledgeMarkdown(files: Record<string, string>): Promise<IntakeCandidate> {
