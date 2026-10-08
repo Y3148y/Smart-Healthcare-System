@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Assessment, Doctor } from '../types'
+import AnswerSources from './AnswerSources.vue'
 
 const props=defineProps<{anchor:Assessment,assessments:Assessment[],bookingRunning:boolean,currentSessionStatus?:string}>()
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],review:[sessionId:string,reason:string]}>()
@@ -56,7 +57,7 @@ function sourceLabel(source:string){try{return new URL(source).hostname}catch{re
     <p v-if="shown.result.riskLevel!=='紧急'" class="safety">{{ shown.result.safetyTip }}</p>
     <div v-if="shown.result.modelStatus!=='SAFETY_RULE'" class="grounding-status" :class="{blocked:!shown.result.grounded}"><b>{{ shown.result.grounded?'检索到相关知识片段':'未检索到足够相关的知识' }}</b><span>{{ shown.result.groundingMessage }}</span></div>
     <p v-if="shown.result.modelStatus==='SAFETY_RULE'" class="historic-note">本次紧急提醒由安全规则触发，不依赖大模型生成；规则出处请查看风险提示。</p>
-    <div v-else class="evidence"><b>RAG 知识依据</b><article v-for="e in shown.result.evidence" :key="`${e.title}-${e.excerpt}`"><strong>{{ e.title }}</strong><span>{{ e.excerpt }}</span><small v-if="evidenceSources(e.source).length" class="evidence-source">来源：<a v-for="source in evidenceSources(e.source)" :key="source" :href="source" target="_blank" rel="noopener noreferrer">{{ sourceLabel(source) }}</a></small></article><p v-if="!shown.result.evidence.length" class="historic-note">本次没有可引用的检索片段。</p></div>
+    <template v-else><AnswerSources :evidence="shown.result.answerEvidence" /><details class="evidence"><summary>检索到的参考资料（不等于回答已采用）</summary><article v-for="e in shown.result.evidence" :key="`${e.title}-${e.excerpt}`"><strong>{{ e.title }}</strong><span>{{ e.excerpt }}</span><small v-if="evidenceSources(e.source).length" class="evidence-source">来源：<a v-for="source in evidenceSources(e.source)" :key="source" :href="source" target="_blank" rel="noopener noreferrer">{{ sourceLabel(source) }}</a></small></article><p v-if="!shown.result.evidence.length" class="historic-note">本次没有可引用的检索片段。</p></details></template>
     <button class="text-btn" type="button" @click="traceExpanded=!traceExpanded">{{ traceExpanded?'收起':'展开' }} 后台工具调用记录（{{ shown.result.tools.length }}）</button>
     <div v-if="traceExpanded" class="trace"><div v-for="(t,index) in shown.result.tools" :key="`${shown.version}-${index}`" :class="{failed:!t.success}"><b>{{ t.label }}</b><span>{{ t.outcome }}<em v-if="t.error"> · {{ t.error }}</em></span><small>{{ t.elapsedMs }}ms</small></div></div>
     <button v-if="shown.result.doctor && isBookable" type="button" class="primary" :disabled="bookingRunning" @click="emit('book',shown.result.doctor!,shown.result.sessionId)">{{ bookingRunning?'预约中…':`模拟预约 ${shown.result.doctor.name} 的号源` }}</button>

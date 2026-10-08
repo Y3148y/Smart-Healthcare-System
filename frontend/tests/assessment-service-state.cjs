@@ -5,22 +5,29 @@ const fs=require('node:fs')
 const path=require('node:path')
 const Module=require('node:module')
 const {parse,compileScript}=require('@vue/compiler-sfc')
-const {buildSync}=require('esbuild')
+const {build}=require('esbuild')
 const {createSSRApp}=require('vue')
 const {renderToString}=require('@vue/server-renderer')
 
 const componentPath=path.resolve(__dirname,'../src/features/triage/components/AssessmentCard.vue')
 const {descriptor}=parse(fs.readFileSync(componentPath,'utf8'))
 const compiled=compileScript(descriptor,{id:'assessment-service-state',inlineTemplate:true})
-const bundle=buildSync({stdin:{contents:compiled.content,loader:'ts',resolveDir:path.dirname(componentPath)},
-  bundle:true,platform:'node',format:'cjs',write:false,external:['vue']})
-const componentModule=new Module(componentPath,module)
-componentModule.filename=componentPath
-componentModule.paths=module.paths
-componentModule._compile(bundle.outputFiles[0].text,componentPath)
-const AssessmentCard=componentModule.exports.default
+const componentReady=build({stdin:{contents:compiled.content,loader:'ts',resolveDir:path.dirname(componentPath)},
+  bundle:true,platform:'node',format:'cjs',write:false,external:['vue'],plugins:[{
+    name:'compile-vue-tests',setup(build){build.onLoad({filter:/\.vue$/},args=>{
+      const {descriptor}=parse(fs.readFileSync(args.path,'utf8'))
+      return {contents:compileScript(descriptor,{id:args.path,inlineTemplate:true}).content,loader:'ts'}
+    })}
+  }]}).then(bundle=>{
+  const componentModule=new Module(componentPath,module)
+  componentModule.filename=componentPath
+  componentModule.paths=module.paths
+  componentModule._compile(bundle.outputFiles[0].text,componentPath)
+  return componentModule.exports.default
+})
 
 async function render(overrides={},props={}) {
+  const AssessmentCard=await componentReady
   const result={sessionId:'test',riskLevel:'普通',confidence:72,department:'Test department',doctor:null,
     summary:'test',safetyTip:'test',evidence:[],tools:[],candidates:[],modelStatus:'DEMO',modelName:'',
     safetyAssessment:null,grounded:true,groundingMessage:'test',...overrides}

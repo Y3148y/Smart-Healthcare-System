@@ -1,11 +1,12 @@
 export type Doctor={id:string,name:string,title:string,department:string,period:string,date:string,remaining:number,total:number,fee:number}
-export type Evidence={title:string,source:string,excerpt:string,score:number}
+export type Evidence={title:string,source:string,excerpt:string,score:number,sectionPath?:string[]}
+export type AnswerReference={id:string,title:string,source:string,excerpt:string,contentHash:string,applicability:string,sectionPath?:string[]}
 export type Trace={tool:string,label:string,input:string,outcome:string,elapsedMs:number,success:boolean,error:string}
 export type SafetySignal={ruleCode:string,category:string,evidence:string,reason:string}
 export type SafetyAssessment={policyVersion:string,acuity:'EMERGENCY'|'URGENT'|'ROUTINE',stopRoutineFlow:boolean,humanReviewRecommended:boolean,signals:SafetySignal[],actions:string[]}
 export type Candidate={department:string,reason:string,doctor:Doctor|null}
 export type Result={sessionId:string,riskLevel:string,confidence:number,department:string,doctor:Doctor|null,summary:string,safetyTip:string,evidence:Evidence[],tools:Trace[],candidates:Candidate[],modelStatus:string,modelName:string,safetyAssessment:SafetyAssessment|null,grounded:boolean,groundingMessage:string,answerEvidence?:ResponseProvenance['answerEvidence']}
-export type ResponseProvenance={modelStatus:string,knowledgeHits:number,localToolCalls:number,toolFailures:number,answerEvidence?:{retrievalStatus:string,validationStatus:string,adoptedReferenceIds:string[],failure?:{code:string,causeType:string,httpStatus:number|null}|null,elapsedMs?:number|null,supportReview?:{status:string,issueCodes:string[],elapsedMs:number}|null,serviceNotice?:{messages:string[],bookingAllowed:boolean|null}|null}|null}
+export type ResponseProvenance={modelStatus:string,knowledgeHits:number,localToolCalls:number,toolFailures:number,answerEvidence?:{retrievalStatus:string,validationStatus:string,adoptedReferenceIds:string[],retrievedReferences?:AnswerReference[],failure?:{code:string,causeType:string,httpStatus:number|null}|null,elapsedMs?:number|null,supportReview?:{status:string,issueCodes:string[],elapsedMs:number}|null,serviceNotice?:{messages:string[],bookingAllowed:boolean|null}|null}|null}
 export type ChatMessage={id:string,role:'USER'|'ASSISTANT',content:string,createdAt:string,provenance?:ResponseProvenance|null}
 export type ChatSession={id:string,title:string,preview:string,status:string,createdAt:string,updatedAt:string}
 export type Assessment={version:number,result:Result,createdAt:string,assistantMessageId:string|null}
