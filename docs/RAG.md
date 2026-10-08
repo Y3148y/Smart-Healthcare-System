@@ -66,6 +66,9 @@ tools/knowledge-sync的npm test验证抽取、来源约束和待审导入；npm 
 tools/rag-eval的npm test验证评估器；npm run evaluate:published测试发布主题，npm run evaluate:development运行60条固定作者开发查询。
 同主题变体带groupId，报告记录split、labelAuthor和前后语料指纹。修正后的评估器按唯一文档标题计算目标排名，保留所选/候选片段原文、SHA-256及匹配的chunkId/版本，便于回看错误来自哪个具体片段；本地报告因此含公开来源摘录，只保存在忽略目录。此前报告不含这些字段，不能追溯补造。
 当前60条只是DEVELOPMENT_ONLY，尚无独立留出或穷举相关片段标签。
+quality.mjs提供另行评审的片段Recall@k/Precision@k/MRR、答案正确性与逐断言忠实度计算。片段指标要求穷举相关标签并按文档版本与正文哈希匹配；去重后计分，空分母及未审保持未知。当前尚未提供完整真实标签或质量成绩，不能将计算器测试称为准确率评测。
+离线评分入口：`node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签需schemaVersion=1、corpusSha256与报告完全一致；cases中按id给exhaustive=true、relevant片段版本/哈希数组，可附answerReview（correctness及逐断言support）。报告缺失或歧义的片段身份拒绝计分；缺标签、未评回答单列，不自动补标。标签与含正文报告仍保存在本机，不公开患者数据。
+离线评分入口：`node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签需schemaVersion=1、corpusSha256与报告完全一致；cases中按id给exhaustive=true、relevant片段版本/哈希数组，可附answerReview（correctness及逐断言support）。报告缺失或歧义的片段身份拒绝计分；缺标签、未评回答单列，不自动补标。标签与含正文报告仍保存在本机，不公开患者数据。
 最终选留片段也单独保存与语料快照匹配的chunk版本引用，不依赖候选列表间接查找。相同标题存在多个匹配版本时保留全部匹配，不任取第一份；无匹配时为空，不能伪造溯源。这些引用只证明片段身份，不证明适用性或回答支持。
 评估快照和片段引用保留数据库提供的章节路径、序号与正文位置，帮助区分「腹痛章节中的胸痛警示」与胸痛通用资料；旧报告缺字段仍记为空或未知，不按标题推造上下文。
 `cases-development-60-v2.json`保留v1全部查询和主题，仅更新新发布文档标题；两版标签均保留。可用 `node cli.mjs cases-development-60-v2.json`复验新稿，不以旧标题结果代替新版本质量验证。
