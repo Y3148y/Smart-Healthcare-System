@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue'
 import type {ResponseProvenance} from '../types'
+import {sourceLinks} from '../sourceLinks'
 const props=defineProps<{evidence?:ResponseProvenance['answerEvidence']}>()
 const references=computed(()=>{
   const evidence=props.evidence
@@ -10,12 +11,6 @@ const references=computed(()=>{
   // Ambiguous identities cannot be presented as a single adopted source.
   return refs.filter(ref=>ids.has(ref.id)&&refs.filter(other=>other.id===ref.id).length===1)
 })
-function links(source:string){
-  return [...new Set((source||'').split('|').map(value=>value.trim()))].flatMap(value=>{
-    try{const url=new URL(value);return ['https:','http:'].includes(url.protocol)&&!url.username&&!url.password?[{href:url.href,label:url.hostname}]:[]}
-    catch{return []}
-  })
-}
 </script>
 <template>
   <details v-if="references.length" class="answer-sources">
@@ -24,7 +19,7 @@ function links(source:string){
       <strong>{{ reference.title }}</strong>
       <small v-if="reference.sectionPath?.length">{{ reference.sectionPath.join(' / ') }}</small>
       <p>{{ reference.excerpt }}</p>
-      <a v-for="link in links(reference.source)" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
+      <a v-for="link in sourceLinks(reference.source)" :key="link.href" :href="link.href" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
     </article>
   </details>
 </template>

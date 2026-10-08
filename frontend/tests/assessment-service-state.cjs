@@ -34,6 +34,13 @@ async function render(overrides={},props={}) {
   const anchor={version:1,result,createdAt:'test',assistantMessageId:'test'}
   return renderToString(createSSRApp(AssessmentCard,{anchor,assessments:[anchor],bookingRunning:false,...props}))
 }
+test('retrieved references reject unsafe source URLs as well as adopted references',async()=>{
+  const html=await render({evidence:[{title:'Synthetic source',excerpt:'Synthetic text',score:1,
+    source:'https://user:secret@example.org/ | httpx://example.org/ | javascript:alert(1) | https://example.org/source'}]})
+  assert.ok(!html.includes('user:secret'));assert.ok(!html.includes('httpx:'));assert.ok(!html.includes('javascript:'))
+  assert.ok(html.includes('href="https://example.org/source"'))
+})
+
 test('specific service outcome is shown rather than a generic no-slots label',async()=>{
   for(const outcome of ['系统尚未配置该科室','该科室已停用','科室已配置，但暂无启用的医生',
     '科室有医生，但暂无今日或未来的模拟排班','科室有模拟排班，但暂无剩余号源']) {

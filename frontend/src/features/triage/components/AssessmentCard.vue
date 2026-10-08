@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { Assessment, Doctor } from '../types'
 import AnswerSources from './AnswerSources.vue'
+import {sourceLinks} from '../sourceLinks'
 
 const props=defineProps<{anchor:Assessment,assessments:Assessment[],bookingRunning:boolean,currentSessionStatus?:string}>()
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],review:[sessionId:string,reason:string]}>()
@@ -35,7 +36,7 @@ const explanation=computed(()=>{
   return `第 ${props.anchor.version} 版结合此前描述与本轮新增信息生成；${changes.length?`与上一版相比，${changes.join('；')}。`:'主要就医方向和风险等级与上一版一致，具体理由及医生请查看当前版本。'}上一版原始结果保持不变。`
 })
 function selectVersion(version:number){selectedVersion.value=version;traceExpanded.value=false}
-function evidenceSources(source:string){return (source||'').split('|').map(item=>item.trim()).filter(item=>item.startsWith('http'))}
+function evidenceSources(source:string){return sourceLinks(source).map(link=>link.href)}
 function sourceLabel(source:string){try{return new URL(source).hostname}catch{return source}}
 </script>
 
