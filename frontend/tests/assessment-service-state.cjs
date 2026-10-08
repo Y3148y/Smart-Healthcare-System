@@ -48,6 +48,25 @@ test('legacy records without service trace do not invent a department state',asy
   assert.ok((await render()).includes('本版本未记录科室服务状态'))
 })
 
+test('all direction service snapshots remain visible independently of blocked model content',async()=>{
+  const html=await render({modelStatus:'VALIDATION_BLOCKED',answerEvidence:{serviceNotice:{
+    messages:['方向A：有医生无排班','方向B：查询失败'],bookingAllowed:false}}})
+  assert.ok(html.includes('方向A：有医生无排班'))
+  assert.ok(html.includes('方向B：查询失败'))
+  assert.ok(html.includes('本版本科室服务查询'))
+  assert.ok(!/<button[^>]*>模拟预约/.test(html))
+  assert.ok(!(await render()).includes('本版本科室服务查询'))
+})
+
+test('historical service notice is not replaced by a later assessment snapshot',async()=>{
+  const later={version:2,createdAt:'test',assistantMessageId:'later',result:{department:'Later',
+    answerEvidence:{serviceNotice:{messages:['后版状态'],bookingAllowed:true}}}}
+  const html=await render({answerEvidence:{serviceNotice:{messages:['原版状态'],bookingAllowed:false}}},
+    {assessments:[later],currentSessionStatus:'已完成分诊'})
+  assert.ok(html.includes('原版状态'))
+  assert.ok(!html.includes('后版状态'))
+})
+
 test('repeated department queries keep distinct trace keys and do not claim Agent execution',async()=>{
   const html=await render({tools:[{tool:'department_search',success:true,outcome:'one'},
     {tool:'department_search',success:true,outcome:'two'}]})

@@ -62,6 +62,10 @@ npm run dev -- --host 127.0.0.1 --port 5188
 
 访问 http://127.0.0.1:5188。演示账号 zhangsan、lisi、admin，任意非空密码。默认数据库在 backend/data/。后端改为 8081 时必须同步前端代理。
 
+后端使用8081时，在前端终端设置 `$env:VITE_API_PROXY_TARGET='http://127.0.0.1:8081'` 后执行上述dev命令；无需改源码。该变量只是本地开发代理地址，不是模型密钥；不要把任何密钥放进VITE_*变量。
+
+若本机npm转发参数异常，可在frontend目录直接执行 `node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5188 --strictPort`；strictPort防止端口占用时悄悄换端口。
+
 真实模型通过进程环境变量 AI_MODE=openai-compatible、AI_BASE_URL、AI_MODEL、AI_API_KEY 配置。向量检索配置 AI_EMBEDDING_MODEL、AI_EMBEDDING_API_KEY、AI_EMBEDDING_BASE_URL、AI_QDRANT_URL；重排配置 AI_RERANK_MODEL、AI_RERANK_URL 与对应密钥变量。实际默认值以 backend/src/main/resources/application*.yml 为准。
 
 密钥不得写入文件或 GitHub。演示认证仅限本地，对外部署前必须关闭 AI_DEMO_AUTH_ENABLED 并接入正式认证。
