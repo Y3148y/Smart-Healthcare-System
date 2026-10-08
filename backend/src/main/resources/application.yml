@@ -33,6 +33,7 @@ ai:
     require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:false}
     require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:false}
   rerank:
+    enabled: ${AI_RERANK_ENABLED:true}
     url: ${AI_RERANK_URL:}
     api-key: ${AI_RERANK_API_KEY:${AI_EMBEDDING_API_KEY:${AI_API_KEY:}}}
     model: ${AI_RERANK_MODEL:}

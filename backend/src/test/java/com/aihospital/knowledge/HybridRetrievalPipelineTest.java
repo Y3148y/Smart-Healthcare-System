@@ -11,6 +11,29 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void explicitBypassDoesNotCallRerankAndCannotBypassRequiredSemantic() {
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.status()).thenReturn("READY");
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
+                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "READY"));
+        var reranker = mock(BailianReranker.class);
+        var catalog = new HybridKnowledgeCatalog(new InMemoryKnowledgeCatalog(), semantic, reranker);
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
+        ReflectionTestUtils.setField(catalog, "requireSemantic", true);
+        var report = catalog.inspect("咳嗽", 3, 0.28);
+        assertEquals("DISABLED_BY_CONFIGURATION", report.rerankStatus());
+        assertEquals("HYBRID_QDRANT_UNRERANKED", report.mode());
+        assertTrue(report.retrieval().grounded());
+        verifyNoInteractions(reranker);
+        ReflectionTestUtils.setField(catalog, "requireRerank", true);
+        assertThrows(IllegalStateException.class, catalog::validateConfiguration);
+        assertFalse(catalog.inspect("咳嗽", 3, 0.28).retrieval().grounded());
+        ReflectionTestUtils.setField(catalog, "requireRerank", false);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble()))
+                .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "SEARCH_UNAVAILABLE"));
+        assertFalse(catalog.inspect("咳嗽", 3, 0.28).retrieval().grounded());
+    }
     @Test void reusesLexicalIndexUntilApprovedCorpusChanges() {
         var local = new InMemoryKnowledgeCatalog();
         var semantic = mock(QdrantSemanticIndex.class);

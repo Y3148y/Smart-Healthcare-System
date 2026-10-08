@@ -28,6 +28,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.retrieval.candidate-limit:20}") private int candidateLimit = 20;
     @Value("${ai.retrieval.require-semantic:false}") private boolean requireSemantic;
     @Value("${ai.retrieval.require-rerank:false}") private boolean requireRerank;
+    @Value("${ai.rerank.enabled:true}") private boolean rerankEnabled = true;
     private volatile String lastMode = "NOT_QUERIED";
     private volatile Bm25Retriever.Index lexicalIndex;
     private synchronized Bm25Retriever.Index lexicalIndex(List<Evidence> corpus) {
@@ -94,7 +95,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             }
         }
         if (requireSemantic && !semantic.configured()) throw new IllegalStateException("rag-live requires embedding configuration");
-        if (requireRerank && (reranker == null || !reranker.configured()))
+        if (requireRerank && (!rerankEnabled || reranker == null || !reranker.configured()))
             throw new IllegalStateException("rag-live requires rerank configuration");
     }
     @Override public List<KnowledgeDocument> documents() { return local.documents(); }
@@ -143,6 +144,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Override public String retrievalMode() { return lastMode; }
     @Override public Map<String, String> runtimeDetails() {
         return Map.of("mode", lastMode, "embeddingConfigured", String.valueOf(semantic.configured()),
+                "rerankEnabled", String.valueOf(rerankEnabled),
                 "semanticStatus", semantic.status(), "rerankConfigured", String.valueOf(reranker != null && reranker.configured()),
                 "requireSemantic", String.valueOf(requireSemantic), "requireRerank", String.valueOf(requireRerank),
                 "embeddingModel", semantic.modelName(), "rerankModel", reranker == null ? "" : reranker.modelName(),
@@ -193,7 +195,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 .reversed().thenComparing(c -> Bm25Retriever.key(c.evidence))).toList();
         List<Evidence> pool = ranked.stream().limit(depth).map(c -> new Evidence(c.evidence.title(), c.evidence.source(),
                 c.evidence.excerpt(), c.fused)).toList();
-        var reranked = reranker == null ? new BailianReranker.Result(List.of(), "NOT_CONFIGURED") : reranker.rank(query, pool, limit);
+        var reranked = !rerankEnabled ? new BailianReranker.Result(List.of(), "DISABLED_BY_CONFIGURATION")
+                : reranker == null ? new BailianReranker.Result(List.of(), "NOT_CONFIGURED") : reranker.rank(query, pool, limit);
         boolean blocked = requireSemantic && !denseOk || requireRerank && !Set.of("OK", "EMPTY").contains(reranked.status());
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
                 : pool.stream().limit(limit).toList();
