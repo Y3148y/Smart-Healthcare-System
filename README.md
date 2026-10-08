@@ -79,6 +79,20 @@ $env:AI_QDRANT_URL = 'http://127.0.0.1:6333'
 
 Compose端口只绑定本机；其MySQL root凭据仅供本机开发。医院部署需单独建立最小权限DB用户、配置网络访问控制与有认证的向量服务，不应直接复用此开发Compose。
 
+### 非本机接入前置条件
+
+应用当前只有本地演示登录，没有医院身份提供方适配器。关闭 `AI_DEMO_AUTH_ENABLED` 会停用演示登录，但不会自动接上SSO、OIDC或医院账号；在受控联调环境开放患者入口前，医院需提供并验证认证适配及角色映射。
+
+持久部署还需配置：
+
+- `SPRING_PROFILES_ACTIVE=mysql`，否则仍使用默认H2。
+- 独立的 `AI_DB_USER` / `AI_DB_PASSWORD`，该DB账号应按实际数据表授予最小权限；Compose中的root账号只用于本机开发。
+- 由密钥管理器注入、跨实例保持一致且至少32字节的 `AI_JWT_SECRET`。未配置时应用启动会随机生成，进程重启后此前令牌失效；不得把密钥放进README、镜像或仓库。
+- `AI_DEMO_AUTH_ENABLED=false`，并配置真实身份验证/角色映射。不能只关演示登录就当成认证改造完成。
+- 受控的模型与embedding配置。正式网络部署不得将无认证的本地Qdrant开发容器暴露到公网；应使用受访问控制的服务或网络隔离。
+
+当前未实现医院身份集成、生产部署编排或HIS适配；以上是医院接手前置项，不表示已有可直接上线的配置。
+
 真实模型通过进程环境变量 AI_MODE=openai-compatible、AI_BASE_URL、AI_MODEL、AI_API_KEY 配置。向量检索配置 AI_EMBEDDING_MODEL、AI_EMBEDDING_API_KEY、AI_EMBEDDING_BASE_URL、AI_QDRANT_URL；重排配置 AI_RERANK_MODEL、AI_RERANK_URL 与对应密钥变量。实际默认值以 backend/src/main/resources/application*.yml 为准。
 
 密钥不得写入文件或 GitHub。演示认证仅限本地，对外部署前必须关闭 AI_DEMO_AUTH_ENABLED 并接入正式认证。
