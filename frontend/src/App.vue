@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { api, setToken } from './api'
+import { patientResources } from './patientResources'
 import TriagePage from './features/triage/TriagePage.vue'
 import HomePage from './features/home/HomePage.vue'
 import BookingPage from './features/booking/BookingPage.vue'
@@ -22,6 +23,8 @@ const bookingRunning=ref(false), toast=ref('')
 const bookingKeys=bookingRequestKeys(()=>crypto.randomUUID())
 const adminReady=ref(false)
 const patientReady=ref(false)
+const patientErrors=ref<string[]>([]), patientLoading=ref(false)
+let patientLoadVersion=0
 const depts=computed(()=>['全部',...new Set(doctors.value.map(d=>d.department))])
 const isAdmin=computed(()=>role.value==='ADMIN')
 const nav=[['home','首页'],['triage','智能预问诊'],['booking','预约挂号'],['visits','我的就诊'],['profile','我的资料']]
@@ -39,7 +42,22 @@ async function establishDemoSession():Promise<boolean>{
   }
   showToast('后端认证暂不可用，请刷新后重试');return false
 }
-async function loadPatient(){try{[doctors.value,visits.value,sessions.value,timeline.value]=await Promise.all([api<Doctor[]>('/doctors'),api<any[]>('/appointments'),api<ChatSession[]>('/triage/sessions'),api<TimelineEvent[]>('/triage/timeline')])}catch(e:any){showToast(`患者数据加载失败：${e?.message||'请检查后端服务'}`)}}
+async function loadPatient(){
+  const version=++patientLoadVersion;patientLoading.value=true
+  try{
+    const results=await patientResources({doctors:()=>api<Doctor[]>('/doctors'),visits:()=>api<any[]>('/appointments'),sessions:()=>api<ChatSession[]>('/triage/sessions'),timeline:()=>api<TimelineEvent[]>('/triage/timeline')})
+    if(version!==patientLoadVersion)return
+    patientErrors.value=[]
+    for(const {name,outcome} of results){
+      if(outcome.status==='rejected'){patientErrors.value.push(name);continue}
+      if(name==='doctors')doctors.value=outcome.value as Doctor[]
+      else if(name==='visits')visits.value=outcome.value as any[]
+      else if(name==='sessions')sessions.value=outcome.value as ChatSession[]
+      else timeline.value=outcome.value as TimelineEvent[]
+    }
+  }finally{if(version===patientLoadVersion)patientLoading.value=false}
+}
+const patientErrorNames=computed(()=>patientErrors.value.map(key=>({doctors:'医生排班',visits:'预约记录',sessions:'会话列表',timeline:'症状时间线'}[key]||key)).join('、'))
 async function loadAdmin(){try{[dashboard.value,knowledge.value,tools.value,calls.value,aiRuntime.value,reviews.value,knowledgeRuntime.value]=await Promise.all([api('/admin/dashboard'),api<any[]>('/admin/knowledge'),api<any[]>('/admin/tools'),api<any[]>('/admin/calls'),api('/admin/ai-runtime'),api<HumanReviewQueueItem[]>('/admin/human-reviews'),api('/admin/knowledge/runtime')])}catch(e:any){showToast(`管理数据加载失败：${e?.message||'请求失败'}`)}}
 function patientRoute(next:string, extra:Record<string,string>={}) { return '?' + new URLSearchParams(readStored('ai-hospital-login')==='lisi'?{login:'lisi',page:next,...extra}:{demo:'patient',page:next,...extra}).toString() }
 function adminRoute(next:string) { return '?' + new URLSearchParams({demo:'admin',page:'admin',adminPage:next}).toString() }
@@ -79,10 +97,12 @@ const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:d
   <main v-else class="app-shell">
     <header class="topbar"><div class="brand"><span class="brand-mark">⌁</span><b>AI 智能导诊{{ isAdmin?'管理平台':'预约系统' }}</b></div><template v-if="!isAdmin"><a v-for="n in nav" :key="n[0]" class="nav native-nav" :class="{active:page===n[0]}" :href="patientRoute(n[0])">{{ n[1] }}</a></template><span class="header-spacer"></span><a v-if="!isAdmin" class="user-menu native-nav" :href="adminRoute('dashboard')"><span class="avatar">{{ displayName.slice(0,1) }}</span>{{ displayName }}⌄</a><button v-else class="user-menu"><span class="avatar">{{ displayName.slice(0,1) }}</span>{{ displayName }}</button><button class="logout" @click="logout">退出</button></header>
     <template v-if="!isAdmin && page!=='admin'">
+      <p v-if="!patientReady && patientLoading" role="status">正在加载患者数据…</p>
+      <div v-if="patientErrors.length" class="triage-stage-note" role="status">{{ patientErrorNames }}暂未加载或刷新，不能据此判断没有记录。<button type="button" :disabled="patientLoading" @click="loadPatient">{{ patientLoading?'正在刷新…':'重新加载' }}</button></div>
       <HomePage v-if="page==='home'" :display-name="displayName" :route="patientRoute" />
       <TriagePage v-else-if="page==='triage'" :sessions="sessions" :initial-symptom="params.get('symptom') || ''" :booking-running="bookingRunning" @book="book" @updated="loadPatient" @notify="showToast" />
-      <BookingPage v-else-if="page==='booking'" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
-      <VisitsPage v-else-if="page==='visits' && patientReady" :visits="visits" :timeline="timeline" />
+      <BookingPage v-else-if="page==='booking' && patientReady && !patientErrors.includes('doctors')" :doctors="filteredDoctors" :selected-dept="selectedDept" :departments="depts" :booking-running="bookingRunning" :route="patientRoute" @book="book" />
+      <VisitsPage v-else-if="page==='visits' && patientReady && !patientErrors.includes('visits') && !patientErrors.includes('timeline')" :visits="visits" :timeline="timeline" />
       <ProfilePage v-else-if="page==='profile' && patientReady" />
       <p v-else-if="page==='profile'" role="status">正在验证身份…</p>
     </template>
