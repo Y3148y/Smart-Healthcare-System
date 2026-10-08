@@ -74,7 +74,8 @@ public class SimulationBookingService {
         Doctor snapshot = new Doctor(doctor.id(), doctor.name(), doctor.title(), doctor.department(), doctor.period(),
                 doctor.date(), remaining == null ? 0 : remaining, doctor.total(), doctor.fee());
         String id = "SIM" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
-        LocalDateTime now = LocalDateTime.now();
+        // SQL TIMESTAMP defaults to microsecond precision; return the same value as receipt replay.
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS);
         Appointment appointment = new Appointment(id, id, patient, snapshot, "模拟预约", sessionId, now);
         store.saveAppointment(appointment, idempotencyKey);
         return appointment;

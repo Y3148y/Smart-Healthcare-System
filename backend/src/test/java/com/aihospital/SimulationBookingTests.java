@@ -74,6 +74,7 @@ class SimulationBookingTests {
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
 
         assertEquals(json.readTree(first).path("id"), json.readTree(second).path("id"));
+        assertEquals(json.readTree(first), json.readTree(second), "Receipt replay retains timestamp precision and all fields");
         assertEquals(before.remaining() - 1, booking.doctors("骨科").get(0).remaining());
         List<Appointment> records = booking.appointments(patient);
         assertEquals(1, records.size());
