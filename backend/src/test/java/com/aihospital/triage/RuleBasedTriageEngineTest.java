@@ -383,6 +383,50 @@ class RuleBasedTriageEngineTest {
     }
 
     @Test
+    void multipleDirectionsCarrySeparateCatalogueStatesWithoutDuplicatingPrimary() {
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        var captured = new java.util.concurrent.atomic.AtomicReference<NarrationModel.ServiceContext>();
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    captured.set(invocation.getArgument(6));
+                    return new NarrationModel.Answer(invocation.getArgument(4), "DEMO", "");
+                });
+        var result = engine(narration).triage("service-directions", "头晕三天，同时腹痛并反酸", "合成测试", java.util.List.of());
+        assertEquals(java.util.List.of("全科医学科", "神经内科", "消化内科"),
+                captured.get().services().stream().map(NarrationModel.ServiceState::department).toList());
+        assertEquals(3, result.tools().stream().filter(t -> "department_search".equals(t.tool())).count());
+        engine(narration).triage("single-direction", "咳嗽两天没有发热", "合成测试", java.util.List.of());
+        assertEquals(1, captured.get().services().size());
+    }
+
+    @Test
+    void unavailableSecondaryDirectionDoesNotInheritPrimaryAvailability() {
+        var directory = new DemoDoctorDirectory() {
+            @Override public com.aihospital.catalog.domain.DepartmentAvailability departmentAvailability(String department) {
+                if ("神经内科".equals(department)) throw new IllegalStateException("synthetic catalogue failure");
+                if ("消化内科".equals(department)) return new com.aihospital.catalog.domain.DepartmentAvailability(
+                        department, com.aihospital.catalog.domain.DepartmentAvailability.Status.NO_SLOTS, 1, 1, 0);
+                return super.departmentAvailability(department);
+            }
+        };
+        var knowledge = new InMemoryKnowledgeCatalog();
+        var calls = new InMemoryCallLogStore();
+        var captured = new java.util.concurrent.atomic.AtomicReference<NarrationModel.ServiceContext>();
+        NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> {
+                    captured.set(invocation.getArgument(6));
+                    return new NarrationModel.Answer(invocation.getArgument(4), "DEMO", "");
+                });
+        var service = new RuleBasedTriageEngine(safety, directory, knowledge, narration, calls,
+                new HospitalToolExecutor(new InMemoryToolRegistry(), directory, knowledge, safety, calls), notConfigured());
+        var result = service.triage("mixed-services", "头晕三天，同时腹痛并反酸", "合成测试", java.util.List.of());
+        assertEquals(java.util.List.of("AVAILABLE", "QUERY_FAILED", "NO_SLOTS"),
+                captured.get().services().stream().map(NarrationModel.ServiceState::status).toList());
+        assertEquals(1, result.tools().stream().filter(t -> "department_search".equals(t.tool()) && !t.success()).count());
+    }
+
+    @Test
     void structuredDecisionPicksOneRuleCandidateAndSurfacesBasis() {
         NarrationModel narration = mock(NarrationModel.class, org.mockito.Mockito.CALLS_REAL_METHODS);
         when(narration.explainWithServices(anyString(), anyString(), anyString(), anyString(), anyString(), anyList(), org.mockito.ArgumentMatchers.any()))

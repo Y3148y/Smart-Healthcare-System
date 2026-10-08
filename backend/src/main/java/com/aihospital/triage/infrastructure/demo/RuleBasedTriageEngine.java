@@ -219,13 +219,20 @@ public class RuleBasedTriageEngine implements TriageEngine {
         if (retrievalExecution != null) trace.add(retrievalExecution.trace());
         List<NarrationModel.ServiceState> services = new ArrayList<>();
         if (!emergency) {
-            HospitalToolExecutor.Execution departmentExecution = toolExecutor.execute("department_search", java.util.Map.of("department", department));
-            trace.add(departmentExecution.trace());
-            if (departmentExecution.trace().success() && departmentExecution.data() instanceof java.util.Map<?, ?> state
-                    && state.get("status") instanceof String status && state.get("message") instanceof String message) {
-                services.add(new NarrationModel.ServiceState(department, status, message));
-            } else {
-                services.add(new NarrationModel.ServiceState(department, "QUERY_FAILED", "科室能力查询失败，当前状态无法确认"));
+            // Each displayed direction needs its own catalogue facts. A primary department's
+            // availability cannot establish that another candidate has doctors or slots.
+            var serviceDepartments = new java.util.LinkedHashSet<String>();
+            serviceDepartments.add(department);
+            candidates.stream().map(DepartmentCandidate::department).forEach(serviceDepartments::add);
+            for (String serviceDepartment : serviceDepartments) {
+                HospitalToolExecutor.Execution departmentExecution = toolExecutor.execute("department_search", java.util.Map.of("department", serviceDepartment));
+                trace.add(departmentExecution.trace());
+                if (departmentExecution.trace().success() && departmentExecution.data() instanceof java.util.Map<?, ?> state
+                        && state.get("status") instanceof String status && state.get("message") instanceof String message) {
+                    services.add(new NarrationModel.ServiceState(serviceDepartment, status, message));
+                } else {
+                    services.add(new NarrationModel.ServiceState(serviceDepartment, "QUERY_FAILED", "科室能力查询失败，当前状态无法确认"));
+                }
             }
         }
         Doctor doctor = null;
