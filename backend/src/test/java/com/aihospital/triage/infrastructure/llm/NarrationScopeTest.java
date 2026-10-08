@@ -76,6 +76,16 @@ class NarrationScopeTest {
             assertEquals(true, booking.diagnostics().serviceNotice().bookingAllowed());
             assertFalse(captured.get().contains("模拟可查询"));
             assertFalse(booking.text().contains("模拟可查询"));
+            var direction = model.answerWithEvidence("分别挂什么科", "", "", List.of(), "fallback",
+                    List.of(), services, true, "NO_MATCH");
+            assertEquals(List.of("测试科室：模拟可查询"), direction.diagnostics().serviceNotice().messages());
+            assertFalse(captured.get().contains("模拟可查询"));
+            var declinedDirection = model.answerWithEvidence("不预约，只问挂什么科", "", "", List.of(), "fallback",
+                    List.of(), services, true, "NO_MATCH");
+            assertNull(declinedDirection.diagnostics().serviceNotice());
+            var noDirection = model.answerWithEvidence("一般几天好", "", "", List.of(), "fallback",
+                    List.of(), services, true, "NO_MATCH");
+            assertNull(noDirection.diagnostics().serviceNotice());
             for (String machineField : List.of("routineBookingAllowed", "service_state", "NOT_QUERIED", "AVAILABLE"))
                 assertFalse(captured.get().contains(machineField), machineField);
             for (String internal : List.of("routineBookingAllowed为true", "状态AVAILABLE", "service_state", "service_facts", "NO_SLOTS")) {
@@ -86,6 +96,10 @@ class NarrationScopeTest {
                 assertEquals("NO_EVIDENCE_SAFE_FALLBACK", blocked.diagnostics().validationStatus());
                 assertTrue(blocked.diagnostics().adoptedReferenceIds().isEmpty());
                 assertFalse(blocked.text().contains(internal));
+                var blockedDirection = model.answerWithEvidence("挂什么科", "", "", List.of(), "fallback",
+                        List.of(), services, true, "NO_MATCH");
+                assertEquals("FALLBACK_UNGROUNDED", blockedDirection.status());
+                assertEquals(List.of("测试科室：模拟可查询"), blockedDirection.diagnostics().serviceNotice().messages());
             }
         } finally { server.stop(0); }
     }

@@ -47,6 +47,14 @@ test('urgent disposition is not disguised as unavailable slots',async()=>{
 test('legacy records without service trace do not invent a department state',async()=>{
   assert.ok((await render()).includes('本版本未记录科室服务状态'))
 })
+
+test('repeated department queries keep distinct trace keys and do not claim Agent execution',async()=>{
+  const html=await render({tools:[{tool:'department_search',success:true,outcome:'one'},
+    {tool:'department_search',success:true,outcome:'two'}]})
+  assert.ok(html.includes('后台工具调用记录（2）'))
+  assert.ok(!html.includes('Agent 工具调用轨迹'))
+  assert.ok(descriptor.template.content.includes(':key="`${shown.version}-${index}`"'))
+})
 test('missing evidence stays separate from catalogue capability',async()=>{
   const html=await render({grounded:false,tools:[{tool:'department_search',success:true,outcome:'test'}]})
   assert.ok(html.includes('医学依据不足，尚未提供具体模拟预约'))

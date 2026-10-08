@@ -33,9 +33,12 @@ public class OptionalNarrationModel implements NarrationModel {
             List<com.aihospital.shared.model.Models.Evidence> evidence, String fallback, List<Turn> history,
             ServiceContext services, boolean guidance, String retrievalStatus) {
         Answer answer = generateEvidenceAnswer(symptom, evidence, fallback, history, guidance, retrievalStatus);
-        var notice = com.aihospital.triage.domain.CurrentRequestIntent.booking(currentRequest(history, symptom))
-                == com.aihospital.triage.domain.CurrentRequestIntent.BookingIntent.REQUESTED
-                && "openai-compatible".equalsIgnoreCase(mode) ? serviceNotice(services) : null;
+        var request = currentRequest(history, symptom);
+        var intent = com.aihospital.triage.domain.CurrentRequestIntent.booking(request);
+        boolean serviceRequested = intent == com.aihospital.triage.domain.CurrentRequestIntent.BookingIntent.REQUESTED
+                || intent != com.aihospital.triage.domain.CurrentRequestIntent.BookingIntent.DECLINED
+                && com.aihospital.triage.domain.CurrentRequestIntent.directionRequested(request);
+        var notice = serviceRequested && "openai-compatible".equalsIgnoreCase(mode) ? serviceNotice(services) : null;
         var d = answer.diagnostics();
         if (d == null || notice == null) return answer;
         return new Answer(answer.text(), answer.status(), answer.modelName(), new AnswerEvidence.Diagnostics(
