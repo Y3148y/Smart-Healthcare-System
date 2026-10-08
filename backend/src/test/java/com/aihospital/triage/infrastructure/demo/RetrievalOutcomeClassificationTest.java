@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+/** Package-aligned source path also prevents IDE-generated invalid bytecode. */
 class RetrievalOutcomeClassificationTest {
     @Test void distinguishesAnActualNoMatchFromRequiredDependencyFailure() {
         assertEquals("NO_MATCH", RuleBasedTriageEngine.retrievalStatus(

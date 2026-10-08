@@ -10,7 +10,12 @@ import java.util.List;
 public final class AnswerEvidence {
     private AnswerEvidence() {}
     public record Reference(String id, String title, String source, String excerpt,
-                            String contentHash, String applicability) {}
+                            String contentHash, String applicability, List<String> sectionPath) {
+        public Reference { sectionPath = sectionPath == null ? List.of() : List.copyOf(sectionPath); }
+        public Reference(String id, String title, String source, String excerpt, String contentHash, String applicability) {
+            this(id, title, source, excerpt, contentHash, applicability, List.of());
+        }
+    }
     public record Paragraph(String text, String kind, List<String> referenceIds) {}
     public record Draft(List<Paragraph> paragraphs, List<String> questions, List<String> uncovered) {}
     /** Separate model review, not clinical approval or booking authorization. */
@@ -82,7 +87,7 @@ public final class AnswerEvidence {
         var result = new java.util.ArrayList<Reference>();
         for (Evidence item : evidence) {
             result.add(new Reference("E" + (result.size() + 1), item.title(), item.source(), item.excerpt(),
-                    hash(item.excerpt()), "UNKNOWN"));
+                    hash(item.excerpt()), "UNKNOWN", item.sectionPath()));
         }
         return List.copyOf(result);
     }

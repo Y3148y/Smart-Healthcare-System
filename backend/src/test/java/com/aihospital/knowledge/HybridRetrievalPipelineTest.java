@@ -11,6 +11,41 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void selectedSectionsComeFromApprovedChunkNotUntrustedVectorPayload() {
+        var local = new InMemoryKnowledgeCatalog(false);
+        var document = local.addDocument("合成资料", "# 合成主题\n\n## 检查限定\n\n这是一段合成测试正文，不是医学资料。");
+        local.approveDocument(document.id());
+        var chunk = local.documentChunks(document.id()).get(0);
+        var hit = local.approvedCorpus().get(0);
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble())).thenReturn(
+                new QdrantSemanticIndex.SearchResult(List.of(new Evidence(hit.title(), hit.source(), hit.excerpt(), .9,
+                        List.of("伪造的向量标题"))), "READY"));
+        var catalog = new HybridKnowledgeCatalog(local, semantic);
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
+        var selected = catalog.inspect("合成测试正文", 1, .28).retrieval().evidence().get(0);
+        assertEquals(chunk.sectionPath(), selected.sectionPath());
+        assertTrue(selected.sectionPath().contains("检查限定"));
+        var reference = com.aihospital.triage.domain.AnswerEvidence.references(List.of(selected)).get(0);
+        assertEquals(selected.sectionPath(), reference.sectionPath());
+        assertEquals("UNKNOWN", reference.applicability());
+    }
+
+    @Test void conflictingSectionsAreNotArbitrarilyAssignedToIdenticalText() {
+        var local = new InMemoryKnowledgeCatalog(false);
+        for (String heading : List.of("甲背景", "乙背景")) {
+            var document = local.addDocument("相同资料标题", "# " + heading + "\n\n完全相同的合成测试正文。");
+            local.approveDocument(document.id());
+        }
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble())).thenReturn(
+                new QdrantSemanticIndex.SearchResult(List.of(local.approvedCorpus().get(0)), "READY"));
+        var catalog = new HybridKnowledgeCatalog(local, semantic);
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
+        assertTrue(catalog.inspect("合成测试正文", 1, .28).retrieval().evidence().get(0).sectionPath().isEmpty());
+    }
     @Test void explicitBypassReservesDenseRouteBeforeRrfWithoutInventingOrDuplicatingEvidence() {
         var local = new InMemoryKnowledgeCatalog(false);
         for (String name : List.of("dense-one", "dense-two", "dual-one", "dual-two")) {

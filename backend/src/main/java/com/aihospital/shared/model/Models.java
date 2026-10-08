@@ -9,7 +9,12 @@ public final class Models {
     public record LoginResponse(String token, String role, String displayName) {}
     public record SendMessage(String content) {}
     public record Doctor(String id, String name, String title, String department, String period, String date, int remaining, int total, int fee) {}
-    public record Evidence(String title, String source, String excerpt, double score) {}
+    public record Evidence(String title, String source, String excerpt, double score, List<String> sectionPath) {
+        public Evidence { sectionPath = sectionPath == null ? List.of() : List.copyOf(sectionPath); }
+        public Evidence(String title, String source, String excerpt, double score) {
+            this(title, source, excerpt, score, List.of());
+        }
+    }
     public record ToolTrace(String tool, String label, String input, String outcome, long elapsedMs,
                             boolean success, String error) {}
     public record SafetySignal(String ruleCode, String category, String evidence, String reason) {}

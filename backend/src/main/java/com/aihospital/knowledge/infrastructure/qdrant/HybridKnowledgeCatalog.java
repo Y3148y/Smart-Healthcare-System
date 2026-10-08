@@ -60,6 +60,9 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
 
     private boolean indexApprovedCorpus(List<Evidence> corpus) {
+        return indexApprovedCorpus(corpus, chunkOrigins());
+    }
+    private Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> chunkOrigins() {
         Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins = new HashMap<>();
         for (KnowledgeDocument document : local.documents()) {
             if (!"READY".equals(document.status())) continue;
@@ -68,6 +71,10 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 origins.computeIfAbsent(key, ignored -> new ArrayList<>()).add(chunk);
             }
         }
+        return origins;
+    }
+    private boolean indexApprovedCorpus(List<Evidence> corpus,
+            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins) {
         synchronized (semantic) {
             semantic.registerChunkProvenance(origins);
             return semantic.ensureIndexed(corpus);
@@ -170,7 +177,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         var corpus = local.approvedCorpus();
         var requestLexicalIndex = lexicalIndex(corpus);
         List<Evidence> lexical = requestLexicalIndex.search(query, depth, minimumScore);
-        boolean indexed = indexApprovedCorpus(corpus);
+        var origins = chunkOrigins();
+        boolean indexed = indexApprovedCorpus(corpus, origins);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
                 : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
         List<Evidence> dense = semanticReport.evidence();
@@ -215,6 +223,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                         .limit(limit).toList();
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
                 : unreranked;
+        selected = selected.stream().map(e -> withSectionContext(e, origins)).toList();
         String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
         lastMode = mode;
@@ -236,6 +245,14 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);
         recordEvent(report);
         return report;
+    }
+    private static Evidence withSectionContext(Evidence evidence,
+            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins) {
+        var paths = origins.getOrDefault(Bm25Retriever.key(evidence), List.of()).stream()
+                .map(com.aihospital.knowledge.domain.KnowledgeChunk::sectionPath).distinct().toList();
+        // Never choose an arbitrary source when the same text has conflicting headings.
+        return new Evidence(evidence.title(), evidence.source(), evidence.excerpt(), evidence.score(),
+                paths.size() == 1 ? paths.get(0) : List.of());
     }
     private static List<Evidence> selectUnreranked(List<Candidate> ranked, Set<String> reserved,
             Set<String> denseConfirmed, int limit, boolean requireDenseConfirmation) {
