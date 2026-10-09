@@ -1,7 +1,7 @@
 // Offline scoring; no network calls, credentials or automatic medical labels.
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {retrievalQuality,answerQuality,summarizeQuality} from './quality.mjs';
+import {retrievalQuality,answerQuality,summarizeQuality,summarizeRetrievalStages} from './quality.mjs';
 
 try {
   const [reportPath,labelPath,kArgument='3']=process.argv.slice(2);
@@ -33,7 +33,7 @@ try {
       throw new Error('Relevance label references a chunk outside the frozen corpus');
     byId.set(label.id,label);
   }
-  const retrieval=[],answers=[],cases=[];
+  const retrieval=[],answers=[],cases=[],stageCases=[];
   let unlabelled=0,unreviewedAnswers=0;
   const known=new Set(report.results.map(r=>r.id));
   if (known.size !== report.results.length) throw new Error('Duplicate report case id');
@@ -53,10 +53,30 @@ try {
     });
     const quality=retrievalQuality(ranking,label,Number(kArgument));
     retrieval.push(quality);
+    const stageCandidates=(result.candidates ?? []).map(candidate=>{
+      if(!Array.isArray(candidate.chunkReferences)||candidate.chunkReferences.length!==1)
+        throw new Error('Candidate chunk identity is missing or ambiguous');
+      const chunk=candidate.chunkReferences[0];
+      if(!corpusIds.has(identity(chunk))||typeof candidate.excerpt!=='string'
+          ||createHash('sha256').update(candidate.excerpt).digest('hex')!==chunk.contentSha256)
+        throw new Error('Candidate excerpt does not match a chunk in the frozen corpus');
+      return {...candidate,chunk};
+    });
+    const ordered={
+      bm25:stageCandidates.filter(c=>Number.isInteger(c.lexicalRank)&&c.lexicalRank>0)
+        .sort((a,b)=>a.lexicalRank-b.lexicalRank).map(c=>c.chunk),
+      qdrant:stageCandidates.filter(c=>Number.isInteger(c.semanticRank)&&c.semanticRank>0)
+        .sort((a,b)=>a.semanticRank-b.semanticRank).map(c=>c.chunk),
+      rrf:stageCandidates.filter(c=>Number.isFinite(c.fusedScore))
+        .sort((a,b)=>b.fusedScore-a.fusedScore).map(c=>c.chunk),
+      final:ranking,
+    };
+    const stages=Object.fromEntries(Object.entries(ordered).map(([name,items])=>[name,retrievalQuality(items,label,Number(kArgument))]));
+    stageCases.push({id:result.id,stages});
     const relevant=new Set(label.relevant.map(identity));
     const selected=[...new Map(ranking.map(chunk=>[identity(chunk),chunk])).values()].slice(0,Number(kArgument));
     const selectedIds=new Set(selected.map(identity));
-    cases.push({id:result.id,status:'LABELLED',retrieval:quality,
+    cases.push({id:result.id,status:'LABELLED',retrieval:quality,retrievalStages:stages,
       missed:label.relevant.filter(chunk=>!selectedIds.has(identity(chunk))),
       extra:selected.filter(chunk=>!relevant.has(identity(chunk)))});
     if (label.answerReview) {
@@ -76,7 +96,7 @@ try {
     reviewStatus:labels.reviewStatus ?? 'UNSPECIFIED',clinicalReview:labels.clinicalReview ?? 'UNSPECIFIED',
     split:labels.split ?? 'UNSPECIFIED',
     reportCases:report.results.length,unlabelled,unreviewedAnswers,
-    summary:summarizeQuality(retrieval,answers),cases},null,2));
+    summary:{...summarizeQuality(retrieval,answers),retrievalStages:summarizeRetrievalStages(stageCases)},cases},null,2));
 } catch(error) {
   // Do not print label bodies or patient text on parse errors.
   console.error(error instanceof SyntaxError ? 'Invalid JSON input' : error.message);

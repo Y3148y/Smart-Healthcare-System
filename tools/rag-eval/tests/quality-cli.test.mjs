@@ -22,7 +22,9 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     const approved=[{id:'fixture',chunks:[chunk]}];
     const snapshot=createHash('sha256').update(JSON.stringify(approved)).digest('hex');
     const source={corpus:{sha256:snapshot,approved},results:[
-      {id:'one',selectedEvidence:[{excerpt:chunk.text,chunkReferences:[chunk]}]},{id:'two',selectedEvidence:[]}]};
+      {id:'one',selectedEvidence:[{excerpt:chunk.text,chunkReferences:[chunk]}],candidates:[
+        {excerpt:chunk.text,chunkReferences:[chunk],lexicalRank:1,semanticRank:2,fusedScore:.02}]},
+      {id:'two',selectedEvidence:[],candidates:[]}]};
     writeFileSync(report,JSON.stringify(source));
     const label={schemaVersion:1,corpusSha256:snapshot,cases:[{id:'one',exhaustive:true,relevant:[chunk]}]};
     const run=()=>spawnSync(process.execPath,[new URL('../quality-cli.mjs',import.meta.url).pathname.replace(/^\/(\w:)/,'$1'),report,labels],{encoding:'utf8'});
@@ -32,6 +34,10 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     assert.equal(result.unreviewedAnswers,1);assert.equal(result.summary.recallAtK.value,1);
     assert.equal(result.reviewStatus,'UNSPECIFIED');assert.equal(result.split,'UNSPECIFIED');
     assert.equal(result.summary.answerCorrectness.value,null);
+    assert.equal(result.summary.retrievalStages.bm25.recallAtK.value,1);
+    assert.equal(result.summary.retrievalStages.qdrant.recallAtK.value,1);
+    assert.equal(result.summary.retrievalStages.rrf.recallAtK.value,1);
+    assert.equal(result.summary.retrievalStages.final.recallAtK.value,1);
     const answerText='A synthetic generated answer, not medical information.';
     const answerSnapshot={text:answerText,messageId:'fixture-message',traceId:'fixture-trace',
       contentSha256:createHash('sha256').update(answerText).digest('hex')};

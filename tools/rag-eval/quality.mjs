@@ -48,3 +48,47 @@ export function summarizeQuality(retrieval, answers) {
     faithfulness:mean(answers,'faithfulness'),
     interpretation:'Reviewed engineering labels only; not clinical accuracy. Unknown and claim-free cases are not scored as perfect.'};
 }
+
+export function summarizeRetrievalStages(cases) {
+  const mean = (rows, key) => {
+    const values = rows.map(row => row[key]).filter(value => typeof value === 'number');
+    return {value:ratio(values.reduce((sum, value) => sum + value, 0), values.length), evaluated:values.length};
+  };
+  const stages = ['bm25', 'qdrant', 'rrf', 'final'];
+  return Object.fromEntries(stages.map(stage => {
+    const rows = cases.map(item => item.stages?.[stage]).filter(Boolean);
+    return [stage, {recallAtK:mean(rows,'recallAtK'), precisionAtK:mean(rows,'precisionAtK'),
+      mrr:mean(rows,'reciprocalRank'), noCoverageFalseSelections:rows.filter(row => row.noCoverageFalseSelection).length,
+      evaluated:rows.length}];
+  }));
+}
+
+/**
+ * Compares the displayed triage confidence percentage to independent binary
+ * judgements of the disposition. It is a calibration diagnostic, not accuracy
+ * unless reviewers assess a representative held-out set.
+ */
+export function confidenceCalibration(cases, bins = 5) {
+  if (!Number.isInteger(bins) || bins < 2 || bins > 20) throw new Error('Invalid calibration bin count');
+  const judged = cases.filter(item => Number.isFinite(item.confidence) && item.confidence >= 0 && item.confidence <= 100
+      && (item.correctness === 'CORRECT' || item.correctness === 'INCORRECT'));
+  const groups = Array.from({length:bins}, (_, index) => ({index, count:0, confidenceSum:0, correct:0}));
+  for (const item of judged) {
+    const index = Math.min(bins - 1, Math.floor(item.confidence / 100 * bins));
+    const group = groups[index]; group.count++; group.confidenceSum += item.confidence / 100;
+    if (item.correctness === 'CORRECT') group.correct++;
+  }
+  const populated = groups.filter(group => group.count > 0).map(group => ({
+    range: `${Math.round(group.index * 100 / bins)}-${Math.round((group.index + 1) * 100 / bins)}%`,
+    count:group.count, meanConfidence:group.confidenceSum / group.count,
+    observedAccuracy:group.correct / group.count,
+  }));
+  const brier = judged.length ? judged.reduce((sum,item) => {
+    const probability = item.confidence / 100, outcome = item.correctness === 'CORRECT' ? 1 : 0;
+    return sum + (probability - outcome) ** 2;
+  }, 0) / judged.length : null;
+  const ece = judged.length ? groups.reduce((sum,group) => group.count
+    ? sum + group.count / judged.length * Math.abs(group.confidenceSum / group.count - group.correct / group.count) : sum, 0) : null;
+  return {evaluated:judged.length, brierScore:brier, expectedCalibrationError:ece, bins:populated,
+    interpretation:'Requires independent disposition labels on a representative held-out set; current system scores are heuristic/model-provided and are not validated probabilities.'};
+}

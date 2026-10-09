@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {confidenceCalibration} from './quality.mjs';
 
 const sha256=text=>createHash('sha256').update(text,'utf8').digest('hex');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -47,6 +48,8 @@ function answerCase(message,index,messages,assessments) {
       reasons.push('ASSESSMENT_EVIDENCE_MISMATCH');
   }
   const safety=assessment?.result?.safetyAssessment??null;
+  const decision=assessment?.result;
+  const decisionConfidence=Number.isFinite(decision?.confidence)?decision.confidence:null;
   const result={messageId:message.id,traceId:diagnostics?.traceId??null,
     answerSnapshot:{text:message.content,contentSha256:typeof message.content==='string'?sha256(message.content):null},
     currentUserMessageId:userMessageId??null,context:history,
@@ -57,6 +60,10 @@ function answerCase(message,index,messages,assessments) {
       retrievedReferences:references.map(r=>({id:r.id,title:r.title,source:r.source,excerpt:r.excerpt,
         contentHash:r.contentHash,applicability:r.applicability,sectionPath:r.sectionPath??[]})),
       adoptedReferenceIds:adopted,uncovered:diagnostics?.uncovered??[]},
+    triageDecisionSnapshot:decision?{traceId:diagnostics?.traceId??null,riskLevel:decision.riskLevel??null,
+      department:decision.department??null,confidence:decisionConfidence}:null,
+    dispositionReview:decision&&decisionConfidence!==null
+      ?{correctness:'UNREVIEWED',traceId:diagnostics?.traceId??null}:null,
     serviceNotice:diagnostics?.serviceNotice??null,
     reviewable:reasons.length===0,exclusionReasons:[...new Set(reasons)],answerReview:null};
   if(result.reviewable) result.answerReview={correctness:'UNREVIEWED',claimsExhaustive:false,claims:[],
@@ -81,31 +88,41 @@ export function answerReviewPacket(conversation) {
     if(message?.role==='ASSISTANT') cases.push(answerCase(message,index,conversation.messages,assessments));
   });
   return {schemaVersion:1,kind:'PERSISTED_ANSWER_REVIEW',reviewStatus:'UNREVIEWED',reviewer:null,
-    clinicalReview:'NOT_REVIEWED',instruction:'Review answer correctness against the full turn context and the supplied disposition. Judge support only against references actually adopted; retrieved-but-not-adopted references are context, not evidence used by the answer. Enumerate every factual claim before setting claimsExhaustive=true. This is an engineering review packet, not clinical approval.',
+    clinicalReview:'NOT_REVIEWED',instruction:'Review answer correctness against the full turn context and the supplied disposition. Separately judge whether the triage risk/department disposition is correct in dispositionReview; do not infer disposition correctness from fluent wording. Judge support only against references actually adopted; retrieved-but-not-adopted references are context, not evidence used by the answer. Enumerate every factual claim before setting claimsExhaustive=true. This is an engineering review packet, not clinical approval.',
     cases};
 }
 
 export function scoreAnswerReviewPacket(packet) {
   if(packet?.schemaVersion!==1||packet.kind!=='PERSISTED_ANSWER_REVIEW'||!Array.isArray(packet.cases))
     throw new Error('Invalid persisted-answer review packet');
-  const seen=new Set(),scored=[],rows=[];let unreviewed=0,unreviewable=0;
+  const seen=new Set(),scored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
   for(const item of packet.cases) {
     if(typeof item.messageId!=='string'||!item.messageId||seen.has(item.messageId)) throw new Error('Invalid or duplicate answer message identity');
     seen.add(item.messageId);
     if(!item.reviewable){unreviewable++;rows.push({messageId:item.messageId,status:'UNREVIEWABLE'});continue;}
     const snapshot=item.answerSnapshot,review=item.answerReview;
-    if(!review){unreviewed++;rows.push({messageId:item.messageId,status:'UNREVIEWED'});continue;}
-    if(!snapshot||typeof snapshot.text!=='string'||sha256(snapshot.text)!==snapshot.contentSha256
-        ||review.answerSha256!==snapshot.contentSha256||review.answerMessageId!==item.messageId
-        ||review.traceId!==item.traceId) throw new Error('Answer review must match the exact persisted message, text hash and trace');
-    const adopted=new Set(item.retrieval?.adoptedReferenceIds??[]);
-    if(review.claims.some(claim=>claim.support==='SUPPORTED'
-        &&(!Array.isArray(claim.referenceIds)||!claim.referenceIds.length||claim.referenceIds.some(id=>!adopted.has(id)))))
-      throw new Error('Supported claims must reference material actually adopted for this answer');
-    const quality=answerQuality(review);
-    if(quality.correct===null)unreviewed++;
-    if(quality.correct!==null||typeof quality.faithfulness==='number')scored.push(quality);
-    rows.push({messageId:item.messageId,status:review.correctness==='UNREVIEWED'?'UNREVIEWED':'REVIEWED',quality});
+    if(!review){unreviewed++;rows.push({messageId:item.messageId,status:'UNREVIEWED'});}
+    else {
+      if(!snapshot||typeof snapshot.text!=='string'||sha256(snapshot.text)!==snapshot.contentSha256
+          ||review.answerSha256!==snapshot.contentSha256||review.answerMessageId!==item.messageId
+          ||review.traceId!==item.traceId) throw new Error('Answer review must match the exact persisted message, text hash and trace');
+      const adopted=new Set(item.retrieval?.adoptedReferenceIds??[]);
+      if(review.claims.some(claim=>claim.support==='SUPPORTED'
+          &&(!Array.isArray(claim.referenceIds)||!claim.referenceIds.length||claim.referenceIds.some(id=>!adopted.has(id)))))
+        throw new Error('Supported claims must reference material actually adopted for this answer');
+      const quality=answerQuality(review);
+      if(quality.correct===null)unreviewed++;
+      if(quality.correct!==null||typeof quality.faithfulness==='number')scored.push(quality);
+      rows.push({messageId:item.messageId,status:review.correctness==='UNREVIEWED'?'UNREVIEWED':'REVIEWED',quality});
+    }
+    const decision=item.triageDecisionSnapshot,decisionReview=item.dispositionReview;
+    if(decisionReview&&decisionReview.correctness!=='UNREVIEWED') {
+      if(!decision||decisionReview.traceId!==item.traceId||decision.traceId!==item.traceId
+          ||!Number.isFinite(decision.confidence)||decision.confidence<0||decision.confidence>100
+          ||!['CORRECT','INCORRECT'].includes(decisionReview.correctness))
+        throw new Error('Disposition review must match a valid confidence snapshot and turn trace');
+      dispositionCases.push({confidence:decision.confidence,correctness:decisionReview.correctness});
+    }
   }
   const correctness=scored.filter(q=>q.correct!==null);
   const faithfulness=scored.filter(q=>typeof q.faithfulness==='number');
@@ -114,8 +131,8 @@ export function scoreAnswerReviewPacket(packet) {
     clinicalReview:packet.clinicalReview??'UNSPECIFIED',reviewedAnswers:correctness.length,unreviewed,unreviewable,
     answerCorrectness:{value:ratio(correctness.filter(q=>q.correct===true).length,correctness.length),evaluated:correctness.length},
     faithfulness:{value:ratio(faithfulness.reduce((n,q)=>n+q.faithfulness,0),faithfulness.length),
-      evaluated:faithfulness.length},cases:rows,
-    interpretation:'Reviewer-supplied labels only; reviewer identity and clinical competence are not authenticated. This output is not a clinical accuracy claim.'};
+      evaluated:faithfulness.length},confidenceCalibration:confidenceCalibration(dispositionCases),cases:rows,
+    interpretation:'Reviewer-supplied labels only; reviewer identity and clinical competence are not authenticated. Confidence calibration requires representative independent disposition labels and is not a clinical accuracy claim.'};
 }
 
 function answerQuality(review) {

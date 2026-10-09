@@ -20,7 +20,7 @@ function fixture() {
       adoptedReferenceIds:['E1'],uncovered:[],supportReview:{status:'PASSED'},
       serviceNotice:{messages:[],bookingAllowed:false}}}});
   return {session:{id:'should-not-export',patient:'identifier-not-to-export'},messages,
-    assessments:[{assistantMessageId:'a6',version:1,result:{answerEvidence:{traceId,adoptedReferenceIds:['E1']},riskLevel:'ROUTINE',grounded:true,
+    assessments:[{assistantMessageId:'a6',version:1,result:{answerEvidence:{traceId,adoptedReferenceIds:['E1']},riskLevel:'ROUTINE',department:'全科',confidence:70,grounded:true,
       safetyAssessment:{stopRoutineFlow:false,humanReviewRecommended:false,signals:[]}}}]};
 }
 
@@ -31,6 +31,8 @@ test('packet binds answer to its trace, patient turn, actual references and 5-tu
   assert.equal(item.context.some(m=>m.content.includes('message 1')),false);
   assert.deepEqual(item.retrieval.adoptedReferenceIds,['E1']);
   assert.equal(item.disposition.riskLevel,'ROUTINE');assert.equal(item.answerReview.correctness,'UNREVIEWED');
+  assert.deepEqual(item.triageDecisionSnapshot,{traceId:item.traceId,riskLevel:'ROUTINE',department:'全科',confidence:70});
+  assert.equal(item.dispositionReview.correctness,'UNREVIEWED');
   assert.equal(JSON.stringify(packet).includes('should-not-export'),false);
   assert.equal(JSON.stringify(packet).includes('supportReview'),false,'model reviewer outcome must not anchor human review');
 });
@@ -64,4 +66,17 @@ test('scoring requires exact answer identity and adopted-source binding; partial
   assert.throws(()=>scoreAnswerReviewPacket(packet),/actually adopted/);
   item.answerReview={...item.answerReview,claims:[{text:'Claim',support:'SUPPORTED',referenceIds:['E1']}],traceId:uuid(999)};
   assert.throws(()=>scoreAnswerReviewPacket(packet),/exact persisted message/);
+});
+
+test('confidence calibration requires separate disposition review bound to the same turn',()=>{
+  const packet=answerReviewPacket(fixture()),item=packet.cases.at(-1);
+  delete item.answerReview;
+  item.dispositionReview={correctness:'CORRECT',traceId:item.traceId};
+  const score=scoreAnswerReviewPacket(packet);
+  assert.equal(score.confidenceCalibration.evaluated,1);assert.equal(score.answerCorrectness.evaluated,0);
+  item.dispositionReview={correctness:'INCORRECT',traceId:'different-trace'};
+  assert.throws(()=>scoreAnswerReviewPacket(packet),/confidence snapshot and turn trace/);
+  item.dispositionReview={correctness:'UNREVIEWED',traceId:item.traceId};
+  const unknown=scoreAnswerReviewPacket(packet).confidenceCalibration;
+  assert.equal(unknown.evaluated,0);assert.equal(unknown.brierScore,null);
 });
