@@ -8,7 +8,7 @@
 
 应用包不含内置医学摘要；空数据库是合法状态。患者检索只使用数据库里已审批的资料，开发者本机资料目录不会自动加载。设计与限制见 [RAG 说明](../../docs/RAG.md)。
 
-本地工作区清单记录：11 份由项目操作者确认的一般健康科普、22 份待审资料记录（11 份来源正文抽取及对应的 11 份中文整理稿），以及 2 份仅供操作者参考、尚待复核的 WHO 材料。这些数量来自本地清单，不保证其他数据库或 Qdrant 集合已同步相同版本。专业临床审核尚未完成。
+`sources.json` 只登记来源，不是运行语料清单。采集状态保存在 `reports/knowledge-sync/state.json`，首次运行从空状态开始；不会继承其他开发者的抓取历史。
 
 ## 命令
 
@@ -25,13 +25,12 @@
 | `npm run import:local -- <packet.json>` | 否 | 仅校验一个资料包，不访问后台。 |
 | `npm run import:local -- <packet.json> --apply` | 本机后台 | 创建一条 `PENDING_REVIEW` 资料；管理员令牌只从 `KNOWLEDGE_ADMIN_TOKEN` 环境变量读取，不审批、不覆盖。 |
 | `npm run audit:corpus` | 否 | 检查应用资源目录是否仍有旧 Markdown 资料。 |
-| `npm run verify` | 否 | 有旧内置 Markdown 时运行词法参考检查；当前无此目录，会明确输出 `SKIPPED_NO_BUNDLED_CORPUS`，不代表当前混合检索评估。 |
 
-导入器只访问配置的本机 API 地址，并拒绝 HTTP 重定向。请求超时时，服务端可能已创建待审记录；该接口尚无幂等键，重试前先检查管理员资料目录。导入器不会抓取来源网页，也不会猜补缺失元数据。
+导入器只访问配置的本机 API 地址，并拒绝 HTTP 重定向。标题与正文生成稳定幂等键：相同请求重试返回原记录，相同键携带不同元数据返回 409；数据库唯一键约束并发请求。导入器不会抓取来源网页，也不会猜补缺失元数据。
 
 ## 采集和审核边界
 
-本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。只有分隔符之后正文进入切分/向量化；审核说明不进入正文。该入口仅创建待审记录，扩展审核和章节来源字段尚未完整持久化，不宣称在线完整消费。
+本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。只有分隔符之后正文进入切分/向量化；审核说明不进入正文。后端保存来源/适用元数据与导入审计清单；原始网页正文和章节到来源的逐段映射仍留在本地。客户端哈希记录不等于服务端独立认证来源。
 
 使用 `npm run import:local -- document.md` 先离线校验；加 `--apply` 才创建待审记录。contentKind沿用后端 reviewed_summary 枚举，这个名称不表示已经完成医学审核。
 
@@ -43,4 +42,4 @@
 - 抓取遵守工具中的 robots、重定向和限速检查。来源不可达、被拦截或抽取不完整时，不生成替代正文。
 - 来源 HTML、抽取正文、患者科普稿和评估报告保存在本机忽略路径，不提交到公开仓库。
 - 导入资料保持待审，直到授权管理员完成审核和审批。项目操作者确认不等于专业临床审核。
-- `npm run verify` 保留了旧词法参考算法。当前检索链路评估入口在 `tools/rag-eval`，其作者整理的开发集只能作为开发证据。
+- 检索链路评估入口在 `tools/rag-eval`，不使用另写一套检索算法的模拟器；作者整理的开发集只能作为开发证据。

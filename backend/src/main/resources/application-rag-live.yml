@@ -3,11 +3,7 @@ ai:
   knowledge:
     # Existing databases retain persisted approval/withdrawal status.
     bundled-approved: false
-  rerank:
-    # qwen3.7-text-rerank: checked on development and small held-out engineering samples.
-    # Not a probability or a clinical threshold; see docs/RERANK_MODEL_SWITCH_2026-10-03.md.
-    min-score: ${AI_RERANK_MIN_SCORE:0.5}
   retrieval:
-    require-semantic: true
-    require-rerank: true
+    require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:true}
+    require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:true}
   qdrant-collection: ${AI_QDRANT_COLLECTION:ai_hospital_knowledge_v2}
