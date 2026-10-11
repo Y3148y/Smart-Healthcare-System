@@ -24,9 +24,9 @@ public final class LangChainIntentExtractor implements IntentExtractor {
     public LangChainIntentExtractor(AgentWorkflowSettings settings, IntentValidator validator,
             @Value("${ai.mode:demo}") String mode, @Value("${ai.api-key:}") String key,
             @Value("${ai.base-url:}") String base, @Value("${ai.model:}") String model,
-            @Value("${ai.enable-thinking:}") String thinking) {
+            @Value("${ai.agent.extraction-thinking:false}") boolean thinking) {
         this(settings, validator, mode, key, base, model, messages -> new ConfiguredChatTransport()
-                .generate(base, key, model, Boolean.parseBoolean(thinking), settings.extractionMaxTokens(),
+                .generate(base, key, model, thinking, settings.extractionMaxTokens(),
                         settings.extractionTimeoutSeconds(), messages, true));
     }
 

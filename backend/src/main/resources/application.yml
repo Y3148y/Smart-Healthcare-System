@@ -29,10 +29,13 @@ ai:
     # OFF retains workflow; SHADOW extracts only; ENABLED permits read-only guidance tool planning.
     mode: ${AI_AGENT_MODE:ENABLED}
     extraction-timeout-seconds: ${AI_INTENT_TIMEOUT_SECONDS:8}
+    # Structured extraction and tool selection have separate bounded settings from patient answer generation.
+    extraction-thinking: ${AI_INTENT_ENABLE_THINKING:false}
     extraction-max-tokens: ${AI_INTENT_MAX_TOKENS:2048}
     max-steps: ${AI_AGENT_MAX_STEPS:3}
     max-tool-calls: ${AI_AGENT_MAX_TOOL_CALLS:4}
     planning-timeout-seconds: ${AI_AGENT_PLANNING_TIMEOUT_SECONDS:8}
+    planning-thinking: ${AI_AGENT_PLANNING_ENABLE_THINKING:false}
     total-planning-seconds: ${AI_AGENT_TOTAL_PLANNING_SECONDS:25}
   retrieval:
     min-score: ${AI_RETRIEVAL_MIN_SCORE:0.28}

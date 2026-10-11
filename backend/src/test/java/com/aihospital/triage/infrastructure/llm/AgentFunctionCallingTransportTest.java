@@ -27,7 +27,7 @@ class AgentFunctionCallingTransportTest {
             exchange.sendResponseHeaders(200,bytes.length);exchange.getResponseBody().write(bytes);exchange.close();
         });server.start();
         try {
-            var model = new LangChainAgentModel("openai-compatible","synthetic-key","http://127.0.0.1:"+server.getAddress().getPort()+"/v1","model","true");
+            var model = new LangChainAgentModel("openai-compatible","synthetic-key","http://127.0.0.1:"+server.getAddress().getPort()+"/v1","model",false);
             var input = new IntentInput(List.of(new IntentInput.SourceMessage("u1","USER","合成问题")));
             var intent = new IntentExtraction(1,List.of(IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
             var selected=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),List.of(),2);
@@ -37,6 +37,7 @@ class AgentFunctionCallingTransportTest {
                     List.of(new AgentModel.Exchange(selected.calls(),List.of("synthetic-result"))),2);
             assertEquals(AgentModel.Status.DONE,done.status());
             var first=json.readTree(requests.get(0));assertEquals("function",first.path("tools").get(0).path("type").asText());
+            assertFalse(first.path("enable_thinking").asBoolean());
             assertFalse(first.path("tools").get(0).path("function").path("parameters").path("additionalProperties").asBoolean());
             var turns=json.readTree(requests.get(1)).path("messages");
             assertEquals("c1",turns.get(2).path("tool_calls").get(0).path("id").asText());

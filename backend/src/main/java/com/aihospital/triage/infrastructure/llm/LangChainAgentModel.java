@@ -13,11 +13,12 @@ import java.util.*;
 
 @Component
 public final class LangChainAgentModel implements AgentModel {
-    private final String mode, key, base, model, thinking;
+    private final String mode, key, base, model;
+    private final boolean thinking;
     private final ConfiguredChatTransport transport = new ConfiguredChatTransport();
     public LangChainAgentModel(@Value("${ai.mode:demo}") String mode, @Value("${ai.api-key:}") String key,
             @Value("${ai.base-url:}") String base, @Value("${ai.model:}") String model,
-            @Value("${ai.enable-thinking:}") String thinking) {
+            @Value("${ai.agent.planning-thinking:false}") boolean thinking) {
         this.mode = mode; this.key = key; this.base = base; this.model = model; this.thinking = thinking;
     }
     @Override public Step decide(IntentInput input, IntentExtraction intent, Set<AgentTool> allowed,
@@ -54,7 +55,7 @@ public final class LangChainAgentModel implements AgentModel {
                         case DEPARTMENT -> "Read the configured hospital department availability";
                         case SCHEDULE -> "Read simulated schedules for an allowed department; does not reserve";
                     }, "parameters", tool.parameterSchema()))).toList();
-            var response = transport.generate(base, key, model, Boolean.parseBoolean(thinking), 2048,
+            var response = transport.generate(base, key, model, thinking, 2048,
                     timeoutSeconds, messages, false, null, tools);
             var usage = response.tokenUsage();
             var status = response.finishReason() == FinishReason.TOOL_EXECUTION ? Status.TOOLS

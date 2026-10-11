@@ -5,6 +5,9 @@ import dev.langchain4j.data.message.*;
 import dev.langchain4j.model.output.*;
 import org.junit.jupiter.api.Test;
 import java.util.List;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import com.sun.net.httpserver.HttpServer;
 import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,6 +58,30 @@ class LangChainIntentExtractorTest {
         assertEquals(IntentExtractor.Status.UNAVAILABLE, result.status());
         assertEquals("INTENT_MODEL_IO_ERROR", result.failureCode()); assertEquals(1, calls.get());
         assertNull(result.inputTokens());
+    }
+
+    @Test void extractionThinkingIsIndependentOfAnswerGeneration() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        var requestBody = new java.util.concurrent.atomic.AtomicReference<String>();
+        server.createContext("/v1/chat/completions", exchange -> {
+            requestBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            byte[] response = ("{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":"
+                    + new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(VALID) + "}}]}")
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, response.length);
+            exchange.getResponseBody().write(response); exchange.close();
+        });
+        server.start();
+        try {
+            var extracted = new LangChainIntentExtractor(new AgentWorkflowSettings(AgentWorkflowSettings.Mode.ENABLED, 8, 2048),
+                    new IntentValidator(), "openai-compatible", "synthetic-key",
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/v1", "synthetic-model", false)
+                    .extract(input);
+            assertEquals(IntentExtractor.Status.ACCEPTED, extracted.status());
+            var payload = new com.fasterxml.jackson.databind.ObjectMapper().readTree(requestBody.get());
+            assertFalse(payload.path("enable_thinking").asBoolean());
+            assertEquals("json_object", payload.path("response_format").path("type").asText());
+        } finally { server.stop(0); }
     }
 
     @Test void timeoutAuthenticationAndRateLimitHaveDistinctSafeCodes() {
