@@ -19,5 +19,5 @@ public interface AgentModel {
         public Step { calls = List.copyOf(calls); }
     }
     Step decide(IntentInput input, IntentExtraction intent, Set<AgentTool> allowed,
-                Set<String> departments, List<Exchange> transcript, int timeoutSeconds);
+                Set<String> departments, Set<String> queries, List<Exchange> transcript, int timeoutSeconds);
 }

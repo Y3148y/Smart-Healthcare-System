@@ -53,7 +53,7 @@ class AgentWorkflowCoordinatorTest {
             when(executor.execute(anyString(),anyMap())).thenReturn(new HospitalToolExecutor.Execution(retrieval,
                     new ToolTrace("medical_knowledge_retrieve","检索","redacted","NO_MATCH",1,true,"")));
             var step=new AtomicInteger();
-            when(model.decide(any(),any(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->step.getAndIncrement()==0
+            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->step.getAndIncrement()==0
                     ?new AgentModel.Step(AgentModel.Status.TOOLS,List.of(new AgentModel.ToolCall("c1","medical_knowledge_retrieve","{\"query\":\"合成测试问题\"}")),20,10,1)
                     :new AgentModel.Step(AgentModel.Status.DONE,List.of(),30,5,1));
             var prepared=coordinator.prepare(conversation,"patient","合成测试问题");
@@ -69,7 +69,7 @@ class AgentWorkflowCoordinatorTest {
     }
     @Test void changedCorpusOrSessionStopsExecutionAndFallsBack() {
         try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)) {
-            when(model.decide(any(),any(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->{
+            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->{
                 when(knowledge.documents()).thenReturn(List.of());
                 return new AgentModel.Step(AgentModel.Status.TOOLS,List.of(new AgentModel.ToolCall("c1","medical_knowledge_retrieve","{\"query\":\"合成测试问题\"}")),null,null,1);
             });
@@ -92,13 +92,13 @@ class AgentWorkflowCoordinatorTest {
                     List.of(affirmative, negative), List.of(), List.of());
             when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
                     proposed, "test", "", 10, 5, 1));
-            when(model.decide(any(), any(), anySet(), anySet(), anyList(), anyInt())).thenReturn(
+            when(model.decide(any(), any(), anySet(), anySet(), anySet(), anyList(), anyInt())).thenReturn(
                     new AgentModel.Step(AgentModel.Status.TOOLS, List.of(new AgentModel.ToolCall("c1",
                             "medical_knowledge_retrieve", "{\"query\":\"合成\"}")), 20, 10, 1));
             assertNull(coordinator.prepare(conversation, "patient", "合成测试问题"));
             verifyNoInteractions(executor);
             verify(logs, atLeastOnce()).record(argThat(log -> log.purpose().equals("Agent执行")
-                    && log.model().equals("TOOL_FAILED")));
+                    && log.model().equals("TOOL_BLOCKED")));
         }
     }
 }

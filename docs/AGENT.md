@@ -48,6 +48,8 @@
 
 抽取和只读工具规划默认分别使用不输出思考链的短请求；患者回答生成仍按 `ai.enable-thinking` 配置。两阶段可分别用 `AI_INTENT_ENABLE_THINKING`、`AI_AGENT_PLANNING_ENABLE_THINKING` 调整。这个配置只控制供应商请求，不改变引用、风险或预约检查。原8081实测意图抽取在8秒截止，故不能以普通回答成功冒充Agent完成。
 
+只读工具的本轮参数Schema列出已验证的原话查询及可用科室，减少模型提出无权使用的参数；`AgentToolGateway`仍逐项验证实际参数。越界参数记为`TOOL_BLOCKED`并回退，执行器故障记为`TOOL_FAILED`。两者都不授权预约或医学风险结论。
+
 意图抽取失败通过现有异常分类器记录固定错误码，区分 `INTENT_MODEL_TIMEOUT`、`INTENT_MODEL_AUTH_FAILED`、`INTENT_MODEL_RATE_LIMITED` 和网络等错误；不记录供应商正文、异常消息或密钥，不自动重试。429只代表限流响应，不能单凭此码判断额度耗尽。抽取失败不进入工具规划，后续工作流生成的回答仍须独立通过引用与支持核对；工具成功或审计关联成功不代表答案通过。
 
 测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; mvn test`，前端 `npm test` 与 `npm run build`。

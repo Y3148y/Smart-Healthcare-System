@@ -11,7 +11,7 @@ import java.util.function.BooleanSupplier;
 /** Local bounded orchestrator. Caller supplies a model port; patient integration is separate. */
 public final class AgentRunner implements AutoCloseable {
     public enum Status { COMPLETED, MODEL_FAILED, MODEL_INVALID, MODEL_TIMEOUT, TOOL_FAILED,
-        MISSING_REQUIRED_TOOL, BUDGET_EXHAUSTED, STALE_SCOPE, LOOP_DETECTED, CONTEXT_LIMIT, BUSY }
+        MISSING_REQUIRED_TOOL, BUDGET_EXHAUSTED, STALE_SCOPE, LOOP_DETECTED, CONTEXT_LIMIT, BUSY, TOOL_BLOCKED }
     public record RunResult(Status status, List<AgentModel.Exchange> transcript, List<AgentModel.Step> decisions) {
         public RunResult { transcript = List.copyOf(transcript); decisions = List.copyOf(decisions); }
     }
@@ -48,6 +48,7 @@ public final class AgentRunner implements AutoCloseable {
                 pending = workers.submit(() -> {
                     try (var ignored = TurnTraceContext.restore(captured)) {
                         return model.decide(input, intent, scope.scope().allowedTools(), scope.scope().allowedDepartments(),
+                                scope.scope().allowedQueries(),
                                 history, (int)Math.max(1, TimeUnit.NANOSECONDS.toSeconds(remaining)));
                     }
                 });
@@ -86,6 +87,7 @@ public final class AgentRunner implements AutoCloseable {
                 var executed = gateway.execute(scope, call.id(), call.name(), call.arguments());
                 if (executed.status() != AgentToolGateway.Status.SUCCESS)
                     return result(executed.status() == AgentToolGateway.Status.BUDGET_EXHAUSTED ? Status.BUDGET_EXHAUSTED
+                            : executed.status() == AgentToolGateway.Status.BLOCKED ? Status.TOOL_BLOCKED
                             : Status.TOOL_FAILED, exchanges, decisions);
                 if (!valid(scopeStillValid)) return result(Status.STALE_SCOPE, exchanges, decisions);
                 allCached &= executed.cached(); completed.add(AgentTool.fromCode(call.name()));

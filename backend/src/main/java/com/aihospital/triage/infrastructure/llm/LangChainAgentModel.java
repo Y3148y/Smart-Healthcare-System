@@ -22,7 +22,7 @@ public final class LangChainAgentModel implements AgentModel {
         this.mode = mode; this.key = key; this.base = base; this.model = model; this.thinking = thinking;
     }
     @Override public Step decide(IntentInput input, IntentExtraction intent, Set<AgentTool> allowed,
-            Set<String> departments, List<Exchange> transcript, int timeoutSeconds) {
+            Set<String> departments, Set<String> queries, List<Exchange> transcript, int timeoutSeconds) {
         long start = System.nanoTime();
         if (!"openai-compatible".equalsIgnoreCase(mode) || key.isBlank() || base.isBlank() || model.isBlank())
             return new Step(Status.NOT_CONFIGURED, List.of(), null, null, 0);
@@ -54,7 +54,7 @@ public final class LangChainAgentModel implements AgentModel {
                         case MEDICAL_KNOWLEDGE -> "Retrieve approved medical knowledge for a bounded symptom query";
                         case DEPARTMENT -> "Read the configured hospital department availability";
                         case SCHEDULE -> "Read simulated schedules for an allowed department; does not reserve";
-                    }, "parameters", tool.parameterSchema()))).toList();
+                    }, "parameters", boundedSchema(tool, tool == AgentTool.MEDICAL_KNOWLEDGE ? queries : departments)))).toList();
             var response = transport.generate(base, key, model, thinking, 2048,
                     timeoutSeconds, messages, false, null, tools);
             var usage = response.tokenUsage();
@@ -71,4 +71,12 @@ public final class LangChainAgentModel implements AgentModel {
         }
     }
     private long elapsed(long start) { return (System.nanoTime()-start)/1_000_000; }
+
+    private Map<String, Object> boundedSchema(AgentTool tool, Set<String> values) {
+        var candidates = values.stream().filter(value -> value != null && !value.isBlank()
+                && value.codePointCount(0, value.length()) <= tool.maxLength()).sorted().toList();
+        if (candidates.isEmpty()) return tool.parameterSchema();
+        return Map.of("type", "object", "additionalProperties", false, "required", List.of(tool.parameter()),
+                "properties", Map.of(tool.parameter(), Map.of("type", "string", "enum", candidates)));
+    }
 }

@@ -34,7 +34,7 @@ class AgentRunnerTest {
     }
     @Test void modelSelectsToolAndConsumesItsResultBeforeCompletion() {
         var count = new AtomicInteger(); var executor = executor();
-        AgentModel model = (in, facts, allowed, departments, transcript, seconds) -> {
+        AgentModel model = (in, facts, allowed, departments, queries, transcript, seconds) -> {
             if (count.getAndIncrement()==0) { assertTrue(transcript.isEmpty()); return tools("c1"); }
             assertEquals("c1", transcript.get(0).calls().get(0).id());
             assertTrue(transcript.get(0).results().get(0).contains("bounded-result")); return done();
@@ -49,7 +49,7 @@ class AgentRunnerTest {
         var executor = executor();
         for (AgentModel.Step response : List.of(done(), new AgentModel.Step(AgentModel.Status.TOOLS,
                 List.of(new AgentModel.ToolCall("w1", "create_booking", "{}")), null, null, 0))) {
-            try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f)->response, gateway, 3, 2)) {
+            try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f,g)->response, gateway, 3, 2)) {
                 assertNotEquals(AgentRunner.Status.COMPLETED, runner.run(input, intent, scope(Duration.ofSeconds(3)),
                         Set.of(AgentTool.MEDICAL_KNOWLEDGE), ()->true).status());
             }
@@ -59,7 +59,7 @@ class AgentRunnerTest {
     @Test void repeatedReadIsCachedAndTerminatesLoop() {
         var count = new AtomicInteger(); var executor = executor();
         try (var gateway = new AgentToolGateway(executor);
-             var runner = new AgentRunner((a,b,c,d,e,f)->tools("c"+count.incrementAndGet()), gateway, 3, 2)) {
+             var runner = new AgentRunner((a,b,c,d,e,f,g)->tools("c"+count.incrementAndGet()), gateway, 3, 2)) {
             var result = runner.run(input, intent, scope(Duration.ofSeconds(3)), Set.of(AgentTool.MEDICAL_KNOWLEDGE), ()->true);
             assertEquals(AgentRunner.Status.LOOP_DETECTED, result.status()); assertEquals(2, count.get());
             verify(executor,times(1)).execute(anyString(), anyMap());
@@ -67,7 +67,7 @@ class AgentRunnerTest {
     }
     @Test void staleScopeIsRejectedBeforeAndAfterModel() {
         var allowed = new AtomicBoolean(true); var count = new AtomicInteger(); var executor = executor();
-        try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f)->{
+        try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f,g)->{
             count.incrementAndGet(); allowed.set(false); return tools("c1"); }, gateway, 3, 2)) {
             assertEquals(AgentRunner.Status.STALE_SCOPE, runner.run(input,intent,scope(Duration.ofSeconds(3)),
                     Set.of(), ()->false).status()); assertEquals(0,count.get());
@@ -77,7 +77,7 @@ class AgentRunnerTest {
     }
     @Test void hangingModelCannotHoldTurnBeyondDeadline() throws Exception {
         var interrupted = new CountDownLatch(1); var executor = executor();
-        try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f)->{
+        try (var gateway = new AgentToolGateway(executor); var runner = new AgentRunner((a,b,c,d,e,f,g)->{
             try { new CountDownLatch(1).await(); } catch (InterruptedException stop) { interrupted.countDown(); Thread.currentThread().interrupt(); }
             return done(); }, gateway, 3, 1)) {
             assertEquals(AgentRunner.Status.MODEL_TIMEOUT, runner.run(input,intent,scope(Duration.ofMillis(100)),
@@ -87,7 +87,7 @@ class AgentRunnerTest {
     @Test void rejectsDuplicateIdsAndOversizedBatchWithoutExecutingTools() {
         var executor = executor(); var call = tools("c1").calls().get(0);
         for (var batch : List.of(List.of(call,call), Collections.nCopies(5,call))) {
-            try (var gateway=new AgentToolGateway(executor);var runner=new AgentRunner((a,b,c,d,e,f)->
+            try (var gateway=new AgentToolGateway(executor);var runner=new AgentRunner((a,b,c,d,e,f,g)->
                     new AgentModel.Step(AgentModel.Status.TOOLS,batch,null,null,0),gateway,3,2)) {
                 assertEquals(AgentRunner.Status.MODEL_INVALID, runner.run(input,intent,scope(Duration.ofSeconds(3)),Set.of(),()->true).status());
             }

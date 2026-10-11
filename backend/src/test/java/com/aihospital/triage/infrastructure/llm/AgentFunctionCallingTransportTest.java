@@ -30,21 +30,23 @@ class AgentFunctionCallingTransportTest {
             var model = new LangChainAgentModel("openai-compatible","synthetic-key","http://127.0.0.1:"+server.getAddress().getPort()+"/v1","model",false);
             var input = new IntentInput(List.of(new IntentInput.SourceMessage("u1","USER","合成问题")));
             var intent = new IntentExtraction(1,List.of(IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
-            var selected=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),List.of(),2);
+            var selected=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),List.of(),2);
             assertEquals(AgentModel.Status.TOOLS,selected.status());assertEquals("c1",selected.calls().get(0).id());
             assertEquals(50,selected.inputTokens());
-            var done=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),
+            var done=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),
                     List.of(new AgentModel.Exchange(selected.calls(),List.of("synthetic-result"))),2);
             assertEquals(AgentModel.Status.DONE,done.status());
             var first=json.readTree(requests.get(0));assertEquals("function",first.path("tools").get(0).path("type").asText());
             assertFalse(first.path("enable_thinking").asBoolean());
+            assertEquals("合成问题", first.path("tools").get(0).path("function").path("parameters")
+                    .path("properties").path("query").path("enum").get(0).asText());
             assertFalse(first.path("tools").get(0).path("function").path("parameters").path("additionalProperties").asBoolean());
             var turns=json.readTree(requests.get(1)).path("messages");
             assertEquals("c1",turns.get(2).path("tool_calls").get(0).path("id").asText());
             assertEquals("tool",turns.get(3).path("role").asText());assertEquals("c1",turns.get(3).path("tool_call_id").asText());
             assertEquals("synthetic-result",turns.get(3).path("content").asText());
             assertFalse(requests.get(1).contains("private-reasoning"));
-            var oversize=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),
+            var oversize=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),
                     List.of(new AgentModel.Exchange(selected.calls(),List.of("x".repeat(31000)))),2);
             assertEquals(AgentModel.Status.UNAVAILABLE,oversize.status());assertEquals(2,count.get());
         } finally {server.stop(0);}
