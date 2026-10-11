@@ -54,6 +54,8 @@
 
 兼容接口的续轮仍带上刚执行工具的函数定义，并以`tool_choice=none`禁止新增工具请求；服务端同时验证返回不能含`tool_calls`。规划失败只记录异常类型/HTTP状态映射出的固定失败码，不记录供应商错误正文或思考文本。
 
+收到工具结果后的结束轮再加入明确的“仅返回DONE”控制消息，输出上限64 tokens；只有独立的`DONE`标记才算规划完成。其他停止文本记`INVALID/STOP_NON_DONE`，长度等非正常结束记固定`FINISH_*`码，不保存模型自由文本或把它作为患者回答；旧工作流仍可保守接管。该修正需真实供应商再次验证，不能仅凭本地协议桩宣称闭环通过。
+
 意图抽取失败通过现有异常分类器记录固定错误码，区分 `INTENT_MODEL_TIMEOUT`、`INTENT_MODEL_AUTH_FAILED`、`INTENT_MODEL_RATE_LIMITED` 和网络等错误；不记录供应商正文、异常消息或密钥，不自动重试。429只代表限流响应，不能单凭此码判断额度耗尽。抽取失败不进入工具规划，后续工作流生成的回答仍须独立通过引用与支持核对；工具成功或审计关联成功不代表答案通过。
 
 测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; mvn test`，前端 `npm test` 与 `npm run build`。

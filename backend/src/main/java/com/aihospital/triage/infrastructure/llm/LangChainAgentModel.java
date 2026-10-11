@@ -51,6 +51,8 @@ public final class LangChainAgentModel implements AgentModel {
             if (timeoutSeconds < 1 || timeoutSeconds > 35)
                 return new Step(Status.INVALID, List.of(), null, null, elapsed(start));
             boolean finishing = allowed.isEmpty() && !transcript.isEmpty();
+            if (finishing) messages.add(UserMessage.from(
+                    "Tool results have been delivered. Do not answer the patient. Return only DONE, with no explanation."));
             var advertised = finishing ? transcript.get(transcript.size() - 1).calls().stream()
                     .map(call -> AgentTool.fromCode(call.name())).distinct().sorted().toList()
                     : allowed.stream().sorted().toList();
@@ -60,16 +62,18 @@ public final class LangChainAgentModel implements AgentModel {
                         case DEPARTMENT -> "Read the configured hospital department availability";
                         case SCHEDULE -> "Read simulated schedules for an allowed department; does not reserve";
                     }, "parameters", boundedSchema(tool, tool == AgentTool.MEDICAL_KNOWLEDGE ? queries : departments)))).toList();
-            var response = transport.generate(base, key, model, thinking, 2048,
+            var response = transport.generate(base, key, model, thinking, finishing ? 64 : 2048,
                     timeoutSeconds, messages, false, null, tools, finishing);
             var usage = response.tokenUsage();
             var status = response.finishReason() == FinishReason.TOOL_EXECUTION ? Status.TOOLS
-                    : response.finishReason() == FinishReason.STOP && "DONE".equals(response.content().text().trim())
+                    : response.finishReason() == FinishReason.STOP && "DONE".equalsIgnoreCase(response.content().text().strip())
                     ? Status.DONE : Status.INVALID;
             var calls = status == Status.TOOLS ? response.content().toolExecutionRequests().stream()
                     .map(call -> new ToolCall(call.id(), call.name(), call.arguments())).toList() : List.<ToolCall>of();
             return new Step(status, calls, usage == null ? null : usage.inputTokenCount(),
-                    usage == null ? null : usage.outputTokenCount(), elapsed(start));
+                    usage == null ? null : usage.outputTokenCount(), elapsed(start),
+                    status == Status.INVALID ? response.finishReason() == FinishReason.STOP
+                            ? "STOP_NON_DONE" : "FINISH_" + response.finishReason().name() : null);
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
             return new Step(Status.UNAVAILABLE, List.of(), null, null, elapsed(start),

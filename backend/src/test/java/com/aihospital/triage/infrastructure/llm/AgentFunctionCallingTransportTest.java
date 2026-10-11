@@ -13,6 +13,30 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AgentFunctionCallingTransportTest {
+    @Test void freeTextAfterToolResultIsNotAcceptedAsAgentCompletion() throws Exception {
+        var server = HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            byte[] bytes = "{\"choices\":[{\"finish_reason\":\"stop\",\"message\":{\"content\":\"Here is a patient answer\"}}]}"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getRequestBody().readAllBytes();
+            exchange.sendResponseHeaders(200,bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var model = new LangChainAgentModel("openai-compatible","synthetic-key",
+                    "http://127.0.0.1:"+server.getAddress().getPort()+"/v1","model",false);
+            var input = new IntentInput(List.of(new IntentInput.SourceMessage("u1","USER","合成问题")));
+            var intent = new IntentExtraction(1,List.of(IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
+            var call = new AgentModel.ToolCall("c1","medical_knowledge_retrieve","{\"query\":\"合成问题\"}");
+            var result = model.decide(input,intent,Set.of(),Set.of(),Set.of("合成问题"),
+                    List.of(new AgentModel.Exchange(List.of(call),List.of("synthetic-result"))),2);
+            assertEquals(AgentModel.Status.INVALID,result.status());
+            assertEquals("STOP_NON_DONE",result.failureCode());
+        } finally { server.stop(0); }
+    }
+
     @Test void functionSchemaAndResultIdsAreTransmittedWithoutReasoning() throws Exception {
         var json = new ObjectMapper(); var requests = new ArrayList<String>(); var count = new AtomicInteger();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
@@ -48,6 +72,9 @@ class AgentFunctionCallingTransportTest {
             assertEquals("c1",turns.get(2).path("tool_calls").get(0).path("id").asText());
             assertEquals("tool",turns.get(3).path("role").asText());assertEquals("c1",turns.get(3).path("tool_call_id").asText());
             assertEquals("synthetic-result",turns.get(3).path("content").asText());
+            assertEquals("user",turns.get(4).path("role").asText());
+            assertTrue(turns.get(4).path("content").asText().contains("Return only DONE"));
+            assertEquals(64,json.readTree(requests.get(1)).path("max_tokens").asInt());
             assertFalse(requests.get(1).contains("private-reasoning"));
             var oversize=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),
                     List.of(new AgentModel.Exchange(selected.calls(),List.of("x".repeat(31000)))),2);
