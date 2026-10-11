@@ -32,6 +32,10 @@ jobs:
           cache-dependency-path: |
             frontend/package-lock.json
             tools/knowledge-sync/package-lock.json
+      - name: Check public tracked-file policy
+        run: |
+          node --test scripts/check-public-files.test.cjs
+          node scripts/check-public-files.cjs
       - name: Frontend test and build
         working-directory: frontend
         run: |
