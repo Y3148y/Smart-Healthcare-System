@@ -65,7 +65,8 @@ public final class LangChainIntentExtractor implements IntentExtractor {
         } catch (Exception unavailable) {
             if (unavailable instanceof InterruptedException) Thread.currentThread().interrupt();
             // Provider/parser errors may contain private payloads; never expose or log their messages.
-            return result(Status.UNAVAILABLE, null, "INTENT_MODEL_UNAVAILABLE", null, started);
+            return result(Status.UNAVAILABLE, null, "INTENT_" + ModelFailureDiagnostics.classify(unavailable).code(),
+                    null, started);
         }
     }
 

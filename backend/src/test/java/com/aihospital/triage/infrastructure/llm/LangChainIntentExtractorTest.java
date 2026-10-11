@@ -53,7 +53,26 @@ class LangChainIntentExtractorTest {
             calls.incrementAndGet(); throw new java.io.IOException("private patient text and secret");
         }).extract(input);
         assertEquals(IntentExtractor.Status.UNAVAILABLE, result.status());
-        assertEquals("INTENT_MODEL_UNAVAILABLE", result.failureCode()); assertEquals(1, calls.get());
+        assertEquals("INTENT_MODEL_IO_ERROR", result.failureCode()); assertEquals(1, calls.get());
         assertNull(result.inputTokens());
+    }
+
+    @Test void timeoutAuthenticationAndRateLimitHaveDistinctSafeCodes() {
+        List<Exception> failures = List.of(
+                new java.util.concurrent.ExecutionException(new java.net.http.HttpTimeoutException("private")),
+                new dev.ai4j.openai4j.OpenAiHttpException(401, "private key"),
+                new dev.ai4j.openai4j.OpenAiHttpException(429, "private provider body"));
+        List<String> codes = List.of("INTENT_MODEL_TIMEOUT", "INTENT_MODEL_AUTH_FAILED", "INTENT_MODEL_RATE_LIMITED");
+        for (int index = 0; index < failures.size(); index++) {
+            Exception failure = failures.get(index);
+            var calls = new AtomicInteger();
+            var result = extractor(AgentWorkflowSettings.Mode.ENABLED, "openai-compatible", messages -> {
+                calls.incrementAndGet(); throw failure;
+            }).extract(input);
+            assertEquals(IntentExtractor.Status.UNAVAILABLE, result.status());
+            assertEquals(codes.get(index), result.failureCode());
+            assertNull(result.extraction()); assertNull(result.inputTokens()); assertNull(result.outputTokens());
+            assertEquals(1, calls.get()); assertFalse(result.toString().contains("private"));
+        }
     }
 }
