@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-sore-throat-zh",
+  "title": "咽痛：表现、一般照护与就医条件",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "respiratory/sore-throat",
+  "sourceReviewedAt": "08 April 2024",
+  "sourceReviewDueAt": "08 April 2027",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "5575fd9e11f0326a7297425e3e118b1e15e89266e391c1e9443e1a1f3c2a722f",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-sore-throat",
+        "publisher": "NHS England",
+        "url": "https://www.nhs.uk/symptoms/sore-throat/",
+        "fetchedAt": "2026-10-06T07:23:30.473Z",
+        "rawSha256": "45b36d1dac8670ddbbb02825ba874e2e366c3518cb5cd2c4640bdc10899ceff6"
+      },
+      {
+        "sourceId": "medlineplus-sore-throat",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/sorethroat.html",
+        "fetchedAt": "2026-10-07T13:15:03.190Z",
+        "rawSha256": "dd15e0529e6b98501db5ba38db1e0bee7b30b5d6df178c34377e6e49e0619243"
+      }
+    ],
+    "topics": [
+      "咽痛",
+      "吞咽疼痛",
+      "咽喉不适"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "呼吸困难或无法吞咽不能继续普通照护"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-sore-throat",
+      "file": "source.en.md",
+      "sha256": "5575fd9e11f0326a7297425e3e118b1e15e89266e391c1e9443e1a1f3c2a722f"
+    },
+    {
+      "sourceId": "medlineplus-sore-throat",
+      "file": "source.nlm.en.md",
+      "sha256": "a1f23421eff7500fe80bb89a0c06afa33a307ed4525cd83bd05f9030b854f163"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-sore-throat",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现与病程": [
+      "nhs-sore-throat"
+    ],
+    "一般照护": [
+      "nhs-sore-throat"
+    ],
+    "就医条件": [
+      "nhs-sore-throat"
+    ],
+    "立即求助信号": [
+      "nhs-sore-throat"
+    ],
+    "咽部与病因差异": [
+      "medlineplus-sore-throat"
+    ],
+    "症状记录": [
+      "medlineplus-sore-throat"
+    ]
+  }
+}

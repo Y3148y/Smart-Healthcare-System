@@ -1,0 +1,2 @@
+# Preserve exact provenance bytes: Markdown headers bind provenance.json by SHA-256.
+knowledge/corpus/** -text

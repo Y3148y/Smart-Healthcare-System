@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-period-pain-zh",
+  "title": "痛经：表现、照护与就医评估",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "gynaecology/period-pain",
+  "sourceReviewedAt": "18 March 2026",
+  "sourceReviewDueAt": "18 March 2029",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "3d52edc300a6bdfa0fadfe2153e1ed1941adcaee014c812bc8b29cfa764dac17",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-period-pain",
+        "publisher": "NHS England",
+        "url": "https://www.nhs.uk/symptoms/period-pain/",
+        "fetchedAt": "2026-10-06T07:23:35.808Z",
+        "rawSha256": "a562344038c6f3b9681ab762df6c52c11a156117121982b77ab7b7ce3ef0d2f2"
+      },
+      {
+        "sourceId": "medlineplus-period-pain",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/periodpain.html",
+        "fetchedAt": "2026-10-07T13:15:10.789Z",
+        "rawSha256": "aedb097d20848bdb256e4f751ca87cb0f256010a3398bb75f90c63151711912a"
+      }
+    ],
+    "topics": [
+      "痛经",
+      "经期腹痛",
+      "月经变化"
+    ],
+    "population": [
+      "有月经的一般成人"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "不能仅依据月经时间确认腹痛为痛经",
+      "孕产及可能怀孕不走普通痛经流程"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-period-pain",
+      "file": "source.en.md",
+      "sha256": "3d52edc300a6bdfa0fadfe2153e1ed1941adcaee014c812bc8b29cfa764dac17"
+    },
+    {
+      "sourceId": "medlineplus-period-pain",
+      "file": "source.nlm.en.md",
+      "sha256": "de79d1a728a1ea08e4cf4fef5901235774044f6302a2de45be81cb6674a8d324"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-period-pain",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现与病程": [
+      "nhs-period-pain"
+    ],
+    "一般照护": [
+      "nhs-period-pain"
+    ],
+    "就医条件": [
+      "nhs-period-pain"
+    ],
+    "可能原因与评估": [
+      "nhs-period-pain"
+    ],
+    "原发性与继发性痛经": [
+      "medlineplus-period-pain"
+    ],
+    "痛经与经前综合征": [
+      "medlineplus-period-pain"
+    ],
+    "进一步评估条件": [
+      "medlineplus-period-pain"
+    ],
+    "用药限制": [
+      "medlineplus-period-pain"
+    ]
+  }
+}

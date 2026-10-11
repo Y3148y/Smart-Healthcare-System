@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-common-cold-zh",
+  "title": "普通感冒：表现、一般照护、传播与就医条件",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "respiratory/common-cold",
+  "sourceReviewedAt": "22 March 2024",
+  "sourceReviewDueAt": "22 March 2027",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "6a678bfa08efff5bf970612ed5102a5493ce81742d13fb5dc2eb5eaadf49c77f",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING",
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-common-cold",
+        "publisher": "NHS England",
+        "url": "https://www.nhs.uk/conditions/common-cold/",
+        "fetchedAt": "2026-10-06T06:31:43.234Z",
+        "rawSha256": "e90dd1d85643c4b402935af2d768cd9fda3cbf2d8af1e1faa2110b57fca6a144"
+      },
+      {
+        "sourceId": "medlineplus-common-cold-summary",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/commoncold.html",
+        "fetchedAt": "2026-10-07T13:17:06.708Z",
+        "rawSha256": "c39e7241b80e1ebf07cb54a27ec6abfbe69feff4fe4d6f8a61ce04920772c8f6"
+      }
+    ],
+    "topics": [
+      "普通感冒",
+      "流鼻涕",
+      "鼻塞",
+      "传播与一般照护"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "胸痛或气短不能按普通感冒照护排除急症",
+      "慢性病或免疫功能低下者需单独评估"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-common-cold",
+      "file": "source.en.md",
+      "sha256": "6a678bfa08efff5bf970612ed5102a5493ce81742d13fb5dc2eb5eaadf49c77f"
+    },
+    {
+      "sourceId": "medlineplus-common-cold-summary",
+      "file": "source.nlm.en.md",
+      "sha256": "78140f2633733fe51fa1fddc279d93d1cfebe7c0f33e263bb1f796a9ae55a37b"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-common-cold-summary",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现与病程": [
+      "nhs-common-cold"
+    ],
+    "一般照护": [
+      "nhs-common-cold"
+    ],
+    "就医条件": [
+      "nhs-common-cold"
+    ],
+    "药物相关知识": [
+      "nhs-common-cold"
+    ],
+    "传播与预防": [
+      "nhs-common-cold"
+    ],
+    "感冒的原因与感染途径": [
+      "medlineplus-common-cold-summary"
+    ],
+    "恢复过程与并发情况": [
+      "medlineplus-common-cold-summary"
+    ],
+    "照护与重复用药风险": [
+      "medlineplus-common-cold-summary"
+    ],
+    "接触防护": [
+      "medlineplus-common-cold-summary"
+    ]
+  }
+}

@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-anaphylaxis-patient-zh",
+  "title": "严重过敏反应：危险表现与就医边界",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "allergy/anaphylaxis",
+  "sourceReviewedAt": "21 June 2023",
+  "sourceReviewDueAt": "21 June 2026",
+  "sourceDateStatus": "PAST_SOURCE_REVIEW_DUE",
+  "sourceExtractSha256": "be93651ebde64e373ca1fb8a8c55febeb02810bd244223ed55f5b4995f38c131",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING",
+    "SOURCE_UPDATE_CHECK_REQUIRED"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-anaphylaxis-patient",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/conditions/anaphylaxis/",
+        "fetchedAt": "2026-10-06T07:29:11.490Z",
+        "rawSha256": "c645dd5e2534bb2eb480b53ed3990bedde105e48578600f3fc991a40078114b0"
+      },
+      {
+        "sourceId": "medlineplus-food-allergy",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/foodallergy.html",
+        "fetchedAt": "2026-10-07T13:15:22.960Z",
+        "rawSha256": "3874b8ff847e80614e01a9a000cddd23a9695b65f740714ebe82259a50bc90cf"
+      }
+    ],
+    "topics": [
+      "严重过敏反应",
+      "气道肿胀",
+      "呼吸困难"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "严重过敏急救条件不要求先出现皮疹"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-anaphylaxis-patient",
+      "file": "source.en.md",
+      "sha256": "be93651ebde64e373ca1fb8a8c55febeb02810bd244223ed55f5b4995f38c131"
+    },
+    {
+      "sourceId": "medlineplus-food-allergy",
+      "file": "source.nlm.en.md",
+      "sha256": "7a5d4e7182a2654e799b0de0cc38456a422df65b249ae31e42926dd072fac5c8"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-food-allergy",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现与发生过程": [
+      "nhs-anaphylaxis-patient"
+    ],
+    "立即求助信号": [
+      "nhs-anaphylaxis-patient"
+    ],
+    "医疗处理与预防": [
+      "nhs-anaphylaxis-patient"
+    ],
+    "食物过敏与不耐受": [
+      "medlineplus-food-allergy"
+    ],
+    "食物相关反应的表现": [
+      "medlineplus-food-allergy"
+    ],
+    "诊断与后续防护": [
+      "medlineplus-food-allergy"
+    ]
+  }
+}

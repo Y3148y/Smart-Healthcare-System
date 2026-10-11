@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-cough-patient-zh",
+  "title": "咳嗽：病程、一般照护与就医条件",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "respiratory/cough",
+  "sourceReviewedAt": "08 December 2023",
+  "sourceReviewDueAt": "08 December 2026",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "33bc7c879fb39400e7dd35a8da558063e5c7593a9da493a318fba1b90ae46ebc",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-cough-patient",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/symptoms/cough/",
+        "fetchedAt": "2026-10-06T07:29:33.453Z",
+        "rawSha256": "6dd3b435480a97d355815b6df097f271abebc4f08d51d06be989685622a4f076"
+      },
+      {
+        "sourceId": "medlineplus-cough",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/cough.html",
+        "fetchedAt": "2026-10-07T13:15:43.043Z",
+        "rawSha256": "2b71e4f59719d888369b670dbf4fad86b37250777f705e3433c33d6f85c792c2"
+      }
+    ],
+    "topics": [
+      "咳嗽",
+      "持续咳嗽",
+      "咳嗽照护"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "咳嗽伴危险症状不能等待自然缓解"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-cough-patient",
+      "file": "source.en.md",
+      "sha256": "33bc7c879fb39400e7dd35a8da558063e5c7593a9da493a318fba1b90ae46ebc"
+    },
+    {
+      "sourceId": "medlineplus-cough",
+      "file": "source.nlm.en.md",
+      "sha256": "88bb8d0ac4e7032a31d71acb414d93f901dc4b3965d0dd30e77798107642d144"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-cough",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "病程与一般照护": [
+      "nhs-cough-patient"
+    ],
+    "就医条件": [
+      "nhs-cough-patient"
+    ],
+    "可能原因": [
+      "nhs-cough-patient"
+    ],
+    "医疗评估与治疗原则": [
+      "nhs-cough-patient"
+    ],
+    "咳嗽的作用与持续性": [
+      "medlineplus-cough"
+    ],
+    "持续咳嗽的相关情况": [
+      "medlineplus-cough"
+    ],
+    "儿童照护限制": [
+      "medlineplus-cough"
+    ]
+  }
+}

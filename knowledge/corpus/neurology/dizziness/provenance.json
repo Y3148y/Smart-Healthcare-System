@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-dizziness-patient-zh",
+  "title": "头晕：表现、安全照护与医疗评估",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "neurology/dizziness",
+  "sourceReviewedAt": "21 April 2023",
+  "sourceReviewDueAt": "21 April 2026",
+  "sourceDateStatus": "PAST_SOURCE_REVIEW_DUE",
+  "sourceExtractSha256": "54c594d01310d00671167c43df537d6f0d759792e2fd88d5e6783d75f69d7ecf",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING",
+    "SOURCE_UPDATE_CHECK_REQUIRED",
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-dizziness-patient",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/symptoms/dizziness/",
+        "fetchedAt": "2026-10-06T07:29:22.844Z",
+        "rawSha256": "2fb0068fa2c6963ede454a4e7f32b2c3aa16b7e7700d021edd402a91726ef1cd"
+      },
+      {
+        "sourceId": "medlineplus-dizziness",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/dizzinessandvertigo.html",
+        "fetchedAt": "2026-10-07T13:15:33.756Z",
+        "rawSha256": "b7bb5dd3ec71635f16c0102a699c38e09174ad25aa078e974eddea5ec542736a"
+      }
+    ],
+    "topics": [
+      "头晕",
+      "眩晕",
+      "失衡",
+      "头晕安全照护"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "不能把新发言语或单侧无力解释为普通头晕"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-dizziness-patient",
+      "file": "source.en.md",
+      "sha256": "54c594d01310d00671167c43df537d6f0d759792e2fd88d5e6783d75f69d7ecf"
+    },
+    {
+      "sourceId": "medlineplus-dizziness",
+      "file": "source.nlm.en.md",
+      "sha256": "329640d484ad097b9f3df222a2efed46ca857f48e4300d0e9d8bc961d1a3e21b"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-dizziness",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现": [
+      "nhs-dizziness-patient"
+    ],
+    "安全照护": [
+      "nhs-dizziness-patient"
+    ],
+    "就医条件": [
+      "nhs-dizziness-patient"
+    ],
+    "可能背景及条件": [
+      "nhs-dizziness-patient"
+    ],
+    "头晕与眩晕的区分": [
+      "medlineplus-dizziness"
+    ],
+    "常见相关情况": [
+      "medlineplus-dizziness"
+    ],
+    "评估与治疗": [
+      "medlineplus-dizziness"
+    ]
+  }
+}

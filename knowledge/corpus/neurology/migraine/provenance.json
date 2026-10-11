@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-migraine-zh",
+  "title": "偏头痛：表现、病程、就医条件与日常管理",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "neurology/migraine",
+  "sourceReviewedAt": "10 March 2026",
+  "sourceReviewDueAt": "10 March 2029",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "9b31d36eb278d10c1af926559d91c60216f6eb6793d163a08bcf71c8c23810ad",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-migraine",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/conditions/migraine/",
+        "fetchedAt": "2026-10-06T06:42:16.007Z",
+        "rawSha256": "72672e21a4d164d806ed2984dd581fe6216c31628105b9354c9ae8f32bb3a31c"
+      },
+      {
+        "sourceId": "medlineplus-migraine",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/migraine.html",
+        "fetchedAt": "2026-10-07T13:14:52.213Z",
+        "rawSha256": "21df44f8a9dbe92d6daf9011b7cada739b67b0e5f9f01b45c41dbbc4930c0e1a"
+      }
+    ],
+    "topics": [
+      "偏头痛",
+      "头痛",
+      "先兆",
+      "头痛日记"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "不能将新发神经症状解释为已确诊偏头痛",
+      "孕期或刚分娩者需及时医疗评估"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-migraine",
+      "file": "source.en.md",
+      "sha256": "9b31d36eb278d10c1af926559d91c60216f6eb6793d163a08bcf71c8c23810ad"
+    },
+    {
+      "sourceId": "medlineplus-migraine",
+      "file": "source.nlm.en.md",
+      "sha256": "37aee9d1bd41818564e8b8875ca3f5d72a5821fbbe471773195db08d93e7f13e"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-migraine",
+    "permissionEvidence": "Only government health-topic Summary text; excludes encyclopedia, drugs, images and linked third-party text. https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "表现与病程": [
+      "nhs-migraine"
+    ],
+    "就医条件": [
+      "nhs-migraine"
+    ],
+    "立即求助信号": [
+      "nhs-migraine"
+    ],
+    "日常管理": [
+      "nhs-migraine"
+    ],
+    "发作阶段": [
+      "medlineplus-migraine"
+    ],
+    "诱因差异": [
+      "medlineplus-migraine"
+    ],
+    "诊断评估": [
+      "medlineplus-migraine"
+    ],
+    "治疗目标与长期管理": [
+      "medlineplus-migraine"
+    ]
+  }
+}

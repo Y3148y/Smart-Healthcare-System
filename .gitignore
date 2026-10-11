@@ -15,7 +15,13 @@ backend/data/
 .DS_Store
 /.codex-*/
 /.codex/
-/knowledge/corpus/
+# Public corpus: only reproducible text assets. Never expose intake receipts or arbitrary attachments.
+/knowledge/corpus/**
+!/knowledge/corpus/**/
+!/knowledge/corpus/**/document.zh-CN.md
+!/knowledge/corpus/**/provenance.json
+!/knowledge/corpus/**/source.en.md
+!/knowledge/corpus/**/source.nlm.en.md
 /knowledge/sources/
 /knowledge/reference/
 /knowledge/releases/

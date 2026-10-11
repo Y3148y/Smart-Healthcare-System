@@ -1,6 +1,6 @@
 # 业务知识资料
 
-此目录集中保存本机整理的知识资产，不是应用自动加载目录。运行时从数据库读取已批准正文。
+此目录集中保存知识资产，不是应用自动加载目录。运行时从数据库读取已批准正文。`corpus/` 的11篇示例资料及必要来源文本随仓库公开，用于复现导入、切分和索引；具体转载条款见 [LICENSE.md](LICENSE.md)。
 
 | 目录 | 用途 |
 | --- | --- |
@@ -10,11 +10,13 @@
 | releases/ | 发布回执、版本关联与正文/片段指纹 |
 | history/ | 历史稿及旧元数据，不作为当前编辑入口 |
 
-正文、快照、回执和历史默认Git忽略；本说明和工具可公开提交。不得把第三方全文或患者信息推到公开仓库。
+`corpus/` 仅允许正文、provenance.json、source.en.md和source.nlm.en.md四类文本文件进入Git。原始网页缓存、发布回执、intake-packet.json、历史和报告仍忽略；不上传患者数据或非许可第三方内容。
 
 管理员在医学知识库同时选择一篇资料的正文MD、provenance.json和全部来源快照，核验后提交待审；普通TXT/MD需填写来源及许可。另行审批后才进入检索，不自动读取该目录。上传附件统一归档仍未实现，现有接口只保存正文、基础来源和适用元数据，不能声称已保存全部源附件。
 
 Markdown头记录编写时的待审状态；实际审批看数据库及releases/回执。操作者批准不等于临床审核。
+
+目录按主题组织：allergy、cardiovascular、digestive、gynaecology、neurology、orthopaedics、respiratory。每篇的JSON front matter通过SHA-256绑定provenance.json，后者记录来源、日期、适用范围、章节来源和快照哈希。文件使用Git二进制式换行保留规则，避免checkout换行转换破坏绑定。正文和元数据保持原稿，公开提交不自动解除原有审核阻断。
 
 离线校验：`node tools/knowledge-sync/validate-document.mjs knowledge/corpus/neurology/migraine/document.zh-CN.md`。
 真实片段检查：JDK17编译backend后，运行 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus`。

@@ -43,6 +43,8 @@ Agent + Workflow 改造已增加意图 JSON Schema、患者原话来源校验和
 
 后端按业务模块分层组织，保留领域端口与外部适配器。实现细节见 [架构说明](docs/ARCHITECTURE.md) 和 [RAG 设计与评估](docs/RAG.md)。
 
+可复现的11篇医学示例资料位于 [knowledge/corpus](knowledge/corpus)，包含中文正文、来源元数据及必要文本快照；[资料说明](knowledge/README.md)和[来源许可](knowledge/LICENSE.md)说明导入方式及使用边界。公开资料不等于临床审核通过，也不会随启动自动导入或批准。
+
 ## 快速开始
 
 需要 JDK 17、Maven、Node.js 20+ 与 MySQL。Qdrant 用于向量检索，可通过项目 Compose 启动。

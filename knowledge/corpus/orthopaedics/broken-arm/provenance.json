@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-broken-arm-zh",
+  "title": "手臂或腕部疑似骨折：就医与恢复注意事项",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "orthopaedics/broken-arm",
+  "sourceReviewedAt": "26 May 2023",
+  "sourceReviewDueAt": "26 May 2026",
+  "sourceDateStatus": "PAST_SOURCE_REVIEW_DUE",
+  "sourceExtractSha256": "6f067439c3abfe4d1905c9a473e8302d97d045fc276e2b31c411db4ec258083f",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING",
+    "SOURCE_UPDATE_CHECK_REQUIRED"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-broken-arm",
+        "publisher": "NHS England",
+        "url": "https://www.nhs.uk/conditions/broken-arm-or-wrist/",
+        "fetchedAt": "2026-10-06T07:24:51.860Z",
+        "rawSha256": "fb6272575b1747b286fe987cad80cbcfcd3f999faf07f23f6d72f2b0e51ef6ac"
+      },
+      {
+        "sourceId": "medlineplus-fractures",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/fractures.html",
+        "fetchedAt": "2026-10-07T13:15:12.706Z",
+        "rawSha256": "6f50800ef97eb5bddd000f6261d1dd27cdd83cf5a877c54e964063fc85f34f37"
+      }
+    ],
+    "topics": [
+      "手臂外伤",
+      "腕部外伤",
+      "疑似骨折",
+      "石膏护理"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "资料仅针对手臂或腕部外伤",
+      "不得用于无外伤胸痛的病因解释"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ],
+    "context": "Arm/wrist injury only; not evidence for unrelated atraumatic chest pain."
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-broken-arm",
+      "file": "source.en.md",
+      "sha256": "6f067439c3abfe4d1905c9a473e8302d97d045fc276e2b31c411db4ec258083f"
+    },
+    {
+      "sourceId": "medlineplus-fractures",
+      "file": "source.nlm.en.md",
+      "sha256": "bfd0bc3678d6f26ae873f0272677ab9582d171a6236b019fe9007115074dab46"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-fractures",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "受伤后表现": [
+      "nhs-broken-arm"
+    ],
+    "及时评估条件": [
+      "nhs-broken-arm"
+    ],
+    "立即求助信号": [
+      "nhs-broken-arm"
+    ],
+    "等待就医与治疗": [
+      "nhs-broken-arm"
+    ],
+    "恢复与复诊": [
+      "nhs-broken-arm"
+    ],
+    "骨折类型与发生原因": [
+      "medlineplus-fractures"
+    ],
+    "诊断与固定": [
+      "medlineplus-fractures"
+    ],
+    "降低再次受伤风险": [
+      "medlineplus-fractures"
+    ]
+  }
+}

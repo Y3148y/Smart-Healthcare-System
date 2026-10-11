@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-stroke-symptoms-zh",
+  "title": "卒中警示：突然神经症状与立即求助",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "neurology/stroke",
+  "sourceReviewedAt": "12 September 2024",
+  "sourceReviewDueAt": "12 September 2027",
+  "sourceDateStatus": "SOURCE_DATE_RECORDED",
+  "sourceExtractSha256": "9f6cf0d362722b7fd59ca24466c57050c62b2a0a81e635567aef5a631c1e42f2",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-stroke-symptoms",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/conditions/stroke/symptoms/",
+        "fetchedAt": "2026-10-06T07:29:19.789Z",
+        "rawSha256": "453dbdbc07744eb1858ed8a1ac882b37d02c252581bec5720eecaea1a709b8fb"
+      },
+      {
+        "sourceId": "medlineplus-stroke",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/stroke.html",
+        "fetchedAt": "2026-10-07T13:15:28.149Z",
+        "rawSha256": "4ddc74a68d5d3cdeae983575e8c58c9109842275a5a71ecc40e67f06b8ed6559"
+      }
+    ],
+    "topics": [
+      "卒中警示",
+      "FAST",
+      "单侧无力",
+      "言语障碍"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "症状短暂消失不能排除需要立即求助"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ]
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-stroke-symptoms",
+      "file": "source.en.md",
+      "sha256": "9f6cf0d362722b7fd59ca24466c57050c62b2a0a81e635567aef5a631c1e42f2"
+    },
+    {
+      "sourceId": "medlineplus-stroke",
+      "file": "source.nlm.en.md",
+      "sha256": "b4b9a1bc31142278bcee9eec291cbdf8494d3b7d8bdcaea6f49571f5406080f4"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-stroke",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "突然出现的主要表现": [
+      "nhs-stroke-symptoms"
+    ],
+    "其他表现": [
+      "nhs-stroke-symptoms"
+    ],
+    "立即求助条件": [
+      "nhs-stroke-symptoms"
+    ],
+    "卒中的机制与类型": [
+      "medlineplus-stroke"
+    ],
+    "风险因素": [
+      "medlineplus-stroke"
+    ],
+    "医疗评估": [
+      "medlineplus-stroke"
+    ],
+    "急性治疗、康复与预防": [
+      "medlineplus-stroke"
+    ]
+  }
+}

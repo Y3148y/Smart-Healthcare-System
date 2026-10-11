@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "documentId": "nhs-stomach-ache-patient-zh",
+  "title": "腹痛：可能背景与就医条件",
+  "approvalStatus": "PENDING_REVIEW",
+  "clinicalReviewStatus": "NOT_REVIEWED",
+  "translationReviewStatus": "NOT_REVIEWED",
+  "scopeReviewStatus": "PENDING",
+  "topicPath": "digestive/stomach-ache",
+  "sourceReviewedAt": "26 May 2023",
+  "sourceReviewDueAt": "26 May 2026",
+  "sourceDateStatus": "PAST_SOURCE_REVIEW_DUE",
+  "sourceExtractSha256": "3ccd35d3f050bc04735b345a6f707f275244a2e552a0d7b49fc766dc511b1f07",
+  "sourceSnapshot": "source.en.md",
+  "extractionWarnings": [
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "releaseBlockers": [
+    "PERMISSION_PENDING",
+    "INDEPENDENT_MEDICAL_REVIEW_PENDING",
+    "SCOPE_REVIEW_PENDING",
+    "SOURCE_UPDATE_CHECK_REQUIRED",
+    "TABLE_REQUIRES_REVIEW"
+  ],
+  "metadata": {
+    "schemaVersion": 1,
+    "language": "zh-CN",
+    "contentKind": "reviewed_summary",
+    "sources": [
+      {
+        "sourceId": "nhs-stomach-ache-patient",
+        "publisher": "NHS",
+        "url": "https://www.nhs.uk/symptoms/stomach-ache/",
+        "fetchedAt": "2026-10-06T07:29:26.948Z",
+        "rawSha256": "1517c904117d7bb7a6557ce48ef91f6e389b159170b221575e7f3e1a0bb83176"
+      },
+      {
+        "sourceId": "medlineplus-abdominal-pain",
+        "publisher": "National Library of Medicine",
+        "url": "https://medlineplus.gov/abdominalpain.html",
+        "fetchedAt": "2026-10-07T13:15:39.606Z",
+        "rawSha256": "01ae89b418d808086dd6bee22f4ddc78ce4fb4d410559befd970b2b1b5b7a55e"
+      }
+    ],
+    "topics": [
+      "腹痛",
+      "腹部不适",
+      "腹痛就医条件"
+    ],
+    "population": [
+      "一般成人健康科普信息"
+    ],
+    "exclusions": [
+      "不提供儿童个体诊疗",
+      "不提供孕产个体诊疗",
+      "不提供诊断、处方或医院科室映射"
+    ],
+    "prerequisites": [
+      "危险信号片段只适用于腹痛语境",
+      "孕期腹痛不能套用一般成人普通照护"
+    ],
+    "evidenceUses": [
+      "general_information"
+    ],
+    "permissionStatus": "pending",
+    "permissionEvidence": null
+  },
+  "curation": {
+    "status": "PENDING_REVIEW",
+    "bodyPolicy": "MEDICAL_KNOWLEDGE_ONLY",
+    "adaptation": "Condensed Chinese adaptation, not a verbatim complete translation",
+    "omissions": [
+      "Page navigation, videos and external-link content",
+      "Individual drug names, doses and executable treatment protocols"
+    ],
+    "limitations": [
+      "Clinical, translation, permission and scope review incomplete",
+      "Source service pathways do not imply local hospital service availability",
+      "Consultation headings are not a validated local risk classification"
+    ],
+    "context": "Emergency conditions are from the abdominal-pain page; references to chest pain do not make this a standalone chest-pain document."
+  },
+  "sourceSnapshots": [
+    {
+      "sourceId": "nhs-stomach-ache-patient",
+      "file": "source.en.md",
+      "sha256": "3ccd35d3f050bc04735b345a6f707f275244a2e552a0d7b49fc766dc511b1f07"
+    },
+    {
+      "sourceId": "medlineplus-abdominal-pain",
+      "file": "source.nlm.en.md",
+      "sha256": "ce2cbf5738b0924b73401a23d9b776e8f0e7058a8ff2ba1432036e5aafbc4354"
+    }
+  ],
+  "additionalSource": {
+    "sourceId": "medlineplus-abdominal-pain",
+    "permissionEvidence": "Only public-domain health-topic Summary; https://medlineplus.gov/about/using/usingcontent/",
+    "extractionScope": "health_topic_summary"
+  },
+  "attribution": "Source: MedlinePlus, National Library of Medicine",
+  "sectionSources": {
+    "可能背景": [
+      "nhs-stomach-ache-patient"
+    ],
+    "及时求助条件": [
+      "nhs-stomach-ache-patient"
+    ],
+    "腹痛伴立即求助信号": [
+      "nhs-stomach-ache-patient"
+    ],
+    "其他可能原因与相关表现": [
+      "nhs-stomach-ache-patient"
+    ],
+    "疼痛范围与严重度": [
+      "medlineplus-abdominal-pain"
+    ],
+    "持续或伴随症状": [
+      "medlineplus-abdominal-pain"
+    ]
+  }
+}
