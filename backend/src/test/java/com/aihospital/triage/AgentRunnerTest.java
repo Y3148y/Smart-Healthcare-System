@@ -36,6 +36,7 @@ class AgentRunnerTest {
         var count = new AtomicInteger(); var executor = executor();
         AgentModel model = (in, facts, allowed, departments, queries, transcript, seconds) -> {
             if (count.getAndIncrement()==0) { assertTrue(transcript.isEmpty()); return tools("c1"); }
+            assertFalse(allowed.contains(AgentTool.MEDICAL_KNOWLEDGE));
             assertEquals("c1", transcript.get(0).calls().get(0).id());
             assertTrue(transcript.get(0).results().get(0).contains("bounded-result")); return done();
         };

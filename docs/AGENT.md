@@ -50,6 +50,8 @@
 
 只读工具的本轮参数Schema列出已验证的原话查询及可用科室，减少模型提出无权使用的参数；`AgentToolGateway`仍逐项验证实际参数。越界参数记为`TOOL_BLOCKED`并回退，执行器故障记为`TOOL_FAILED`。两者都不授权预约或医学风险结论。
 
+工具选择按已验证意图和当前请求收窄：一般咨询只暴露医学检索；明确找科室或医生时才暴露对应目录工具。一次成功的医学检索结果回传后，不再向下一轮模型提供同一检索工具；模型必须读取结果并返回`DONE`，否则回退。无待选工具时仍可传递既有工具结果。真实线上审计需出现`Agent执行/COMPLETED`才能称Agent完成；仅有模型返回`TOOLS`或最终回答`LIVE`不够。
+
 意图抽取失败通过现有异常分类器记录固定错误码，区分 `INTENT_MODEL_TIMEOUT`、`INTENT_MODEL_AUTH_FAILED`、`INTENT_MODEL_RATE_LIMITED` 和网络等错误；不记录供应商正文、异常消息或密钥，不自动重试。429只代表限流响应，不能单凭此码判断额度耗尽。抽取失败不进入工具规划，后续工作流生成的回答仍须独立通过引用与支持核对；工具成功或审计关联成功不代表答案通过。
 
 测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; mvn test`，前端 `npm test` 与 `npm run build`。

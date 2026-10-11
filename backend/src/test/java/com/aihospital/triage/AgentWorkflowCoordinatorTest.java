@@ -8,6 +8,7 @@ import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.observation.domain.CallLogStore;
 import com.aihospital.shared.model.Models.*;
 import com.aihospital.tools.application.*;
+import com.aihospital.tools.domain.AgentTool;
 import org.junit.jupiter.api.Test;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -53,9 +54,15 @@ class AgentWorkflowCoordinatorTest {
             when(executor.execute(anyString(),anyMap())).thenReturn(new HospitalToolExecutor.Execution(retrieval,
                     new ToolTrace("medical_knowledge_retrieve","检索","redacted","NO_MATCH",1,true,"")));
             var step=new AtomicInteger();
-            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->step.getAndIncrement()==0
-                    ?new AgentModel.Step(AgentModel.Status.TOOLS,List.of(new AgentModel.ToolCall("c1","medical_knowledge_retrieve","{\"query\":\"合成测试问题\"}")),20,10,1)
-                    :new AgentModel.Step(AgentModel.Status.DONE,List.of(),30,5,1));
+            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->{
+                Set<AgentTool> allowed=call.getArgument(2);
+                if(step.getAndIncrement()==0) {
+                    assertEquals(Set.of(AgentTool.MEDICAL_KNOWLEDGE),allowed);
+                    return new AgentModel.Step(AgentModel.Status.TOOLS,List.of(new AgentModel.ToolCall("c1","medical_knowledge_retrieve","{\"query\":\"合成测试问题\"}")),20,10,1);
+                }
+                assertTrue(allowed.isEmpty());
+                return new AgentModel.Step(AgentModel.Status.DONE,List.of(),30,5,1);
+            });
             var prepared=coordinator.prepare(conversation,"patient","合成测试问题");
             assertNotNull(prepared);assertSame(retrieval,prepared.retrieval());assertFalse(prepared.retrieval().grounded());
             verify(executor,times(1)).execute(eq("medical_knowledge_retrieve"),anyMap());

@@ -37,7 +37,8 @@ public final class LangChainAgentModel implements AgentModel {
                     symptom verbatim from the validated events. Do not introduce a guessed disease or new symptom.
                     Use only the supplied department names; never invent a doctor, department or evidence.
                     Read tool results before deciding the next action. If sufficient, say DONE; do not produce
-                    a patient answer. The workflow will independently validate evidence and generate the answer.
+                    a patient answer. If no tool is offered, return exactly DONE. Never call the same medical
+                    retrieval twice. The workflow will independently validate evidence and generate the answer.
                     """));
             messages.add(UserMessage.from(json.writeValueAsString(Map.of("messages", input.messages(),
                     "intent", intent, "departments", departments))));
@@ -47,7 +48,7 @@ public final class LangChainAgentModel implements AgentModel {
                 messages.add(AiMessage.from(calls));
                 for (int i=0; i<calls.size(); i++) messages.add(ToolExecutionResultMessage.from(calls.get(i), exchange.results().get(i)));
             }
-            if (timeoutSeconds < 1 || timeoutSeconds > 35 || allowed.isEmpty())
+            if (timeoutSeconds < 1 || timeoutSeconds > 35)
                 return new Step(Status.INVALID, List.of(), null, null, elapsed(start));
             var tools = allowed.stream().sorted().map(tool -> Map.<String,Object>of("type", "function", "function",
                     Map.of("name", tool.code(), "description", switch(tool) {

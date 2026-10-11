@@ -47,7 +47,9 @@ public final class AgentRunner implements AutoCloseable {
                 var history = List.copyOf(exchanges);
                 pending = workers.submit(() -> {
                     try (var ignored = TurnTraceContext.restore(captured)) {
-                        return model.decide(input, intent, scope.scope().allowedTools(), scope.scope().allowedDepartments(),
+                        var available = new HashSet<>(scope.scope().allowedTools());
+                        if (completed.contains(AgentTool.MEDICAL_KNOWLEDGE)) available.remove(AgentTool.MEDICAL_KNOWLEDGE);
+                        return model.decide(input, intent, Set.copyOf(available), scope.scope().allowedDepartments(),
                                 scope.scope().allowedQueries(),
                                 history, (int)Math.max(1, TimeUnit.NANOSECONDS.toSeconds(remaining)));
                     }
@@ -78,6 +80,9 @@ public final class AgentRunner implements AutoCloseable {
                             || !callIds.add(call.id()) || call.arguments() == null || call.arguments().length() > 2400
                             || !scope.scope().allowedTools().contains(AgentTool.fromCode(call.name())))
                         return result(Status.MODEL_INVALID, exchanges, decisions);
+                    if (completed.contains(AgentTool.MEDICAL_KNOWLEDGE)
+                            && AgentTool.MEDICAL_KNOWLEDGE == AgentTool.fromCode(call.name()))
+                        return result(Status.LOOP_DETECTED, exchanges, decisions);
                 }
             } catch (IllegalArgumentException invalid) { return result(Status.MODEL_INVALID, exchanges, decisions); }
             if (callIds.size() > 4) return result(Status.BUDGET_EXHAUSTED, exchanges, decisions);

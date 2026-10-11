@@ -59,6 +59,13 @@ async function main() {
   assert.ok(scoped.data.every(item => item.traceId === diagnostics.traceId))
   assert.ok(scoped.data.some(item => item.purpose === 'medical_knowledge_retrieve'))
   assert.ok(scoped.data.some(item => item.purpose === '会话处理'))
+  const agent = scoped.data.find(item => item.purpose === 'Agent执行')
+  const agentPlanning = scoped.data.filter(item => item.purpose === 'Agent工具规划')
+  if (process.env.AI_REQUIRE_AGENT === 'true') {
+    assert.ok(agentPlanning.some(item => item.model === 'TOOLS'), 'No model-selected tool call was observed')
+    assert.equal(agent?.model, 'COMPLETED', 'Agent did not consume a tool result and finish')
+    assert.equal(agent?.success, true, 'Agent completion audit failed')
+  }
   const calls = await request('/admin/calls', admin)
   assert.equal(calls.status, 200)
   for (const call of calls.data) {
@@ -86,6 +93,7 @@ async function main() {
   if (!live || diagnostics.failure) assert.equal(generation.success, false, 'Failed answer counted as successful')
   console.log(JSON.stringify({traceId: diagnostics.traceId, modelStatus: provenance.modelStatus,
     failureCode: diagnostics.failure?.code || null, supportReview: diagnostics.supportReview?.status || null,
+    agentStatus: agent?.model || 'NOT_RUN', planningCalls: agentPlanning.length,
     auditLinked: true, queueDeidentified: true, measuredUsageMatched: true}))
   assert.ok(live && !diagnostics.failure, 'Real model answer did not pass; telemetry checks do not imply answer quality')
   assert.equal(diagnostics.supportReview?.status, 'PASSED', 'Support review did not pass')

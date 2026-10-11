@@ -53,7 +53,7 @@ final class ConfiguredChatTransport {
                         .map(call -> Map.of("id", call.id(), "type", "function", "function",
                                 Map.of("name", call.name(), "arguments", call.arguments()))).toList());
                 turns.add(turn);
-            } else if (message instanceof ToolExecutionResultMessage tool && !tools.isEmpty()) {
+            } else if (message instanceof ToolExecutionResultMessage tool) {
                 turns.add(Map.of("role", "tool", "tool_call_id", tool.id(), "content", tool.text()));
             }
             else throw new IllegalArgumentException("Unsupported message type");

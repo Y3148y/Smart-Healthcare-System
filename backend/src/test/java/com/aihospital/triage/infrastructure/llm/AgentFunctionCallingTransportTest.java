@@ -33,7 +33,7 @@ class AgentFunctionCallingTransportTest {
             var selected=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),List.of(),2);
             assertEquals(AgentModel.Status.TOOLS,selected.status());assertEquals("c1",selected.calls().get(0).id());
             assertEquals(50,selected.inputTokens());
-            var done=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("合成问题"),
+            var done=model.decide(input,intent,Set.of(),Set.of(),Set.of("合成问题"),
                     List.of(new AgentModel.Exchange(selected.calls(),List.of("synthetic-result"))),2);
             assertEquals(AgentModel.Status.DONE,done.status());
             var first=json.readTree(requests.get(0));assertEquals("function",first.path("tools").get(0).path("type").asText());
@@ -42,6 +42,7 @@ class AgentFunctionCallingTransportTest {
                     .path("properties").path("query").path("enum").get(0).asText());
             assertFalse(first.path("tools").get(0).path("function").path("parameters").path("additionalProperties").asBoolean());
             var turns=json.readTree(requests.get(1)).path("messages");
+            assertFalse(json.readTree(requests.get(1)).has("tools"));
             assertEquals("c1",turns.get(2).path("tool_calls").get(0).path("id").asText());
             assertEquals("tool",turns.get(3).path("role").asText());assertEquals("c1",turns.get(3).path("tool_call_id").asText());
             assertEquals("synthetic-result",turns.get(3).path("content").asText());

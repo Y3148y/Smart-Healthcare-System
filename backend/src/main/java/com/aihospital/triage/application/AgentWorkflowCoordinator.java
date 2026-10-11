@@ -9,6 +9,7 @@ import com.aihospital.tools.application.AgentToolGateway;
 import com.aihospital.tools.domain.AgentTool;
 import com.aihospital.tools.domain.AgentToolRun;
 import com.aihospital.triage.domain.CurrentRequestIntent;
+import com.aihospital.triage.domain.IntentExtraction;
 import com.aihospital.triage.domain.SessionFacts;
 import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
@@ -87,7 +88,7 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         // Identity scope is server-only and never included in the planner prompt.
         var scope = new AgentToolRun(new AgentToolRun.Scope(patient, conversation.session().id(),
                 TurnTraceContext.currentOrNewId(), conversation.messages().size(), version,
-                Set.of(AgentTool.values()), departments, queries), settings.maxToolCalls(),
+                planningTools(current, extracted.extraction(), departments), departments, queries), settings.maxToolCalls(),
                 Duration.ofSeconds(settings.totalPlanningSeconds()), Duration.ofSeconds(settings.planningTimeoutSeconds()));
         java.util.function.BooleanSupplier fresh = () -> scopeIsCurrent(conversation, patient, messageId, version, departments);
         long started = System.nanoTime();
@@ -115,6 +116,22 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
     private Set<String> enabledDepartments() {
         return catalogue.departments().stream().filter(department -> department.enabled())
                 .map(department -> department.name()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private Set<AgentTool> planningTools(String current, IntentExtraction extraction, Set<String> departments) {
+        var allowed = java.util.EnumSet.of(AgentTool.MEDICAL_KNOWLEDGE);
+        if (!departments.isEmpty() && (CurrentRequestIntent.directionRequested(current)
+                || CurrentRequestIntent.booking(current) == CurrentRequestIntent.BookingIntent.REQUESTED
+                || extraction.intents().contains(IntentExtraction.Intent.FIND_DEPARTMENT)
+                || extraction.intents().contains(IntentExtraction.Intent.FIND_DOCTOR)
+                || extraction.intents().contains(IntentExtraction.Intent.BOOKING_REQUEST))) {
+            allowed.add(AgentTool.DEPARTMENT);
+            if (extraction.intents().contains(IntentExtraction.Intent.FIND_DOCTOR)
+                    || extraction.intents().contains(IntentExtraction.Intent.BOOKING_REQUEST)
+                    || CurrentRequestIntent.booking(current) == CurrentRequestIntent.BookingIntent.REQUESTED)
+                allowed.add(AgentTool.SCHEDULE);
+        }
+        return Set.copyOf(allowed);
     }
 
     private String corpusVersion() {
