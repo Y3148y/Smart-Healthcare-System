@@ -69,7 +69,7 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 
 ### 融合、重排与降级
 
-阈值、候选深度与依赖要求见 [应用配置](../backend/src/main/resources/application.yml)。`rag-live` 默认要求语义和重排可用；普通配置可以允许带明确标识的本地降级。依赖失败必须区别于资料无命中。
+阈值、候选深度与依赖要求见 [应用配置](../backend/src/main/resources/application.yml)。日常配置默认关闭重排，集合使用 `ai_hospital_knowledge_v2`；不需要切换profile。可选 `rag-live` 默认要求语义配置可用、不要求重排；普通配置可以允许带明确标识的本地降级。依赖失败必须区别于资料无命中。更换集合不会自动迁移已有向量，复用其他集合须显式配置。
 
 - 开启重排：RRF 候选送重排服务，最终每份资料最多保留一个片段。
 - 显式关闭重排：同时设置 `AI_RERANK_ENABLED=false` 和 `AI_RETRIEVAL_REQUIRE_RERANK=false`。向量查询成功时，最终 K 项先保留向量前 `ceil(K/2)` 项，其余从 RRF 顺序补足，按片段身份去重。

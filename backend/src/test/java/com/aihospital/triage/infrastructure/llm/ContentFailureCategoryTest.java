@@ -8,6 +8,8 @@ class ContentFailureCategoryTest {
         var model = new OptionalNarrationModel();
         org.springframework.test.util.ReflectionTestUtils.setField(model, "mode", "openai-compatible");
         org.springframework.test.util.ReflectionTestUtils.setField(model, "apiKey", "synthetic-key");
+        org.springframework.test.util.ReflectionTestUtils.setField(model, "baseUrl", "https://example.invalid/v1");
+        org.springframework.test.util.ReflectionTestUtils.setField(model, "model", "synthetic-model");
         org.springframework.test.util.ReflectionTestUtils.setField(model, "structuredJson", true);
         assertThrows(IllegalArgumentException.class, model::validateCredential);
         org.springframework.test.util.ReflectionTestUtils.setField(model, "enableThinking", "true");

@@ -6,6 +6,18 @@ import org.springframework.test.util.ReflectionTestUtils;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ApiCredentialCheckTest {
+    @Test void liveStartupRejectsMissingEndpointOrModelInsteadOfDemoFallback() {
+        var model=new OptionalNarrationModel();
+        ReflectionTestUtils.setField(model,"mode","openai-compatible");
+        ReflectionTestUtils.setField(model,"apiKey","synthetic-key");
+        ReflectionTestUtils.setField(model,"model","synthetic-model");
+        ReflectionTestUtils.setField(model,"baseUrl","");
+        assertTrue(assertThrows(IllegalStateException.class,model::validateCredential).getMessage().contains("AI_BASE_URL"));
+        ReflectionTestUtils.setField(model,"baseUrl","https://example.invalid/v1");
+        assertDoesNotThrow(model::validateCredential);
+        ReflectionTestUtils.setField(model,"model","");
+        assertThrows(IllegalStateException.class,model::validateCredential);
+    }
     @Test void controlCharactersCannotMasqueradeAsConfiguredKeys() {
         assertFalse(ApiCredentialCheck.usable(null));
         for (String input : new String[]{"", " ", "\u0016", "sk-test\n", "sk-test ", "中文"})

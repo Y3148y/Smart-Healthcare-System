@@ -5,5 +5,5 @@ ai:
     bundled-approved: false
   retrieval:
     require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:true}
-    require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:true}
+    require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:false}
   qdrant-collection: ${AI_QDRANT_COLLECTION:ai_hospital_knowledge_v2}

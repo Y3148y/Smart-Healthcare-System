@@ -12,10 +12,13 @@ function config(env={}){
   },exports)
   return exports.default({mode:'test'})
 }
-test('default proxy remains 8080 and API/MCP share the explicitly configured backend',()=>{
-  assert.equal(config().server.proxy['/api'].target,'http://127.0.0.1:8080')
-  const result=config({VITE_API_PROXY_TARGET:'http://127.0.0.1:8081'})
-  assert.equal(result.server.proxy['/api'].target,'http://127.0.0.1:8081')
+test('daily startup fixes frontend 5188 and backend proxy 8081 without flags',()=>{
+  assert.equal(config().server.proxy['/api'].target,'http://127.0.0.1:8081')
+  assert.equal(config().server.host,'127.0.0.1')
+  assert.equal(config().server.port,5188)
+  assert.equal(config().server.strictPort,true)
+  const result=config({VITE_API_PROXY_TARGET:'http://127.0.0.1:8090'})
+  assert.equal(result.server.proxy['/api'].target,'http://127.0.0.1:8090')
   assert.equal(result.server.proxy['/mcp'].target,result.server.proxy['/api'].target)
 })
 test('development proxy rejects credential-bearing and non-HTTP targets',()=>{

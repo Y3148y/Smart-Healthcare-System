@@ -8,3 +8,5 @@ spring:
       mode: always
 ai:
   mode: demo
+  agent:
+    mode: OFF

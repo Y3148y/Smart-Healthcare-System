@@ -291,6 +291,8 @@ public class OptionalNarrationModel implements NarrationModel {
             throw new IllegalArgumentException("AI_STRUCTURED_JSON requires explicit AI_ENABLE_THINKING for the configured transport");
         if ("openai-compatible".equalsIgnoreCase(mode) && !ApiCredentialCheck.usable(apiKey))
             throw new IllegalStateException("AI_API_KEY is missing or contains whitespace/control/non-ASCII characters; credential value is not logged");
+        if ("openai-compatible".equalsIgnoreCase(mode) && (baseUrl == null || baseUrl.isBlank() || model == null || model.isBlank()))
+            throw new IllegalStateException("Configure AI_BASE_URL and AI_MODEL once in the backend run environment; no automatic demo fallback");
     }
 
     @Override public RuntimeStatus runtimeStatus() {

@@ -18,7 +18,7 @@
 
 SSE 推送处理阶段，正文经过检查后整段返回；当前没有逐 token 展示。默认由 Java 工作流显式调用工具；可选的普通咨询 Agent 通过 Function Calling 选择只读工具。`/mcp` 仍是管理员认证的协议子集入口，不是患者 Agent 的传输通道。
 
-`AI_AGENT_MODE` 默认 `OFF`，保留原工作流；`SHADOW` 在普通咨询分支抽取意图并记录状态，不影响回答；`ENABLED` 增加“模型选工具 → 网关执行 → 工具结果回传 → 模型决定继续或结束”的有界循环。支持医学检索、科室查询和模拟排班查询，不向模型提供预约写入权限。最终回答只采用实际检索结果，并继续经过既有引用与支持核对；分诊评估、急症和预约仍由原工作流控制。
+日常配置默认 `AI_AGENT_MODE=ENABLED`，增加“模型选工具 → 网关执行 → 工具结果回传 → 模型决定继续或结束”的有界循环。排错时可选 `OFF` 保留原工作流，或 `SHADOW` 仅抽取意图并记录状态、不影响回答。支持医学检索、科室查询和模拟排班查询，不向模型提供预约写入权限。最终回答只采用实际检索结果，并继续经过既有引用与支持核对；分诊评估、急症和预约仍由原工作流控制。
 
 工具规划复用已配置模型与接口，最近五轮最多4000字符；最多3次规划、4次只读执行，每次规划最多8秒，规划循环总预算25秒（不含意图抽取和最终回答）。每个工具结果最多12000字符，规划请求的消息与工具定义合计最多30000字符。模型不支持工具调用、越权、超时或状态变化时回退原工作流。已有本地 HTTP 协议与故障回归测试；真实供应商工具调用兼容性、意图准确率和新增耗时仍待实测。会话事实归并、持久化动作确认和完整业务路由改造尚未完成。
 
@@ -87,7 +87,7 @@ cd backend
 mvn spring-boot:run
 ```
 
-默认后端为 `http://127.0.0.1:8080`。本机有多个 JDK 时先设置 `JAVA_HOME` 为 JDK 17；IDEA 启动也需要配置相同的进程环境变量。
+默认后端为 `http://127.0.0.1:8081`。本机有多个 JDK 时先设置 `JAVA_HOME` 为 JDK 17；IDEA 运行配置选择 JDK 17，并保存数据库和模型环境变量一次，之后直接点击运行，不需要重复添加模式、端口或 profile 参数。
 
 ### 3. 启动前端
 
@@ -99,27 +99,29 @@ npm ci
 npm run dev
 ```
 
-打开终端输出的地址，默认 `http://localhost:5173`。本地演示账号为 `zhangsan`、`lisi` 和 `admin`，密码为任意非空字符串。演示登录与模型调用模式独立：URL 中的 `demo=patient` 表示演示身份入口，实际模型调用由后端配置与本轮处理路径决定。
+打开 `http://127.0.0.1:5188`，前端默认代理后端8081，端口占用时明确报错而不自动换端口。本地演示账号为 `zhangsan`、`lisi` 和 `admin`，密码为任意非空字符串。演示登录与模型调用模式独立：URL 中的 `demo=patient` 表示演示身份入口，实际模型调用由后端配置与本轮处理路径决定。
 
-如需沿用后端 8081、前端 5188，在各自启动前设置 `$env:SERVER_PORT='8081'`、`$env:VITE_API_PROXY_TARGET='http://127.0.0.1:8081'`，前端执行 `npm run dev -- --port 5188 --strictPort`。
+日常启动无需端口参数。仅自定义部署时才覆盖 `SERVER_PORT` 和 `VITE_API_PROXY_TARGET`；旧 IDEA VM options、环境变量和 profile 的显式设置仍会覆盖默认值，请在首次整理时移除不再需要的旧覆盖项。
 
 ### 4. 接入真实模型与检索
 
-默认 `AI_MODE=demo`，不会请求外部 LLM。真实咨询需要在后端进程配置：
+日常默认真实模型与只读Agent、关闭rerank，无需选模式或启用 `rag-live`。在 IDEA 的后端运行环境中一次性保存 `AI_DB_USER`、`AI_DB_PASSWORD`、`AI_BASE_URL`、`AI_API_KEY`；模型默认 `qwen3.7-flash-2026-07-15`、embedding默认 `qwen3.7-text-embedding`。模型名取自本项目既有配置，不保证其他账户可用；需要更换时只覆盖对应环境变量。embedding地址/密钥可继承聊天配置，也可单独设置。API密钥缺失/不合法或模型地址为空时启动报错，不悄悄切到demo。启动校验不证明远端服务或额度可用。
+
+IDEA保存的环境变量只供该启动进程及其子进程使用，不提交含凭据的运行配置文件；从新终端运行仍需该终端拥有相同环境变量。纯离线演示显式设置 `AI_MODE=demo`，自动化测试已有独立离线配置。
 
 | 环境变量 | 用途 / 默认值 |
 | --- | --- |
 | `AI_DB_URL` | 默认连接本机 `ai_hospital` MySQL 数据库 |
 | `AI_DB_USER`、`AI_DB_PASSWORD` | 数据库凭据，必填 |
-| `AI_MODE` | `demo` 或 `openai-compatible` |
+| `AI_MODE`、`AI_AGENT_MODE` | 默认 `openai-compatible` / `ENABLED`，日常无需设置 |
 | `AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` | 模型兼容接口、模型 ID 与密钥 |
 | `AI_EMBEDDING_BASE_URL`、`AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY` | embedding 接口；地址和密钥可继承聊天配置 |
-| `AI_QDRANT_URL`、`AI_QDRANT_COLLECTION` | 默认 `http://127.0.0.1:6333`、`ai_hospital_knowledge_v1` |
-| `AI_RERANK_ENABLED` | 默认 `true`；无重排服务时可设 `false` |
+| `AI_QDRANT_URL`、`AI_QDRANT_COLLECTION` | 默认 `http://127.0.0.1:6333`、`ai_hospital_knowledge_v2`；使用其他既有集合时显式覆盖，不自动迁移数据 |
+| `AI_RERANK_ENABLED` | 默认 `false`；有服务和额度后显式启用 |
 | `AI_RERANK_URL`、`AI_RERANK_MODEL`、`AI_RERANK_API_KEY` | 可选百炼重排接口与凭据 |
-| `SPRING_PROFILES_ACTIVE=rag-live` | 默认要求向量与重排可用，集合默认切换为 `ai_hospital_knowledge_v2` |
-| `AI_RETRIEVAL_REQUIRE_SEMANTIC`、`AI_RETRIEVAL_REQUIRE_RERANK` | 显式设置依赖要求；普通模式默认 `false`，`rag-live` 默认 `true` |
-| `SERVER_PORT`、`VITE_API_PROXY_TARGET` | 后端端口、前端开发代理；默认 8080 |
+| `SPRING_PROFILES_ACTIVE=rag-live` | 可选严格向量配置；默认不要求rerank，不是日常启动必选项 |
+| `AI_RETRIEVAL_REQUIRE_SEMANTIC`、`AI_RETRIEVAL_REQUIRE_RERANK` | 普通配置均默认 `false`；`rag-live` 仅前者默认 `true` |
+| `SERVER_PORT`、`VITE_API_PROXY_TARGET` | 默认8081及 `http://127.0.0.1:8081`，日常无需设置 |
 
 临时跳过重排时同时设置 `AI_RERANK_ENABLED=false`、`AI_RETRIEVAL_REQUIRE_RERANK=false`。检索会记录未重排状态，已有重排模式评测结果不能直接沿用。
 
