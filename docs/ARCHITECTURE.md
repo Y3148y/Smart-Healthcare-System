@@ -60,7 +60,7 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 `AgentToolGateway` 仅允许医学检索、科室与排班三类只读工具，严格解析参数；身份、会话、trace、状态版本、语料版本及科室白名单由服务端运行范围提供，不能由工具参数覆盖。`AgentToolRun` 限制调用数、单工具和总时限，按参数去重并阻止同一call ID改换参数；网关使用有界线程池、限制结果大小并传递trace。取消为尽力而为，不保证底层外部请求立即终止。调用方仍需实现实时权限、会话归属和版本新鲜度检查；当前没有AgentRunner接入，不能将该范围对象称为已完成的权限系统。
 
-`AgentWorkflowSettings` 默认OFF，SHADOW尚未执行，ENABLED拒绝启动。真实外发意图抽取适配器、影子评估、模型工具循环和确认动作仍未完成；既有患者工作流保持不变。
+`AgentWorkflowSettings` 默认OFF，SHADOW尚未接入患者工作流，ENABLED拒绝启动。`LangChainIntentExtractor` 已提供单次有界抽取适配器，复用现有模型地址、密钥及模型配置，发送来源消息JSON和意图Schema；demo/OFF/缺配置不外发，非STOP输出或来源校验失败不产生事实，异常不保留供应商原文且不自动重试。使用LangChain4j消息/响应类型与既有兼容HTTP传输，不宣称供应商已支持严格JSON Schema。影子持久化/评估、模型工具循环和确认动作仍未完成；既有患者工作流保持不变。
 
 `TurnTraceContext` 为一轮处理分配 trace ID，消息来源、工具、生成、核对与终态日志通过 `agent_call_trace` 关联。上下文在 `finally` 释放，旧记录缺字段保留未知，不补造。生成与核对分别记录供应商返回用量；缺失用量显示未知，总耗时不能与子阶段耗时相加。这是本应用的逐轮关联，尚非分布式追踪，进程崩溃时仍可能缺日志。
 
