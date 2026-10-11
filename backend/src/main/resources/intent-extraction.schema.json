@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Patient intent extraction v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "intents",
+    "events",
+    "missingInformation",
+    "conflicts"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "intents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "GENERAL_HEALTH",
+          "SYMPTOM_CONSULT",
+          "FIND_DEPARTMENT",
+          "FIND_DOCTOR",
+          "BOOKING_REQUEST",
+          "HUMAN_HELP"
+        ]
+      }
+    },
+    "events": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "symptom",
+          "bodySite",
+          "onset",
+          "duration",
+          "trigger",
+          "severity",
+          "subject",
+          "temporality",
+          "assertion",
+          "sourceRefs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "symptom": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "bodySite": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "onset": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "duration": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "trigger": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "severity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "subject": {
+            "type": "string",
+            "enum": [
+              "SELF",
+              "OTHER",
+              "UNKNOWN"
+            ]
+          },
+          "temporality": {
+            "type": "string",
+            "enum": [
+              "CURRENT",
+              "PAST",
+              "UNKNOWN"
+            ]
+          },
+          "assertion": {
+            "type": "string",
+            "enum": [
+              "AFFIRMED",
+              "NEGATED",
+              "UNCERTAIN"
+            ]
+          },
+          "sourceRefs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": [
+                "messageId",
+                "quote"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingInformation": {
+      "type": "array",
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "SYMPTOM",
+          "BODY_SITE",
+          "ONSET",
+          "DURATION",
+          "TRIGGER",
+          "SEVERITY",
+          "SUBJECT",
+          "TEMPORALITY",
+          "ASSERTION"
+        ]
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": [
+          "field",
+          "sourceRefs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "SYMPTOM",
+              "BODY_SITE",
+              "ONSET",
+              "DURATION",
+              "TRIGGER",
+              "SEVERITY",
+              "SUBJECT",
+              "TEMPORALITY",
+              "ASSERTION"
+            ]
+          },
+          "sourceRefs": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": [
+                "messageId",
+                "quote"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

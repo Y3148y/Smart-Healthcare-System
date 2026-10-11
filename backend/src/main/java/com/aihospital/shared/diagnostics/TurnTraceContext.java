@@ -6,16 +6,27 @@ import java.util.UUID;
 public final class TurnTraceContext implements AutoCloseable {
     private static final ThreadLocal<TurnTraceContext> CURRENT = new ThreadLocal<>();
     private final TurnTraceContext previous;
-    private final String id = UUID.randomUUID().toString();
+    private final String id;
     private final String userMessageId;
     private final String policyVersion;
-    private final long started = System.nanoTime();
+    private final long started;
     private String route = "UNDECIDED";
     private boolean closed;
     public record Metadata(String traceId, String userMessageId, String route, String safetyPolicyVersion, long elapsedMs) {}
     private TurnTraceContext(String userMessageId, String policyVersion) {
+        id = UUID.randomUUID().toString(); started = System.nanoTime();
         previous = CURRENT.get(); this.userMessageId = userMessageId; this.policyVersion = policyVersion;
         CURRENT.set(this);
+    }
+    private TurnTraceContext(Metadata snapshot) {
+        previous = CURRENT.get(); id = snapshot.traceId(); userMessageId = snapshot.userMessageId();
+        policyVersion = snapshot.safetyPolicyVersion(); route = snapshot.route();
+        started = System.nanoTime() - java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(snapshot.elapsedMs());
+        CURRENT.set(this);
+    }
+    /** Explicitly propagate a detached trace snapshot to bounded local worker execution. */
+    public static TurnTraceContext restore(Metadata snapshot) {
+        return snapshot == null ? null : new TurnTraceContext(snapshot);
     }
     public static TurnTraceContext open(String userMessageId, String policyVersion) { return new TurnTraceContext(userMessageId, policyVersion); }
     public static String currentId() { return CURRENT.get() == null ? null : CURRENT.get().id; }
