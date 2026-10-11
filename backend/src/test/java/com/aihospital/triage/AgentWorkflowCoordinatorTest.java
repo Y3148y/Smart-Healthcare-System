@@ -77,4 +77,28 @@ class AgentWorkflowCoordinatorTest {
             verify(logs,atLeastOnce()).record(argThat(log->log.purpose().equals("Agent执行") && log.model().equals("STALE_SCOPE")));
         }
     }
+
+    @Test void conflictingFactCannotBecomeAnAffirmativeSymptomQuery() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+            var source = List.of(new IntentExtraction.SourceRef("u1", "合成测试问题"));
+            var affirmative = new IntentExtraction.SymptomEvent("合成", null, null, null, null, null,
+                    IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
+                    IntentExtraction.Assertion.AFFIRMED, source);
+            var negative = new IntentExtraction.SymptomEvent("合成", null, null, null, null, null,
+                    IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
+                    IntentExtraction.Assertion.NEGATED, source);
+            var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.SYMPTOM_CONSULT),
+                    List.of(affirmative, negative), List.of(), List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposed, "test", "", 10, 5, 1));
+            when(model.decide(any(), any(), anySet(), anySet(), anyList(), anyInt())).thenReturn(
+                    new AgentModel.Step(AgentModel.Status.TOOLS, List.of(new AgentModel.ToolCall("c1",
+                            "medical_knowledge_retrieve", "{\"query\":\"合成\"}")), 20, 10, 1));
+            assertNull(coordinator.prepare(conversation, "patient", "合成测试问题"));
+            verifyNoInteractions(executor);
+            verify(logs, atLeastOnce()).record(argThat(log -> log.purpose().equals("Agent执行")
+                    && log.model().equals("TOOL_FAILED")));
+        }
+    }
 }

@@ -14,6 +14,7 @@ import com.aihospital.triage.domain.TriageProgress;
 import com.aihospital.triage.domain.TriageSafetyPolicy;
 import com.aihospital.triage.infrastructure.llm.StructuredDecisionModel;
 import com.aihospital.tools.application.HospitalToolExecutor;
+import com.aihospital.triage.application.GuidanceAnswerService;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -32,6 +33,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
     private final CallLogStore calls;
     private final HospitalToolExecutor toolExecutor;
     private final StructuredDecisionModel structuredDecisions;
+    private final GuidanceAnswerService guidanceAnswers;
 
     public RuleBasedTriageEngine(TriageSafetyPolicy safety, DoctorDirectory doctors,
                                  KnowledgeCatalog knowledge, NarrationModel narration, CallLogStore calls,
@@ -43,6 +45,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         this.calls = calls;
         this.toolExecutor = toolExecutor;
         this.structuredDecisions = structuredDecisions;
+        this.guidanceAnswers = new GuidanceAnswerService(toolExecutor, narration, calls);
     }
 
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
@@ -157,23 +160,9 @@ public class RuleBasedTriageEngine implements TriageEngine {
         List<DepartmentCandidate> candidates = candidatesFor(text);
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
-        progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
-        HospitalToolExecutor.Execution retrievalExecution = prepared == null ? toolExecutor.execute("medical_knowledge_retrieve",
-                java.util.Map.of("query", CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text))))
-                : new HospitalToolExecutor.Execution(prepared.retrieval(),prepared.trace());
-        Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
-                ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
-        List<Evidence> evidence = retrieval.evidence();
-        String fallback = guidedFallback(text, candidates, evidence, history);
-        progress.accept(TriageProgress.ANSWER_GENERATION);
-        NarrationModel.Answer answer = narration.answerWithEvidence(text, "", departments, evidence,
-                fallback, history, new NarrationModel.ServiceContext(List.of(), false), true,
-                retrievalStatus(retrieval, retrievalExecution.trace().success()));
-        long elapsed = elapsedMillis(started);
-        AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed,
-                List.of(retrievalExecution.trace())).forEach(calls::record);
-        return new Guidance(answer.text(), answer.status(), evidence.size(), 1,
-                retrievalExecution.trace().success() ? 0 : 1, answer.diagnostics());
+        String query = CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text));
+        return guidanceAnswers.answer(text, query, departments, history, progress, prepared,
+                evidence -> guidedFallback(text, candidates, evidence, history));
     }
 
     @Override public TriageResult triage(String sessionId, String text, String user, List<NarrationModel.Turn> history) {
@@ -279,11 +268,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
 
     static String retrievalStatus(Retrieval retrieval, boolean toolCallSucceeded) {
-        if (!toolCallSucceeded || retrieval == null) return "DEPENDENCY_UNAVAILABLE";
-        String message = retrieval.message() == null ? "" : retrieval.message();
-        if (message.startsWith("DEPENDENCY_BLOCKED") || message.contains("SEARCH_UNAVAILABLE"))
-            return "DEPENDENCY_UNAVAILABLE";
-        return retrieval.evidence().isEmpty() ? "NO_MATCH" : "MATCHED";
+        return GuidanceAnswerService.retrievalStatus(retrieval, toolCallSucceeded);
     }
 
     private List<DepartmentCandidate> candidatesFor(String text) {

@@ -8,7 +8,14 @@ import com.aihospital.triage.domain.TriageEngine;
 import com.aihospital.triage.domain.NarrationModel;
 import com.aihospital.catalog.application.DoctorCatalogService;
 import com.aihospital.triage.domain.TriageStore;
-import com.aihospital.triage.domain.TriageRecords.*;
+import com.aihospital.triage.domain.TriageRecords.Assessment;
+import com.aihospital.triage.domain.TriageRecords.Conversation;
+import com.aihospital.triage.domain.TriageRecords.Eligibility;
+import com.aihospital.triage.domain.TriageRecords.HumanReview;
+import com.aihospital.triage.domain.TriageRecords.Message;
+import com.aihospital.triage.domain.TriageRecords.ResponseProvenance;
+import com.aihospital.triage.domain.TriageRecords.Session;
+import com.aihospital.triage.domain.TriageRecords.TimelineEvent;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.DuplicateKeyException;
@@ -23,10 +30,9 @@ import java.util.stream.Collectors;
 @Service
 public class TriageConversationService {
     private final TriageStore store;
-    private final TriageEngine triageEngine;
     private final DoctorCatalogService catalog;
     private final com.aihospital.observation.domain.CallLogStore calls;
-    private final AgentWorkflowCoordinator agentWorkflow;
+    private final TriageWorkflow workflow;
     private final Set<String> inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TriageConversationService.class);
 
@@ -38,10 +44,9 @@ public class TriageConversationService {
     public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
                                     com.aihospital.observation.domain.CallLogStore calls, AgentWorkflowCoordinator agentWorkflow) {
         this.store = store;
-        this.triageEngine = triageEngine;
         this.catalog = catalog;
         this.calls = calls;
-        this.agentWorkflow = agentWorkflow;
+        this.workflow = new TriageWorkflow(triageEngine, agentWorkflow);
     }
 
     public List<Session> sessions(String patient) {
@@ -145,22 +150,17 @@ public class TriageConversationService {
         List<String> patientTexts = current.messages().stream().filter(message -> "USER".equals(message.role()))
                 .map(Message::content).toList();
         String combined = patientTexts.stream().collect(Collectors.joining("。"));
-        updates.accept(com.aihospital.triage.domain.TriageProgress.SAFETY_CHECK);
-        // A flagged disposition must not be swallowed by a clarification question: asking a
-        // patient with suspected facial swelling to first say how long it has been delays the
-        // "assess offline today" signal for no safety gain. Only an unflagged text is clarified.
-        if (!triageEngine.requiresImmediateCare(combined) && !triageEngine.requiresReview(combined)
-                && triageEngine.needsClarification(combined,content)) {
-            trace.route("GUIDANCE");
-            final TriageEngine.Guidance guidance;
-            try {
-                var prepared=agentWorkflow==null?null:agentWorkflow.prepare(current,patient,combined);
-                guidance = prepared!=null ? triageEngine.clarificationPrompt(combined,history,updates,prepared)
-                        : progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
-            } catch (RuntimeException ex) {
-                update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
-                throw ex;
-            }
+        final TriageWorkflow.Outcome outcome;
+        try {
+            var computed = workflow.execute(current, patient, combined, content, history, updates, progress != null, trace);
+            outcome = computed instanceof TriageWorkflow.AssessmentOutcome assessed
+                    ? new TriageWorkflow.AssessmentOutcome(withCurrentAvailability(assessed.result())) : computed;
+        } catch (RuntimeException failure) {
+            update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
+            throw failure;
+        }
+        if (outcome instanceof TriageWorkflow.GuidanceOutcome guided) {
+            TriageEngine.Guidance guidance = guided.guidance();
             updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
             if ("POLICY_REFUSAL".equals(guidance.modelStatus())) trace.route("POLICY_REFUSAL");
             store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
@@ -169,14 +169,7 @@ public class TriageConversationService {
             return conversation(id, patient);
         }
 
-        final TriageResult result;
-        trace.route("ASSESSMENT");
-        try {
-            result = withCurrentAvailability(progress==null?triageEngine.triage(id,combined,patient,history):triageEngine.triage(id, combined, patient, history,updates));
-        } catch (RuntimeException ex) {
-            update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
-            throw ex;
-        }
+        TriageResult result = ((TriageWorkflow.AssessmentOutcome) outcome).result();
         // Retrieval failure must never discard a safety signal. EMERGENCY already bypasses this
         // branch; URGENT previously did not, so an ungrounded result silently downgraded a
         // "see a doctor today" signal to 待补充信息 and hid it from the session. A flagged

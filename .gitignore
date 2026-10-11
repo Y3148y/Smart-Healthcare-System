@@ -36,4 +36,5 @@ tools/knowledge-sync/node_modules/
 # Public technical documents use a small explicit allowlist.
 /docs/*
 !/docs/ARCHITECTURE.md
+!/docs/AGENT.md
 !/docs/RAG.md
