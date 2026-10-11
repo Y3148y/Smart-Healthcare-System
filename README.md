@@ -145,6 +145,8 @@ node cli.mjs cases-author-specific-60-v3.json
 
 评估区分候选召回、最终片段选择和答案质量。正确率、忠实度及置信校准需要人工标签；未标注时输出未知。仓库中的开发集用于工程回归，不作为临床效果证明。
 
+公开语料可独立校验：`node tools/knowledge-sync/validate-document.mjs knowledge/corpus/neurology/migraine/document.zh-CN.md` 检查单篇正文和来源指纹；JDK17编译后，`java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 用实际切分器检查全部11篇的边界与原文覆盖。当前78个片段中26个短于80码点，实际没有触发长段重叠；这些数据不是医学质量或召回率结论。
+
 ## 开发与测试
 
 ```powershell
@@ -156,6 +158,7 @@ npm run build
 ```
 
 后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。
+同样的离线检查已配置在 [GitHub Actions](.github/workflows/verify.yml)；远端运行结果应以实际工作流记录为准，不能用本机通过代替。
 
 ```text
 backend/             分层业务、模型/检索适配器、数据库与后端测试
