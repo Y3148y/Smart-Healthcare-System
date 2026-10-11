@@ -148,7 +148,9 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
 
     private void auditPlan(AgentRunner.RunResult result, long elapsed) {
         for (var decision : result.decisions()) {
-            audit("Agent工具规划", decision.status().name(), decision.inputTokens(), decision.outputTokens(),
+            audit("Agent工具规划", decision.status().name()
+                    + (decision.failureCode() == null ? "" : "/" + decision.failureCode()),
+                    decision.inputTokens(), decision.outputTokens(),
                     decision.elapsedMs(), Set.of(AgentModel.Status.TOOLS, AgentModel.Status.DONE).contains(decision.status()));
         }
         audit("Agent执行", result.status().name(), null, null, elapsed, result.status() == AgentRunner.Status.COMPLETED);

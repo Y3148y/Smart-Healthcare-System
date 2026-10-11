@@ -36,6 +36,13 @@ final class ConfiguredChatTransport {
     Response<AiMessage> generate(String base, String key, String model, boolean thinking, int maxTokens,
             int seconds, List<ChatMessage> messages, boolean jsonObject, Integer thinkingBudget,
             List<Map<String,Object>> tools) throws Exception {
+        return generate(base, key, model, thinking, maxTokens, seconds, messages, jsonObject, thinkingBudget,
+                tools, false);
+    }
+
+    Response<AiMessage> generate(String base, String key, String model, boolean thinking, int maxTokens,
+            int seconds, List<ChatMessage> messages, boolean jsonObject, Integer thinkingBudget,
+            List<Map<String,Object>> tools, boolean forbidToolCalls) throws Exception {
         if (thinkingBudget != null && (!thinking || thinkingBudget < 1 || thinkingBudget > 32768))
             throw new IllegalArgumentException("Invalid thinking budget");
         URI endpoint = URI.create(base.replaceAll("/+$", "") + "/chat/completions");
@@ -67,7 +74,7 @@ final class ConfiguredChatTransport {
         if (!tools.isEmpty()) {
             if (JSON.writeValueAsString(Map.of("messages", turns, "tools", tools)).length() > 30000)
                 throw new IllegalArgumentException("Agent context exceeds limit");
-            body.put("tools", tools); body.put("tool_choice", "auto");
+            body.put("tools", tools); body.put("tool_choice", forbidToolCalls ? "none" : "auto");
         }
         // The application never retains or replays reasoning_content, in either test arm.
         body.put("preserve_thinking", false);
@@ -84,7 +91,8 @@ final class ConfiguredChatTransport {
             if (!choices.isArray() || choices.size() != 1) throw new IOException("Invalid model response");
             var choice = choices.get(0); var message = choice.path("message");
             boolean hasTools = message.hasNonNull("tool_calls");
-            if ((hasTools && tools.isEmpty()) || (!hasTools && !message.path("content").isTextual()))
+            if ((hasTools && (tools.isEmpty() || forbidToolCalls))
+                    || (!hasTools && !message.path("content").isTextual()))
                 throw new IOException("Invalid model content");
             FinishReason finish = switch (choice.path("finish_reason").asText()) {
                 case "stop" -> FinishReason.STOP;

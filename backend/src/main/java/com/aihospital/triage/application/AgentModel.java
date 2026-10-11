@@ -15,8 +15,12 @@ public interface AgentModel {
         }
     }
     enum Status { TOOLS, DONE, INVALID, UNAVAILABLE, NOT_CONFIGURED }
-    record Step(Status status, List<ToolCall> calls, Integer inputTokens, Integer outputTokens, long elapsedMs) {
+    record Step(Status status, List<ToolCall> calls, Integer inputTokens, Integer outputTokens,
+                long elapsedMs, String failureCode) {
         public Step { calls = List.copyOf(calls); }
+        public Step(Status status, List<ToolCall> calls, Integer inputTokens, Integer outputTokens, long elapsedMs) {
+            this(status, calls, inputTokens, outputTokens, elapsedMs, null);
+        }
     }
     Step decide(IntentInput input, IntentExtraction intent, Set<AgentTool> allowed,
                 Set<String> departments, Set<String> queries, List<Exchange> transcript, int timeoutSeconds);

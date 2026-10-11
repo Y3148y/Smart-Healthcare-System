@@ -50,14 +50,18 @@ public final class LangChainAgentModel implements AgentModel {
             }
             if (timeoutSeconds < 1 || timeoutSeconds > 35)
                 return new Step(Status.INVALID, List.of(), null, null, elapsed(start));
-            var tools = allowed.stream().sorted().map(tool -> Map.<String,Object>of("type", "function", "function",
+            boolean finishing = allowed.isEmpty() && !transcript.isEmpty();
+            var advertised = finishing ? transcript.get(transcript.size() - 1).calls().stream()
+                    .map(call -> AgentTool.fromCode(call.name())).distinct().sorted().toList()
+                    : allowed.stream().sorted().toList();
+            var tools = advertised.stream().map(tool -> Map.<String,Object>of("type", "function", "function",
                     Map.of("name", tool.code(), "description", switch(tool) {
                         case MEDICAL_KNOWLEDGE -> "Retrieve approved medical knowledge for a bounded symptom query";
                         case DEPARTMENT -> "Read the configured hospital department availability";
                         case SCHEDULE -> "Read simulated schedules for an allowed department; does not reserve";
                     }, "parameters", boundedSchema(tool, tool == AgentTool.MEDICAL_KNOWLEDGE ? queries : departments)))).toList();
             var response = transport.generate(base, key, model, thinking, 2048,
-                    timeoutSeconds, messages, false, null, tools);
+                    timeoutSeconds, messages, false, null, tools, finishing);
             var usage = response.tokenUsage();
             var status = response.finishReason() == FinishReason.TOOL_EXECUTION ? Status.TOOLS
                     : response.finishReason() == FinishReason.STOP && "DONE".equals(response.content().text().trim())
@@ -68,7 +72,8 @@ public final class LangChainAgentModel implements AgentModel {
                     usage == null ? null : usage.outputTokenCount(), elapsed(start));
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
-            return new Step(Status.UNAVAILABLE, List.of(), null, null, elapsed(start));
+            return new Step(Status.UNAVAILABLE, List.of(), null, null, elapsed(start),
+                    ModelFailureDiagnostics.classify(failure).code());
         }
     }
     private long elapsed(long start) { return (System.nanoTime()-start)/1_000_000; }

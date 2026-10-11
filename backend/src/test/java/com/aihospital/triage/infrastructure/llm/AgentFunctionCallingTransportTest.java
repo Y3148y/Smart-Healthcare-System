@@ -42,7 +42,9 @@ class AgentFunctionCallingTransportTest {
                     .path("properties").path("query").path("enum").get(0).asText());
             assertFalse(first.path("tools").get(0).path("function").path("parameters").path("additionalProperties").asBoolean());
             var turns=json.readTree(requests.get(1)).path("messages");
-            assertFalse(json.readTree(requests.get(1)).has("tools"));
+            assertEquals("none",json.readTree(requests.get(1)).path("tool_choice").asText());
+            assertEquals("medical_knowledge_retrieve",json.readTree(requests.get(1)).path("tools").get(0)
+                    .path("function").path("name").asText());
             assertEquals("c1",turns.get(2).path("tool_calls").get(0).path("id").asText());
             assertEquals("tool",turns.get(3).path("role").asText());assertEquals("c1",turns.get(3).path("tool_call_id").asText());
             assertEquals("synthetic-result",turns.get(3).path("content").asText());
