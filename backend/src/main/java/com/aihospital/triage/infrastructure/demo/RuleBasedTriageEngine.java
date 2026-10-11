@@ -133,6 +133,10 @@ public class RuleBasedTriageEngine implements TriageEngine {
     }
     @Override public Guidance clarificationPrompt(String text,List<NarrationModel.Turn> history,
             java.util.function.Consumer<TriageProgress> progress) {
+        return clarificationPrompt(text,history,progress,null);
+    }
+    @Override public Guidance clarificationPrompt(String text,List<NarrationModel.Turn> history,
+            java.util.function.Consumer<TriageProgress> progress, PreparedEvidence prepared) {
         long started = System.nanoTime();
         // 未经临床审核: 追问内容按裁定列出部位、量、持续情况与伴随表现。固定文案而非模型
         // 生成，因为这是安全分流的一部分，不该由模型改写措辞。
@@ -154,8 +158,9 @@ public class RuleBasedTriageEngine implements TriageEngine {
         String departments = candidates.stream().map(DepartmentCandidate::department)
                 .reduce("", (left, right) -> left.isBlank() ? right : left + "、" + right);
         progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
-        HospitalToolExecutor.Execution retrievalExecution = toolExecutor.execute("medical_knowledge_retrieve",
-                java.util.Map.of("query", CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text))));
+        HospitalToolExecutor.Execution retrievalExecution = prepared == null ? toolExecutor.execute("medical_knowledge_retrieve",
+                java.util.Map.of("query", CurrentRequestIntent.medicalRetrievalQuery(safety.removeNegatedRedFlags(text))))
+                : new HospitalToolExecutor.Execution(prepared.retrieval(),prepared.trace());
         Retrieval retrieval = retrievalExecution.data() instanceof Retrieval found
                 ? found : new Retrieval(List.of(), false, retrievalExecution.trace().error());
         List<Evidence> evidence = retrieval.evidence();

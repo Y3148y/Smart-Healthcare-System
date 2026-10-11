@@ -21,7 +21,7 @@
 
 `TriageConversationService` 读取当前问题和有限历史，按业务流程执行安全判断、知识检索、模型生成与输出检查。风险规则优先于检索和模型；急症路径直接给出安全提示并停止普通预约。普通咨询可以追问或回答一般知识，分诊推荐还需满足证据与业务条件。
 
-工具由 Java 显式调用 `HospitalToolExecutor`。管理员认证的 `/mcp` 共用执行器，提供协议子集演示；患者流程没有通过 MCP 客户端执行工具，也没有模型自主选择工具的循环。
+默认由 Java 显式调用 `HospitalToolExecutor`；普通咨询可通过 `AgentWorkflowCoordinator` 启用受控模型工具选择。管理员认证的 `/mcp` 共用执行器，提供协议子集演示；患者流程没有通过 MCP 客户端执行工具。
 
 LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`OptionalNarrationModel` 使用消息列表构建多轮提示；显式思考/JSON 请求参数通过 `ConfiguredChatTransport` 适配。项目没有接入 Spring AI。
 
@@ -54,13 +54,17 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 可观测与权限
 
-### Agent + Workflow 改造基础（尚未接入在线流程）
+### 受控只读 Agent（可选普通咨询分支）
 
 `IntentExtraction` 和 `intent-extraction.schema.json` 定义意图、症状事件、主体、时间、否定、缺失信息与冲突。`IntentInput` 保留最近最多五轮完整消息、累计不超过4000字符；`IntentValidator` 拒绝额外字段、非法类型、重复键、非患者来源和不能在引用原话中找到的症状字段。它只验证结构与来源一致性，不能证明模型正确理解否定、主体或医学含义。
 
-`AgentToolGateway` 仅允许医学检索、科室与排班三类只读工具，严格解析参数；身份、会话、trace、状态版本、语料版本及科室白名单由服务端运行范围提供，不能由工具参数覆盖。`AgentToolRun` 限制调用数、单工具和总时限，按参数去重并阻止同一call ID改换参数；网关使用有界线程池、限制结果大小并传递trace。取消为尽力而为，不保证底层外部请求立即终止。调用方仍需实现实时权限、会话归属和版本新鲜度检查；当前没有AgentRunner接入，不能将该范围对象称为已完成的权限系统。
+`AgentToolGateway` 仅允许医学检索、科室与排班三类只读工具，严格解析参数；身份、会话、trace、状态版本、语料版本及科室白名单由服务端运行范围提供，不能由工具参数覆盖。医学查询只接受本轮原话或经来源校验的本人/当前/肯定症状原词。`AgentToolRun` 限制调用数、单工具和总时限，按参数去重并阻止同一call ID改换参数；网关使用有界线程池、限制结果大小并传递trace。取消为尽力而为，不保证底层外部请求立即终止。
 
-`AgentWorkflowSettings` 默认OFF，SHADOW尚未接入患者工作流，ENABLED拒绝启动。`LangChainIntentExtractor` 已提供单次有界抽取适配器，复用现有模型地址、密钥及模型配置，发送来源消息JSON和意图Schema；demo/OFF/缺配置不外发，非STOP输出或来源校验失败不产生事实，异常不保留供应商原文且不自动重试。使用LangChain4j消息/响应类型与既有兼容HTTP传输，不宣称供应商已支持严格JSON Schema。影子持久化/评估、模型工具循环和确认动作仍未完成；既有患者工作流保持不变。
+`AgentWorkflowSettings` 默认OFF；SHADOW在普通咨询入口抽取意图并记录状态，不改变回答。ENABLED由 `LangChainAgentModel` 使用 LangChain4j 工具请求/结果消息与兼容HTTP的 `tools/tool_calls/tool_call_id` 协议，交给 `AgentRunner` 有界执行。最多3次模型规划、4次只读执行；单次规划8秒、循环总预算25秒，均可向下配置。该预算不含抽取、最终生成及核对，不是全轮延迟承诺。结果上限12000字符，整个规划请求消息与工具定义上限30000字符；规划输出预算2048 tokens。不保存思考链或转发规划模型的自由文本。
+
+`AgentWorkflowCoordinator` 在每步前后检查当前患者会话归属、消息数量与末条USER ID、启用科室及READY语料正文/版本指纹；这不等于跨实例数据库版本一致性。仅真正执行成功的检索快照可传给原回答链，必须完成医学检索才接受模型的DONE；无证据不变成有证据。科室和排班结果只作为规划上下文，不授权预约或直接生成服务承诺。超时、工具失败、越权、重复循环、状态漂移均回退原工作流。急症/人工复核、受限请求在规划前退出，分诊评估和预约分支保持原路径。
+
+`LangChainIntentExtractor` 复用现有模型配置，发送来源消息JSON和意图Schema；demo/OFF/缺配置不外发，非法输出或来源校验失败不产生抽取结果，故障脱敏且不自动重试。抽取和规划状态、返回usage与耗时写入现有调用日志。现有测试覆盖本地HTTP工具协议和失败边界，不证明真实供应商兼容性或临床语义准确性；SessionFactReducer、持久化PendingAction、完整路由与独立质量评估仍未完成。
 
 `TurnTraceContext` 为一轮处理分配 trace ID，消息来源、工具、生成、核对与终态日志通过 `agent_call_trace` 关联。上下文在 `finally` 释放，旧记录缺字段保留未知，不补造。生成与核对分别记录供应商返回用量；缺失用量显示未知，总耗时不能与子阶段耗时相加。这是本应用的逐轮关联，尚非分布式追踪，进程崩溃时仍可能缺日志。
 

@@ -26,15 +26,22 @@ public class TriageConversationService {
     private final TriageEngine triageEngine;
     private final DoctorCatalogService catalog;
     private final com.aihospital.observation.domain.CallLogStore calls;
+    private final AgentWorkflowCoordinator agentWorkflow;
     private final Set<String> inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TriageConversationService.class);
 
     public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
                                     com.aihospital.observation.domain.CallLogStore calls) {
+        this(store,triageEngine,catalog,calls,null);
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
+                                    com.aihospital.observation.domain.CallLogStore calls, AgentWorkflowCoordinator agentWorkflow) {
         this.store = store;
         this.triageEngine = triageEngine;
         this.catalog = catalog;
         this.calls = calls;
+        this.agentWorkflow = agentWorkflow;
     }
 
     public List<Session> sessions(String patient) {
@@ -147,7 +154,9 @@ public class TriageConversationService {
             trace.route("GUIDANCE");
             final TriageEngine.Guidance guidance;
             try {
-                guidance = progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
+                var prepared=agentWorkflow==null?null:agentWorkflow.prepare(current,patient,combined);
+                guidance = prepared!=null ? triageEngine.clarificationPrompt(combined,history,updates,prepared)
+                        : progress==null?triageEngine.clarificationPrompt(combined,history):triageEngine.clarificationPrompt(combined, history,updates);
             } catch (RuntimeException ex) {
                 update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
                 throw ex;

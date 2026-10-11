@@ -26,10 +26,14 @@ spring:
       max-file-size: 5MB
 ai:
   agent:
-    # Shadow extraction is opt-in; execution mode is not yet available.
+    # OFF retains workflow; SHADOW extracts only; ENABLED permits read-only guidance tool planning.
     mode: ${AI_AGENT_MODE:OFF}
     extraction-timeout-seconds: ${AI_INTENT_TIMEOUT_SECONDS:8}
     extraction-max-tokens: ${AI_INTENT_MAX_TOKENS:2048}
+    max-steps: ${AI_AGENT_MAX_STEPS:3}
+    max-tool-calls: ${AI_AGENT_MAX_TOOL_CALLS:4}
+    planning-timeout-seconds: ${AI_AGENT_PLANNING_TIMEOUT_SECONDS:8}
+    total-planning-seconds: ${AI_AGENT_TOTAL_PLANNING_SECONDS:25}
   retrieval:
     min-score: ${AI_RETRIEVAL_MIN_SCORE:0.28}
     semantic-min-score: ${AI_SEMANTIC_MIN_SCORE:0.45}

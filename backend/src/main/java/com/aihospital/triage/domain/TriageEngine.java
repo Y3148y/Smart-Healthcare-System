@@ -26,6 +26,12 @@ public interface TriageEngine {
     default boolean needsClarification(String symptoms,String currentRequest){return needsClarification(symptoms);}
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
+    record PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
+                            com.aihospital.shared.model.Models.ToolTrace trace) {}
+    default Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history,
+            java.util.function.Consumer<TriageProgress> progress, PreparedEvidence prepared) {
+        return clarificationPrompt(symptoms, history, progress);
+    }
     default Guidance clarificationPrompt(String symptoms,List<NarrationModel.Turn> history,
             java.util.function.Consumer<TriageProgress> progress){return clarificationPrompt(symptoms,history);}
     TriageResult triage(String sessionId, String symptoms, String patient, List<NarrationModel.Turn> history);

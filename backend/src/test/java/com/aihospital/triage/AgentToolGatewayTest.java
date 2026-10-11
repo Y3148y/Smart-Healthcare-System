@@ -19,6 +19,22 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class AgentToolGatewayTest {
+    @Test void medicalQueryMustComeFromServerFrozenPatientSources() {
+        var executor=mock(HospitalToolExecutor.class);
+        when(executor.execute(anyString(),anyMap())).thenReturn(success(Map.of("status","NO_MATCH")));
+        var run=new AgentToolRun(new AgentToolRun.Scope("p","s","t",1,"v",
+                Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("头痛")),
+                4,Duration.ofSeconds(3),Duration.ofSeconds(1));
+        try(var gateway=new AgentToolGateway(executor)) {
+            assertEquals(AgentToolGateway.Status.BLOCKED,gateway.execute(run,"c1","medical_knowledge_retrieve",
+                    "{\"query\":\"四肢骨折\"}").status());
+            verifyNoInteractions(executor);
+            assertEquals(AgentToolGateway.Status.SUCCESS,gateway.execute(run,"c2","medical_knowledge_retrieve",
+                    "{\"query\":\" 头痛 \"}").status());
+            assertEquals(1,run.snapshots().size());
+            assertEquals("头痛",run.snapshots().get(0).arguments().get("query"));
+        }
+    }
     private AgentToolRun run(int maximum) {
         return new AgentToolRun(scope(1), maximum, Duration.ofSeconds(3), Duration.ofSeconds(1));
     }

@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import java.util.Map;
 import java.util.concurrent.*;
 
-/** Bounded local read-only execution. Not yet connected to model-selected patient actions. */
+/** Bounded local read-only execution for model-selected queries; never grants write authority. */
 @Service
 public final class AgentToolGateway implements AutoCloseable {
     public enum Status { SUCCESS, BLOCKED, FAILED, TIMEOUT, BUDGET_EXHAUSTED, RESULT_TOO_LARGE, BUSY }
@@ -48,6 +48,8 @@ public final class AgentToolGateway implements AutoCloseable {
                 return result(callId, Status.BLOCKED);
             if (tool != AgentTool.MEDICAL_KNOWLEDGE && !run.scope().allowedDepartments().contains(value))
                 return result(callId, Status.BLOCKED);
+            if (tool == AgentTool.MEDICAL_KNOWLEDGE && !run.scope().allowedQueries().isEmpty()
+                    && !run.scope().allowedQueries().contains(value)) return result(callId, Status.BLOCKED);
         } catch (Exception invalid) { return result(callId, Status.BLOCKED); }
         synchronized (run) {
             if (run.expired()) return result(callId, Status.BUDGET_EXHAUSTED);
@@ -74,6 +76,7 @@ public final class AgentToolGateway implements AutoCloseable {
                 if (content.length() > 12000) return result(callId, Status.RESULT_TOO_LARGE);
                 if (run.expired()) return result(callId, Status.BUDGET_EXHAUSTED);
                 run.remember(key, content);
+                run.snapshot(new AgentToolRun.Snapshot(code, Map.of(tool.parameter(), value), execution.data(), execution.trace()));
                 return new Result(callId, Status.SUCCESS, content, false);
             } catch (TimeoutException timeoutFailure) { return result(callId, Status.TIMEOUT); }
             catch (InterruptedException interrupted) {
