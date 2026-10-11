@@ -62,7 +62,7 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 应用日常配置默认真实模型、Agent ENABLED、后端8081、前端5188及代理8081，rerank默认关闭；无需日常切换profile或VM参数。模型地址、密钥和数据库凭据从运行环境一次配置，不写入仓库。缺少密钥或模型地址时启动失败，不静默转demo；测试资源单独配置demo和Agent OFF，无AI环境变量也能测试。显式环境变量/VM参数仍优先于默认配置。
 
-`AgentWorkflowSettings` 支持OFF回退和SHADOW影子抽取；SHADOW在普通咨询入口记录抽取状态，不改变回答。ENABLED由 `LangChainAgentModel` 使用 LangChain4j 工具请求/结果消息与兼容HTTP的 `tools/tool_calls/tool_call_id` 协议，交给 `AgentRunner` 有界执行。最多3次模型规划、4次只读执行；单次规划8秒、循环总预算25秒，均可向下配置。该预算不含抽取、最终生成及核对，不是全轮延迟承诺。结果上限12000字符，整个规划请求消息与工具定义上限30000字符；规划输出预算2048 tokens。不保存思考链或转发规划模型的自由文本。
+`AgentWorkflowSettings` 支持OFF回退和SHADOW影子抽取；SHADOW在普通咨询入口记录抽取状态，不改变回答。ENABLED由 `LangChainAgentModel` 使用 LangChain4j 工具请求/结果消息与兼容HTTP的 `tools/tool_calls/tool_call_id` 协议，交给 `AgentRunner` 有界执行。最多3次模型规划、4次只读执行；单次规划12秒、循环总预算25秒，均可向下配置。该预算不含抽取、最终生成及核对，不是全轮延迟承诺。结果上限12000字符，整个规划请求消息与工具定义上限30000字符；规划输出预算2048 tokens。不保存思考链或转发规划模型的自由文本。
 
 `AgentWorkflowCoordinator` 在每步前后检查当前患者会话归属、消息数量与末条USER ID、启用科室及READY语料正文/版本指纹；这不等于跨实例数据库版本一致性。仅真正执行成功的检索快照可传给原回答链，必须完成医学检索才接受模型的DONE；无证据不变成有证据。科室和排班结果只作为规划上下文，不授权预约或直接生成服务承诺。超时、工具失败、越权、重复循环、状态漂移均回退原工作流。急症/人工复核、受限请求在规划前退出，分诊评估和预约分支保持原路径。
 

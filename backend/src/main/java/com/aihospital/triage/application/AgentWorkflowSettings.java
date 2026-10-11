@@ -9,7 +9,7 @@ public record AgentWorkflowSettings(Mode mode, int extractionTimeoutSeconds, int
                                     int maxSteps, int maxToolCalls, int planningTimeoutSeconds, int totalPlanningSeconds) {
     public enum Mode { OFF, SHADOW, ENABLED }
     public AgentWorkflowSettings(Mode mode,int extractionTimeoutSeconds,int extractionMaxTokens) {
-        this(mode,extractionTimeoutSeconds,extractionMaxTokens,3,4,8,25);
+        this(mode,extractionTimeoutSeconds,extractionMaxTokens,3,4,12,25);
     }
     @org.springframework.beans.factory.annotation.Autowired
     public AgentWorkflowSettings(
@@ -18,7 +18,7 @@ public record AgentWorkflowSettings(Mode mode, int extractionTimeoutSeconds, int
             @Value("${ai.agent.extraction-max-tokens:2048}") int extractionMaxTokens,
             @Value("${ai.agent.max-steps:3}") int maxSteps,
             @Value("${ai.agent.max-tool-calls:4}") int maxToolCalls,
-            @Value("${ai.agent.planning-timeout-seconds:8}") int planningTimeoutSeconds,
+            @Value("${ai.agent.planning-timeout-seconds:12}") int planningTimeoutSeconds,
             @Value("${ai.agent.total-planning-seconds:25}") int totalPlanningSeconds) {
         if (mode == null) throw new IllegalArgumentException("Agent mode is required");
         if (extractionTimeoutSeconds < 1 || extractionTimeoutSeconds > 35)
@@ -29,7 +29,7 @@ public record AgentWorkflowSettings(Mode mode, int extractionTimeoutSeconds, int
         this.extractionTimeoutSeconds = extractionTimeoutSeconds;
         this.extractionMaxTokens = extractionMaxTokens;
         if(maxSteps<1||maxSteps>3||maxToolCalls<1||maxToolCalls>4||planningTimeoutSeconds<1
-                ||planningTimeoutSeconds>8||totalPlanningSeconds<planningTimeoutSeconds||totalPlanningSeconds>25)
+                ||planningTimeoutSeconds>12||totalPlanningSeconds<planningTimeoutSeconds||totalPlanningSeconds>25)
             throw new IllegalArgumentException("Agent planning budget exceeds authorized limits");
         this.maxSteps=maxSteps;this.maxToolCalls=maxToolCalls;
         this.planningTimeoutSeconds=planningTimeoutSeconds;this.totalPlanningSeconds=totalPlanningSeconds;

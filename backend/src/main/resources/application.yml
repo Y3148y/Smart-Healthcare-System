@@ -34,7 +34,7 @@ ai:
     extraction-max-tokens: ${AI_INTENT_MAX_TOKENS:2048}
     max-steps: ${AI_AGENT_MAX_STEPS:3}
     max-tool-calls: ${AI_AGENT_MAX_TOOL_CALLS:4}
-    planning-timeout-seconds: ${AI_AGENT_PLANNING_TIMEOUT_SECONDS:8}
+    planning-timeout-seconds: ${AI_AGENT_PLANNING_TIMEOUT_SECONDS:12}
     planning-thinking: ${AI_AGENT_PLANNING_ENABLE_THINKING:false}
     total-planning-seconds: ${AI_AGENT_TOTAL_PLANNING_SECONDS:25}
   retrieval:

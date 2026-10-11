@@ -13,6 +13,8 @@ class AgentWorkflowSettingsTest {
             assertEquals(AgentWorkflowSettings.Mode.OFF, settings.mode());
             assertEquals(8, settings.extractionTimeoutSeconds());
             assertEquals(2048, settings.extractionMaxTokens());
+            assertEquals(12, settings.planningTimeoutSeconds());
+            assertEquals(25, settings.totalPlanningSeconds());
         });
         new ApplicationContextRunner().withBean(AgentWorkflowSettings.class)
                 .withPropertyValues("ai.agent.mode=SHADOW", "ai.agent.extraction-timeout-seconds=3")
@@ -22,7 +24,7 @@ class AgentWorkflowSettingsTest {
         assertEquals(AgentWorkflowSettings.Mode.ENABLED,new AgentWorkflowSettings(AgentWorkflowSettings.Mode.ENABLED,8,2048).mode());
         for (String property : new String[]{"ai.agent.mode=UNKNOWN",
                 "ai.agent.extraction-timeout-seconds=0", "ai.agent.extraction-max-tokens=100000",
-                "ai.agent.max-steps=4", "ai.agent.max-tool-calls=5", "ai.agent.planning-timeout-seconds=9",
+                "ai.agent.max-steps=4", "ai.agent.max-tool-calls=5", "ai.agent.planning-timeout-seconds=13",
                 "ai.agent.total-planning-seconds=26"}) {
             new ApplicationContextRunner().withBean(AgentWorkflowSettings.class).withPropertyValues(property)
                     .run(context -> assertNotNull(context.getStartupFailure()));
