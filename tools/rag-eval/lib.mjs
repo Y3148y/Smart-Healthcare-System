@@ -25,6 +25,16 @@ export function validateCases(dataset) {
   return dataset;
 }
 
+export function validateExpectedTitles(dataset, approved) {
+  if (!Array.isArray(approved) || approved.length === 0)
+    throw new Error('No approved corpus; import and approve the intended documents before evaluation');
+  const titles = new Set(approved.map(document => document.title));
+  const missing = [...new Set(dataset.cases.map(item => item.expectedTitle)
+    .filter(title => title !== null && !titles.has(title)))];
+  if (missing.length)
+    throw new Error(`Evaluation labels do not match the approved corpus: ${missing.join(' | ')}`);
+}
+
 export function evaluateCase(item, report) {
   if (!Array.isArray(report?.retrieval?.evidence) || !Array.isArray(report.candidates)
       || report.retrieval.evidence.some(e => typeof e.title !== 'string')) throw new Error('Invalid retrieval report');

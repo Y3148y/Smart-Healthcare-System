@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "public-corpus-topic-development-2026-10-11-v1",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "split": "DEVELOPMENT_ONLY",
+  "labelAuthor": "IMPLEMENTATION_AUTHOR",
+  "note": "Author-labeled document-title smoke set for the 11 public example documents. Not an independent holdout, exhaustive chunk relevance set, medical correctness test, or answer faithfulness evaluation.",
+  "cases": [
+    {"id":"common-cold","query":"流鼻涕 鼻塞 日常照护","expectedTitle":"普通感冒：表现、一般照护、传播与就医条件"},
+    {"id":"migraine","query":"偏头痛 两天","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
+    {"id":"migraine-colloquial","query":"偏头疼两天，想了解注意事项","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
+    {"id":"sore-throat","query":"咽痛 一周没好","expectedTitle":"咽痛：表现、一般照护与就医条件"},
+    {"id":"period-pain","query":"痛经 比平时严重","expectedTitle":"痛经：表现、照护与就医评估"},
+    {"id":"broken-arm","query":"手腕摔伤 疑似骨折","expectedTitle":"手臂或腕部疑似骨折：就医与恢复注意事项"},
+    {"id":"chest-pain","query":"胸痛伴出汗气短","expectedTitle":"胸痛：立即求助与进一步评估"},
+    {"id":"anaphylaxis","query":"严重过敏 嘴唇突然肿胀 呼吸困难","expectedTitle":"严重过敏反应：危险表现与就医边界"},
+    {"id":"stroke","query":"单侧手臂无力 口角歪斜 言语含糊","expectedTitle":"卒中警示：突然神经症状与立即求助"},
+    {"id":"dizziness","query":"头晕 周围旋转 如何注意安全","expectedTitle":"头晕：表现、安全照护与医疗评估"},
+    {"id":"stomach-ache","query":"腹痛 反复发作","expectedTitle":"腹痛：可能背景与就医条件"},
+    {"id":"cough","query":"咳嗽超过三周","expectedTitle":"咳嗽：病程、一般照护与就医条件"}
+  ]
+}

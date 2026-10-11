@@ -4,5 +4,5 @@
   "private": true,
   "type": "module",
   "engines": {"node": ">=20"},
-  "scripts": {"test": "node --test tests/*.test.mjs", "evaluate": "node cli.mjs", "evaluate:published": "node cli.mjs cases-published-topic.json", "evaluate:development": "node cli.mjs cases-development-60.json"}
+  "scripts": {"test": "node --test tests/*.test.mjs", "evaluate": "node cli.mjs", "evaluate:published": "node cli.mjs cases-published-topic.json", "evaluate:development": "node cli.mjs cases-development-60.json", "evaluate:public": "node cli.mjs cases-public-corpus-development.json"}
 }

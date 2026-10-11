@@ -2,7 +2,7 @@ import {readFileSync, mkdirSync, writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {dirname, resolve} from 'node:path';
 import {createHash, randomUUID} from 'node:crypto';
-import {validateCases, evaluateCase, summarize, reportFileName} from './lib.mjs';
+import {validateCases, validateExpectedTitles, evaluateCase, summarize, reportFileName} from './lib.mjs';
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const datasetPath = resolve(directory, process.argv[2] || 'cases.json');
@@ -40,6 +40,7 @@ try {
   token = login.token;
   if (typeof token !== 'string' || !token) throw new Error('Evaluation authentication failed');
   const before = await snapshot(), results = [];
+  validateExpectedTitles(dataset, before.approved);
   for (const item of dataset.cases) results.push(evaluateCase(item, {
     ...await request(`admin/knowledge/search/details?q=${encodeURIComponent(item.query)}`), corpus:before,
   }));
