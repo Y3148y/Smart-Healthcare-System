@@ -2,7 +2,7 @@
 
 本工具维护来源记录、准备本地待审资料包，并在显式选择后将资料创建为 `PENDING_REVIEW`。它不把医学正文打包进应用、不写应用资源目录，也不审批资料。来源快照和生成资料包保存在本机忽略目录。
 
-目录统一为项目根knowledge/sources/（原始网页快照）和reports/knowledge-sync/（采集报告、intake待审包、proposals工作单）；中文业务资料见knowledge/corpus/。快照与正文均被Git忽略，不公开提交。
+目录统一为项目根knowledge/sources/（原始网页快照）和reports/knowledge-sync/（采集报告、intake待审包、proposals工作单）；11篇公开示例正文及必要来源文本见knowledge/corpus/。本机抓取缓存和待审包被Git忽略；公开语料的许可边界见knowledge/LICENSE.md。
 
 ## 当前运行语料
 
@@ -34,12 +34,12 @@
 
 使用 `npm run import:local -- document.md` 先离线校验；加 `--apply` 才创建待审记录。contentKind沿用后端 reviewed_summary 枚举，这个名称不表示已经完成医学审核。
 
-`node validate-document.mjs <document.md> [...]` 离线核验追溯记录及全部来源快照，支持多个文档，拒绝路径穿越、缺失来源或指纹漂移。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
+`node validate-document.mjs <document.md> [...]` 离线核验追溯记录及全部来源快照，支持多个文档，拒绝路径穿越、缺失来源或指纹漂移。JDK17编译后可用 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 检查实际切分片段的长度、偏移、哈希和确定性；短片段数量仅供人工审视，不是临床质量结论。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
 
 新增NLM来源仅提取MedlinePlus健康主题页的topic-summary区域；找不到或区域重复则拒绝，不回退整页。依据官方使用说明，该区域政府编写的摘要可复用；百科、药物、图片及外链内容不在此许可范围。本机英文摘要与中文整理稿仍需逐段核查，来源可复用不等于临床审核完成。历史受限百科ID与新感冒摘要ID分离。
 
 - 来源登记表不是医学知识库。URL 或抓取成功不能证明内容完整、授权充分、医学准确或适用于某位患者。
 - 抓取遵守工具中的 robots、重定向和限速检查。来源不可达、被拦截或抽取不完整时，不生成替代正文。
-- 来源 HTML、抽取正文、患者科普稿和评估报告保存在本机忽略路径，不提交到公开仓库。
+- 来源 HTML 缓存、未批准的新整理稿和评估报告保存在本机忽略路径；仅用户已授权的11篇示例正文及必要来源文本公开。新增语料须逐项核实许可，不因目录例外自动批准上传。
 - 导入资料保持待审，直到授权管理员完成审核和审批。项目操作者确认不等于专业临床审核。
 - 检索链路评估入口在 `tools/rag-eval`，不使用另写一套检索算法的模拟器；作者整理的开发集只能作为开发证据。

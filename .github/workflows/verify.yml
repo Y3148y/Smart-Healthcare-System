@@ -1,0 +1,51 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - name: Test backend without external model credentials
+        working-directory: backend
+        run: mvn --batch-mode test
+      - name: Inspect public corpus with the application chunker
+        run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            tools/knowledge-sync/package-lock.json
+      - name: Frontend test and build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm test
+          npm run build
+      - name: Knowledge source validation tests
+        working-directory: tools/knowledge-sync
+        run: |
+          npm ci
+          npm test
+          npm run audit:corpus
+      - name: Verify every public document and its provenance
+        run: find knowledge/corpus -name document.zh-CN.md -print0 | xargs -0 -r node tools/knowledge-sync/validate-document.mjs
+      - name: Offline RAG evaluation tool tests
+        working-directory: tools/rag-eval
+        run: npm test
