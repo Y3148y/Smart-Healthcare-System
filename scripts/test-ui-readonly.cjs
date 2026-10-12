@@ -19,7 +19,7 @@ async function waitUntil(check, timeoutMs = 15000) {
     try { const value = await check(); if (value) return value } catch { /* navigation in progress */ }
     await new Promise(resolve => setTimeout(resolve, 150))
   }
-  throw new Error('Timed out waiting for the expected UI state')
+  throw new Error(`Timed out waiting for UI state: ${check.toString().slice(0, 160)}`)
 }
 
 async function connectPage(debugPort) {
@@ -127,12 +127,68 @@ async function run() {
     const hasDocuments = await page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr button.mini"))')
     if (hasDocuments) {
       await click('.table-card.admin-scroll tbody tr button.mini') // GET detail only; never approve
-      await waitUntil(() => page.evaluate('Boolean(document.querySelector("[aria-label=\"文档详情\"]"))'))
+      await waitUntil(() => page.evaluate(`Boolean(document.querySelector('[aria-label="文档详情"]'))`))
       await click('[aria-label="文档详情"] summary')
-      assert.ok(await page.evaluate('document.querySelector("[aria-label=\"文档详情\"] pre")?.innerText.length > 0'))
+      assert.ok(await page.evaluate(`document.querySelector('[aria-label="文档详情"] pre')?.innerText.length > 0`))
       assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
         'Document details or provenance failed to load')
     }
+    await page.evaluate(`(() => {
+      const original = window.__uiSmokeOriginalFetch
+      const doc = { id: 'ui-smoke-pending', title: 'Synthetic pending approval fixture',
+        body: '# Fixture\\n\\nNon-medical text.', chunks: 1, status: 'PENDING_REVIEW',
+        updatedAt: '2026-10-12T00:00:00Z' }
+      const reply = data => Promise.resolve(new Response(JSON.stringify(data),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      window.__uiSmokePaths = []
+      window.__uiSmokePermission = 'pending'
+      window.fetch = (input, init) => {
+        const url = String(input)
+        if (url.includes('ui-smoke-pending')) window.__uiSmokePaths.push(url)
+        if (!init?.method || init.method === 'GET') {
+          if (url === '/api/admin/knowledge') return reply([doc])
+          if (url === '/api/admin/knowledge/ui-smoke-pending/details') return reply({ document: doc,
+            source: 'Synthetic browser fixture', segments: [{ title: doc.title, source: 'fixture',
+              excerpt: 'Non-medical text.', score: 1 }], indexStatus: 'NOT_APPROVED',
+            indexedChunks: 0, indexNote: 'Browser fixture only' })
+          if (url === '/api/admin/knowledge/ui-smoke-pending/metadata') return reply({ status: 'DECLARED',
+            clinicalReview: 'NOT_REVIEWED', metadata: { language: 'zh-CN', contentKind: 'reviewed_summary',
+              topics: [], population: [], exclusions: [], prerequisites: [], evidenceUses: [],
+              permissionStatus: window.__uiSmokePermission,
+              permissionEvidence: window.__uiSmokePermission === 'permitted' ? 'Synthetic fixture declaration' : null,
+              sources: [] } })
+          if (url === '/api/admin/knowledge/ui-smoke-pending/chunks') return reply([])
+        }
+        if (url.includes('/ui-smoke-pending/approve')) throw Error('Approval write must never leave the browser fixture')
+        return original(input, init)
+      }
+      return true
+    })()`)
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('document.querySelector(".table-card.admin-scroll tbody tr b")?.innerText === "Synthetic pending approval fixture"'))
+    await click('.table-card.admin-scroll tbody tr button.mini')
+    try {
+      await waitUntil(() => page.evaluate(`document.querySelector('[aria-label="来源与溯源"]')?.innerText.includes('使用许可尚未确认')`))
+    } catch (failure) {
+      const state = await page.evaluate(`JSON.stringify({ detail: Boolean(document.querySelector('[aria-label="文档详情"]')),
+        panel: Boolean(document.querySelector('[aria-label="来源与溯源"]')),
+        alert: Boolean(document.querySelector('.admin-workspace [role="alert"]')),
+        loading: Boolean(document.querySelector('[aria-label="来源与溯源"] [role="status"]')),
+        metadata: Boolean(document.querySelector('[aria-label="来源与溯源"] dl')),
+        disabled: document.querySelector('.admin-document button.primary')?.disabled ?? null,
+        requests: window.__uiSmokePaths })`)
+      throw new Error(`${failure.message}; fixture state ${state}`)
+    }
+    assert.equal(await page.evaluate('document.querySelector(".admin-document button.primary")?.disabled'), true,
+      'A pending usage permission must not offer an active approval action')
+    await page.evaluate('window.__uiSmokePermission = "permitted"; true')
+    await click('.admin-document .admin-title button.mini')
+    await click('.table-card.admin-scroll tbody tr button.mini')
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-document button.primary")?.disabled === false'))
+    await page.evaluate('window.fetch = window.__uiSmokeOriginalFetch; true')
+    await click('.admin-document .admin-title button.mini')
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('!document.body.innerText.includes("Synthetic pending approval fixture")'))
     await click('.admin-side a[href*="adminPage=observe"]')
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title h2")?.innerText === "AI 运行观测"'))
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title button.mini")?.innerText === "刷新状态与记录"'))
@@ -151,7 +207,7 @@ async function run() {
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Observation refresh did not load all technical endpoints')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → observation refresh.`)
+    console.log(`Read-only UI smoke passed: patient triage → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → pending-permission approval guard → observation refresh.`)
   } finally {
     page?.socket.close()
     child.kill()

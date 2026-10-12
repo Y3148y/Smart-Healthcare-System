@@ -25,3 +25,13 @@ test('runtime call-order action expands details directly inside its selected tab
   assert.match(page, /这条记录没有保存工具轨迹/)
   assert.match(page, /admin-call-order/)
 })
+
+test('metadata correction refreshes the same detail while unresolved permission disables approval', () => {
+  const page = read('features/admin/KnowledgePage.vue')
+  const provenance = read('features/admin/KnowledgeProvenancePanel.vue')
+  assert.match(page, /@corrected="view\(detail\.document\.id, true\)"/)
+  assert.match(page, /if \(!refresh && detail\.value\?\.document\.id === id\)/)
+  assert.match(page, /:disabled="busy \|\| !approvalReady"/)
+  assert.match(provenance, /permissionStatus === 'permitted'/)
+  assert.match(provenance, /使用许可尚未确认，不能审批/)
+})

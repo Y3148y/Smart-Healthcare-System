@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { api } from '../../api'
 import KnowledgeImportForm from './KnowledgeImportForm.vue'
 const props = defineProps<{ documentId: string; pending?: boolean }>()
-const emit = defineEmits<{ corrected: [] }>()
+const emit = defineEmits<{ corrected: []; approvalReady: [ready: boolean] }>()
 const correcting = ref(false)
 interface MetadataResponse {
   status: string
@@ -21,11 +21,13 @@ let requestId = 0
 watch(() => props.documentId, async id => {
   const current = ++requestId
   metadata.value = null; chunks.value = []; error.value = ''; loading.value = true
+  emit('approvalReady', false)
   try {
     const path = '/admin/knowledge/' + encodeURIComponent(id)
     const result = await Promise.all([api<MetadataResponse>(path + '/metadata'), api<Chunk[]>(path + '/chunks')])
     if (current !== requestId) return
     metadata.value = result[0]; chunks.value = result[1]
+    emit('approvalReady', result[0].status === 'LEGACY_UNKNOWN' || result[0].metadata?.permissionStatus === 'permitted')
   } catch (e: any) { if (current === requestId) error.value = e.message || '来源与溯源读取失败' }
   finally { if (current === requestId) loading.value = false }
 }, { immediate: true })
@@ -40,6 +42,7 @@ watch(() => props.documentId, async id => {
     <KnowledgeImportForm v-if="pending && correcting" :document-id="documentId" :initial-metadata="metadata?.metadata"
       @saved="correcting = false; emit('corrected')" />
     <p v-if="metadata?.status === 'LEGACY_UNKNOWN'">旧资料没有结构化来源与适用范围声明；未知不等于已核验。</p>
+    <p v-if="pending && metadata?.metadata && metadata.metadata.permissionStatus !== 'permitted'" role="status">使用许可尚未确认，不能审批；请先补正来源与许可声明。</p>
     <template v-if="metadata?.metadata">
       <dl>
         <dt>使用许可声明</dt><dd>{{ metadata.metadata.permissionStatus }}</dd>
