@@ -35,3 +35,10 @@ test('metadata correction refreshes the same detail while unresolved permission 
   assert.match(provenance, /permissionStatus === 'permitted'/)
   assert.match(provenance, /使用许可尚未确认，不能审批/)
 })
+
+test('knowledge write actions refresh the current detail instead of toggling it closed', () => {
+  const page = read('features/admin/KnowledgePage.vue')
+  assert.match(page, /await api\(`\/admin\/knowledge\/\$\{encodeURIComponent\(id\)\}\/approve`[\s\S]*?await load\(\); await view\(id, true\)/)
+  assert.match(page, /index\/sync'[\s\S]*?if \(id\) await view\(id, true\)/)
+  assert.match(page, /await api\(`\/admin\/knowledge\/\$\{encodeURIComponent\(id\)\}\/withdraw`[\s\S]*?await load\(\); await view\(id, true\)/)
+})

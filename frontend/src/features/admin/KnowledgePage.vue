@@ -42,7 +42,7 @@ async function approve(id: string) {
   busy.value = true; error.value = ''; notice.value = ''
   try {
     await api(`/admin/knowledge/${encodeURIComponent(id)}/approve`, { method: 'POST' })
-    await load(); await view(id); notice.value = '审批完成。向量写入是否成功请查看下方索引状态。'
+    await load(); await view(id, true); notice.value = '审批完成。向量写入是否成功请查看下方索引状态。'
   } catch (e: any) { error.value = e.message || '审批失败' }
   finally { busy.value = false }
 }
@@ -52,7 +52,7 @@ async function sync() {
   try {
     const result = await api<{ status: string; success: string }>('/admin/knowledge/index/sync', { method: 'POST' })
     notice.value = result.success === 'true' ? '已完成增量索引同步。' : `未完成向量同步：${label(result.status)}`
-    const id = detail.value?.document.id; await load(); if (id) await view(id)
+    const id = detail.value?.document.id; await load(); if (id) await view(id, true)
   } catch (e: any) { error.value = e.message || '索引同步失败' }
   finally { busy.value = false }
 }
@@ -61,7 +61,7 @@ async function withdraw(id: string) {
   busy.value = true; error.value = ''; notice.value = ''
   try {
     await api(`/admin/knowledge/${encodeURIComponent(id)}/withdraw`, { method: 'POST' })
-    await load(); await view(id); notice.value = '资料已撤回到待审批。已有回答和正在处理的请求不会被追溯删除。'
+    await load(); await view(id, true); notice.value = '资料已撤回到待审批。已有回答和正在处理的请求不会被追溯删除。'
   } catch (e: any) { error.value = e.message || '撤回失败' }
   finally { busy.value = false }
 }
