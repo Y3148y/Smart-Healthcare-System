@@ -90,24 +90,43 @@ async function run() {
     await open('/?demo=patient&page=triage', 'AI 门诊预问诊')
     await click('a[href*="page=visits"]')
     await waitUntil(() => page.evaluate('document.querySelector("h1")?.innerText === "我的就诊记录"'))
+    assert.equal(await page.evaluate('document.querySelector(".triage-stage-note")?.innerText || null'), null,
+      'Patient resources failed to load; a visible visits heading alone is insufficient')
     await open('/?demo=admin&page=admin&adminPage=dashboard', '功能导航')
     await click('.admin-side a[href*="adminPage=knowledge"]')
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title h2")?.innerText === "医学知识库"'))
     await click('.admin-title button.primary') // opens the intake form; does not submit it
     await waitUntil(() => page.evaluate('Boolean(document.querySelector(".admin-title button.primary")?.innerText.includes("收起录入"))'))
     await click('.admin-title button.primary')
-    await waitUntil(() => page.evaluate('document.querySelector("tbody td.empty")?.innerText !== "正在加载…"'))
+    await waitUntil(() => page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr")) && !document.querySelector("tbody td.empty")?.innerText.includes("正在加载")'))
+    assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
+      'Knowledge APIs failed; an empty table is not proof of a successful load')
     const hasDocuments = await page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr button.mini"))')
     if (hasDocuments) {
       await click('.table-card.admin-scroll tbody tr button.mini') // GET detail only; never approve
       await waitUntil(() => page.evaluate('Boolean(document.querySelector("[aria-label=\"文档详情\"]"))'))
       await click('[aria-label="文档详情"] summary')
       assert.ok(await page.evaluate('document.querySelector("[aria-label=\"文档详情\"] pre")?.innerText.length > 0'))
+      assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
+        'Document details or provenance failed to load')
     }
     await click('.admin-side a[href*="adminPage=observe"]')
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title h2")?.innerText === "AI 运行观测"'))
-    await click('.admin-title button.mini') // refreshes existing technical records; does not invoke a model
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title button.mini")?.innerText === "刷新状态与记录"'))
+    await page.evaluate(`(() => {
+      const original = window.fetch.bind(window)
+      window.__uiSmokeRefresh = { started: 0, pending: 0 }
+      window.fetch = (...args) => {
+        window.__uiSmokeRefresh.started++
+        window.__uiSmokeRefresh.pending++
+        return original(...args).finally(() => window.__uiSmokeRefresh.pending--)
+      }
+      return true
+    })()`)
+    await click('.admin-title button.mini') // refreshes existing technical records; does not invoke a model
+    await waitUntil(() => page.evaluate('window.__uiSmokeRefresh?.started >= 4 && window.__uiSmokeRefresh.pending === 0 && document.querySelector(".admin-title button.mini")?.innerText === "刷新状态与记录"'))
+    assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
+      'Observation refresh did not load all technical endpoints')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
     console.log(`Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge intake toggle${hasDocuments ? ' → document detail' : ' (empty catalog)'} → observation refresh.`)
   } finally {
