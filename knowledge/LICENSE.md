@@ -1,6 +1,6 @@
 # Knowledge content permissions and attribution
 
-The medical text in `corpus/` has separate source terms. A repository code license does not replace these terms. No logos, images, videos, licensed encyclopedia articles, drug monographs, patient records or linked third-party articles are included in this corpus.
+The medical text in `corpus/` has separate source terms. The repository's Apache-2.0 code license does not replace these terms or relicense the corpus. No logos, images, videos, licensed encyclopedia articles, drug monographs, patient records or linked third-party articles are included in this corpus.
 
 ## Public-sector text and Chinese adaptations
 

@@ -3,6 +3,7 @@
 [![构建与测试](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg)](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml)
 [![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](backend/pom.xml)
 [![Docker Compose：MySQL + Qdrant](https://img.shields.io/badge/Docker%20Compose-MySQL%20%2B%20Qdrant-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
 基于 **LangChain4j、Spring Boot 与 Vue 3** 的多轮导诊示例应用，覆盖症状咨询、资料检索、就诊方向、模拟预约和管理员知识运营。目标是让开发者复现有业务约束的 LLM 工作流、受控只读工具调用、混合检索与回答溯源。
 
@@ -17,7 +18,7 @@
 | 业务演示 | 患者会话、模拟预约、管理员知识与目录管理 | 没有真实 HIS、医生工作台或正式病历 |
 | 工程验证 | JDK17/Node 测试与构建、只读浏览器导航检查 | 关键写操作和故障场景的完整端到端验收仍在进行 |
 
-CI 徽章只表示自动化检查结果，不是临床认证、数据质量证明或项目许可证。
+CI 徽章只表示自动化检查结果，不是临床认证或数据质量证明；代码许可证与医学资料的使用边界分别见文末说明。
 
 ## 界面预览
 
@@ -207,4 +208,6 @@ docker-compose.yml   本机 MySQL/Qdrant 开发依赖
 
 当前只有本地演示认证，没有医生工作台、正式电子病历、医院 SSO 或 HIS 适配。人工导诊申请不保证实时响应。项目不以医院上线为当前目标；涉及患者真实使用前仍需医学资料与安全规则的专业审核、身份与隐私治理以及独立质量验收。
 
-贡献代码前请阅读 [贡献说明](CONTRIBUTING.md)。保留可复现的源码、测试、已核实许可的示例语料与必要文档；患者数据、其他未经核实许可的医学全文、密钥、生成报告和个人调试文件均不进入公开仓库。仓库当前未声明**代码**开源许可证；[示例资料的许可说明](knowledge/LICENSE.md)不等于代码许可证，使用和分发权限仍需项目维护者确定。
+贡献代码前请阅读 [贡献说明](CONTRIBUTING.md)。保留可复现的源码、测试、已核实许可的示例语料与必要文档；患者数据、其他未经核实许可的医学全文、密钥、生成报告和个人调试文件均不进入公开仓库。
+
+项目原创代码与技术文档按 [Apache License 2.0](LICENSE) 发布。`knowledge/corpus/` 中的医学正文、来源文本和来源记录适用单独的 [资料许可与署名说明](knowledge/LICENSE.md)，不因代码许可证而改为 Apache-2.0；第三方依赖仍按各自许可证使用。代码开源不代表医学审核、患者端使用许可或医院上线授权。
