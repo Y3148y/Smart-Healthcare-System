@@ -22,7 +22,7 @@ test('public topic smoke labels match the checked-in corpus, not legacy titles',
       documents.push({title:metadata.title});
     }
   assert.equal(documents.length, 11);
-  assert.equal(dataset.cases.length, 12);
+  assert.equal(dataset.cases.length, 13);
   assert.equal(dataset.split, 'DEVELOPMENT_ONLY');
   assert.equal(dataset.labelAuthor, 'IMPLEMENTATION_AUTHOR');
   assert.doesNotThrow(() => validateExpectedTitles(dataset, documents));
@@ -36,4 +36,8 @@ test('stale targets and an empty approved corpus fail before scoring', () => {
   assert.throws(() => validateExpectedTitles(dataset, []), /No approved corpus/);
   assert.throws(() => validateExpectedTitles(dataset, [{title:'new title'}]), /do not match/);
   assert.doesNotThrow(() => validateExpectedTitles(dataset, [{title:'old title'}]));
+  const negative = validateCases({schemaVersion:1,labelVersion:'negative',reviewStatus:'NOT_CLINICALLY_REVIEWED',
+    cases:[{id:'one',query:'query',expectedTitle:'old title',excludedTitles:['forbidden title']}]});
+  assert.throws(() => validateExpectedTitles(negative, [{title:'old title'}]), /do not match/);
+  assert.doesNotThrow(() => validateExpectedTitles(negative, [{title:'old title'},{title:'forbidden title'}]));
 });

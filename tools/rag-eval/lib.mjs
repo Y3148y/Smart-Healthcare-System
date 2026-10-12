@@ -20,6 +20,10 @@ export function validateCases(dataset) {
     if (typeof item.id !== 'string' || !item.id || ids.has(item.id) || typeof item.query !== 'string' || !item.query.trim()
         || !Object.hasOwn(item, 'expectedTitle') || (item.expectedTitle !== null && (typeof item.expectedTitle !== 'string' || !item.expectedTitle)))
       throw new Error('Invalid or duplicate evaluation case');
+    if (item.excludedTitles !== undefined && (!Array.isArray(item.excludedTitles)
+        || item.excludedTitles.some(title => typeof title !== 'string' || !title || title === item.expectedTitle)
+        || new Set(item.excludedTitles).size !== item.excludedTitles.length))
+      throw new Error('Invalid excluded titles');
     ids.add(item.id);
   }
   return dataset;
@@ -29,7 +33,7 @@ export function validateExpectedTitles(dataset, approved) {
   if (!Array.isArray(approved) || approved.length === 0)
     throw new Error('No approved corpus; import and approve the intended documents before evaluation');
   const titles = new Set(approved.map(document => document.title));
-  const missing = [...new Set(dataset.cases.map(item => item.expectedTitle)
+  const missing = [...new Set(dataset.cases.flatMap(item => [item.expectedTitle,...(item.excludedTitles ?? [])])
     .filter(title => title !== null && !titles.has(title)))];
   if (missing.length)
     throw new Error(`Evaluation labels do not match the approved corpus: ${missing.join(' | ')}`);
@@ -59,9 +63,11 @@ export function evaluateCase(item, report) {
   const configuredBypassReady = rerankSkipped && report.semanticStatus === 'READY'
     && report.mode === 'HYBRID_QDRANT_UNRERANKED';
   const operationalPassed = dependencyPassed || configuredBypassReady;
-  const expectationMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
+  const excludedSelected = selected.filter(title => (item.excludedTitles ?? []).includes(title));
+  const targetMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
+  const expectationMet = targetMet && excludedSelected.length === 0;
   return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
-    dependencyPassed, rerankSkipped, operationalPassed, expectationMet,
+    dependencyPassed, rerankSkipped, operationalPassed, targetMet, expectationMet, excludedSelected,
     strictRerankedPass:dependencyPassed && expectationMet, passed:operationalPassed && expectationMet,
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
     selectedEvidence,
@@ -97,10 +103,12 @@ export function summarize(results) {
     dependencyFailures:results.filter(r=>!(r.operationalPassed ?? r.dependencyPassed)).length,
     rerankSkippedCases:results.filter(r=>r.rerankSkipped).length,
     strictRerankedPasses:results.filter(r=>r.strictRerankedPass ?? (r.dependencyPassed && r.expectationMet)).length,
-    configuredModeTargetPasses:results.filter(r=>(r.operationalPassed ?? r.dependencyPassed) && r.expectationMet).length,
-    coveredTopicHits:results.filter(r=>r.expectedTitle !== null && r.expectationMet).length,
+    configuredModeTargetPasses:results.filter(r=>(r.operationalPassed ?? r.dependencyPassed) && (r.targetMet ?? r.expectationMet)).length,
+    configuredModeLabelPasses:results.filter(r=>(r.operationalPassed ?? r.dependencyPassed) && r.expectationMet).length,
+    coveredTopicHits:results.filter(r=>r.expectedTitle !== null && (r.targetMet ?? r.expectationMet)).length,
     coveredTopicCases:results.filter(r=>r.expectedTitle !== null).length,
     noCoverageFalseSelections:results.filter(r=>r.expectedTitle === null && r.selected.length).length,
+    excludedTitleSelectionFailures:results.filter(r=>r.excludedSelected?.length).length,
     casesWithExtraSelections:results.filter(r=>r.extraSelectionsForReview.length).length,
     interpretation:'Engineering topic labels only. Extra selections require review; not clinical or answer-support validation.'};
 }

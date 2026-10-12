@@ -53,6 +53,19 @@ test('covered topic selection passes but extras remain flagged for review', () =
   assert.deepEqual(result.selected,['Fixture','Other']);
   assert.deepEqual(result.extraSelectionsForReview,['Other']);
 });
+test('an explicitly excluded document fails the case without hiding the target hit', () => {
+  const item={id:'negated',query:'runny nose, no cough',expectedTitle:'Cold',excludedTitles:['Cough']};
+  const result=evaluateCase(item,{...report,retrieval:{evidence:[{title:'Cold'},{title:'Cough'}]}});
+  assert.equal(result.targetMet,true);
+  assert.equal(result.expectationMet,false);
+  assert.equal(result.passed,false);
+  assert.deepEqual(result.excludedSelected,['Cough']);
+  const summary=summarize([result]);
+  assert.equal(summary.coveredTopicHits,1);
+  assert.equal(summary.excludedTitleSelectionFailures,1);
+  assert.equal(summary.configuredModeTargetPasses,1);
+  assert.equal(summary.configuredModeLabelPasses,0);
+});
 test('candidate report retains exact excerpt and matching corpus chunk identity for review', () => {
   const excerpt='胸痛资料的核验片段';
   const contentSha256=createHash('sha256').update(excerpt).digest('hex');
@@ -88,4 +101,6 @@ test('missing negative label and duplicate IDs fail dataset validation', () => {
   assert.throws(()=>validateCases(dataset));
   dataset.cases=[{id:'one',query:'fixture',expectedTitle:null},{id:'one',query:'other',expectedTitle:null}];
   assert.throws(()=>validateCases(dataset));
+  dataset.cases=[{id:'one',query:'fixture',expectedTitle:'A',excludedTitles:['A']}];
+  assert.throws(()=>validateCases(dataset),/excluded titles/);
 });

@@ -1,12 +1,13 @@
 {
   "schemaVersion": 1,
-  "labelVersion": "public-corpus-topic-development-2026-10-11-v1",
+  "labelVersion": "public-corpus-topic-development-2026-10-12-v2",
   "reviewStatus": "NOT_CLINICALLY_REVIEWED",
   "split": "DEVELOPMENT_ONLY",
   "labelAuthor": "IMPLEMENTATION_AUTHOR",
-  "note": "Author-labeled document-title smoke set for the 11 public example documents. Not an independent holdout, exhaustive chunk relevance set, medical correctness test, or answer faithfulness evaluation.",
+  "note": "Author-labeled document-title smoke set for the 11 public example documents, including one explicitly excluded title for a negated symptom. Not an independent holdout, exhaustive chunk relevance set, medical correctness test, or answer faithfulness evaluation.",
   "cases": [
     {"id":"common-cold","query":"流鼻涕 鼻塞 日常照护","expectedTitle":"普通感冒：表现、一般照护、传播与就医条件"},
+    {"id":"common-cold-negated-cough","query":"流鼻涕，没有咳嗽","expectedTitle":"普通感冒：表现、一般照护、传播与就医条件","excludedTitles":["咳嗽：病程、一般照护与就医条件"]},
     {"id":"migraine","query":"偏头痛 两天","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
     {"id":"migraine-colloquial","query":"偏头疼两天，想了解注意事项","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
     {"id":"sore-throat","query":"咽痛 一周没好","expectedTitle":"咽痛：表现、一般照护与就医条件"},
