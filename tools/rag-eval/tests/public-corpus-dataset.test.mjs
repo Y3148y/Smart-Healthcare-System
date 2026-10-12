@@ -15,6 +15,10 @@ test('public topic smoke labels match the checked-in corpus, not legacy titles',
       const frontMatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/.exec(text);
       assert.ok(frontMatter, 'public document requires JSON front matter');
       const metadata = JSON.parse(frontMatter[1]);
+      const provenance = JSON.parse(readFileSync(join(root, category.name, topic.name, 'provenance.json'), 'utf8'));
+      assert.equal(metadata.approvalStatus, 'PENDING_REVIEW');
+      assert.equal(metadata.clinicalReviewStatus, 'NOT_REVIEWED');
+      assert.equal(provenance.metadata.permissionStatus, 'pending', 'public redistribution is not patient-use approval');
       documents.push({title:metadata.title});
     }
   assert.equal(documents.length, 11);
