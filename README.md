@@ -172,6 +172,9 @@ mvn test
 cd ../frontend
 npm test
 npm run build
+cd ..
+node scripts/check-public-files.cjs
+node scripts/check-public-content.cjs
 ```
 
 后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。

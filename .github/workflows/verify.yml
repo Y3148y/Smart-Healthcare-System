@@ -38,6 +38,8 @@ jobs:
         run: |
           node --test scripts/check-public-files.test.cjs
           node scripts/check-public-files.cjs
+          node --test scripts/check-public-content.test.cjs
+          node scripts/check-public-content.cjs
       - name: Frontend test and build
         working-directory: frontend
         run: |

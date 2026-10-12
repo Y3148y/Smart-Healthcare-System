@@ -96,10 +96,20 @@ async function run() {
     await click('.admin-title button.primary') // opens the intake form; does not submit it
     await waitUntil(() => page.evaluate('Boolean(document.querySelector(".admin-title button.primary")?.innerText.includes("收起录入"))'))
     await click('.admin-title button.primary')
+    await waitUntil(() => page.evaluate('document.querySelector("tbody td.empty")?.innerText !== "正在加载…"'))
+    const hasDocuments = await page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr button.mini"))')
+    if (hasDocuments) {
+      await click('.table-card.admin-scroll tbody tr button.mini') // GET detail only; never approve
+      await waitUntil(() => page.evaluate('Boolean(document.querySelector("[aria-label=\"文档详情\"]"))'))
+      await click('[aria-label="文档详情"] summary')
+      assert.ok(await page.evaluate('document.querySelector("[aria-label=\"文档详情\"] pre")?.innerText.length > 0'))
+    }
     await click('.admin-side a[href*="adminPage=observe"]')
     await waitUntil(() => page.evaluate('document.querySelector(".admin-title h2")?.innerText === "AI 运行观测"'))
+    await click('.admin-title button.mini') // refreshes existing technical records; does not invoke a model
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-title button.mini")?.innerText === "刷新状态与记录"'))
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log('Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge intake toggle → observation.')
+    console.log(`Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge intake toggle${hasDocuments ? ' → document detail' : ' (empty catalog)'} → observation refresh.`)
   } finally {
     page?.socket.close()
     child.kill()
