@@ -79,6 +79,30 @@ async function run() {
     })
     if (port === 'LAUNCH_FAILED') throw new Error(`Browser launch failed: ${launchError.code || 'unknown'}`)
     page = await connectPage(port)
+    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+      const original = window.fetch.bind(window)
+      const session = { id: 'ui-smoke-history', title: 'Synthetic prior conversation',
+        preview: 'Fixture only', status: '待补充信息',
+        createdAt: '2026-10-12T00:00:00Z', updatedAt: '2026-10-12T00:00:00Z' }
+      const response = data => Promise.resolve(new Response(JSON.stringify(data),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      window.__uiSmokeHistoryReads = 0
+      window.fetch = (input, init) => {
+        if ((!init?.method || init.method === 'GET') &&
+            String(input) === '/api/triage/sessions') return response([session])
+        if ((!init?.method || init.method === 'GET') &&
+            String(input) === '/api/triage/sessions/ui-smoke-history') {
+          window.__uiSmokeHistoryReads++
+          return response({ session, assessments: [], humanReview: null, messages: [
+            { id: 'fixture-user', role: 'USER', content: 'Synthetic historical question', createdAt: session.createdAt },
+            { id: 'fixture-assistant', role: 'ASSISTANT', content: 'Synthetic historical reply',
+              createdAt: session.updatedAt, provenance: { modelStatus: 'DEMO', knowledgeHits: 0,
+                localToolCalls: 0, toolFailures: 0 } }
+          ] })
+        }
+        return original(input, init)
+      }
+    })()` })
     async function open(route, marker) {
       await page.send('Page.navigate', { url: new URL(route, base).href })
       await waitUntil(() => page.evaluate(`document.body && document.body.innerText.includes(${JSON.stringify(marker)})`))
@@ -88,6 +112,13 @@ async function run() {
       await page.evaluate(`document.querySelector(${JSON.stringify(selector)}).click(); true`)
     }
     await open('/?demo=patient&page=triage', 'AI 门诊预问诊')
+    await waitUntil(() => page.evaluate('document.querySelector(".conversation-list .session-button b")?.innerText === "Synthetic prior conversation"'))
+    await click('.conversation-list .session-button')
+    await waitUntil(() => page.evaluate('document.querySelector(".chat-scroll")?.innerText.includes("Synthetic historical reply")'))
+    assert.equal(await page.evaluate('window.__uiSmokeHistoryReads'), 1,
+      'Historical conversation must be loaded from the read endpoint')
+    await click('.conversation-list .side-title button')
+    await waitUntil(() => page.evaluate('!document.querySelector(".chat-scroll")?.innerText.includes("Synthetic historical reply")'))
     await click('a[href*="page=visits"]')
     await waitUntil(() => page.evaluate('document.querySelector("h1")?.innerText === "我的就诊记录"'))
     assert.equal(await page.evaluate('document.querySelector(".triage-stage-note")?.innerText || null'), null,
@@ -207,7 +238,7 @@ async function run() {
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Observation refresh did not load all technical endpoints')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → pending-permission approval guard → observation refresh.`)
+    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → pending-permission approval guard → observation refresh.`)
   } finally {
     page?.socket.close()
     child.kill()
