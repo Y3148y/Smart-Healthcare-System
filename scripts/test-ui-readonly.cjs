@@ -101,6 +101,29 @@ async function run() {
     await waitUntil(() => page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr")) && !document.querySelector("tbody td.empty")?.innerText.includes("正在加载")'))
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Knowledge APIs failed; an empty table is not proof of a successful load')
+    await page.evaluate(`(() => {
+      const original = window.fetch.bind(window)
+      window.__uiSmokeOriginalFetch = original
+      window.fetch = (input, init) => String(input).includes('/api/admin/knowledge/runtime')
+        ? Promise.resolve(new Response(JSON.stringify({ message: 'Synthetic read-only outage' }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } }))
+        : original(input, init)
+      return true
+    })()`)
+    await click('.admin-title button.mini') // fixture only: prove the page exposes a dependency failure
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText.includes("Synthetic read-only outage")'))
+    await page.evaluate(`(() => {
+      const original = window.__uiSmokeOriginalFetch
+      window.__uiSmokeRecovery = { started: 0, pending: 0 }
+      window.fetch = (...args) => {
+        window.__uiSmokeRecovery.started++
+        window.__uiSmokeRecovery.pending++
+        return original(...args).finally(() => window.__uiSmokeRecovery.pending--)
+      }
+      return true
+    })()`)
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('window.__uiSmokeRecovery?.started >= 2 && window.__uiSmokeRecovery.pending === 0 && !document.querySelector(".admin-workspace [role=alert]") && Boolean(document.querySelector(".table-card.admin-scroll tbody tr"))'))
     const hasDocuments = await page.evaluate('Boolean(document.querySelector(".table-card.admin-scroll tbody tr button.mini"))')
     if (hasDocuments) {
       await click('.table-card.admin-scroll tbody tr button.mini') // GET detail only; never approve
@@ -128,7 +151,7 @@ async function run() {
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Observation refresh did not load all technical endpoints')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge intake toggle${hasDocuments ? ' → document detail' : ' (empty catalog)'} → observation refresh.`)
+    console.log(`Read-only UI smoke passed: patient triage → visits; admin dashboard → knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → observation refresh.`)
   } finally {
     page?.socket.close()
     child.kill()
