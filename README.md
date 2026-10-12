@@ -1,6 +1,8 @@
 # LangChain4j 医疗导诊助手
 
 [![构建与测试](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg)](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml)
+[![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](backend/pom.xml)
+[![Docker Compose：MySQL + Qdrant](https://img.shields.io/badge/Docker%20Compose-MySQL%20%2B%20Qdrant-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 
 基于 **LangChain4j、Spring Boot 与 Vue 3** 的多轮导诊示例应用，覆盖症状咨询、资料检索、就诊方向、模拟预约和管理员知识运营。目标是让开发者复现有业务约束的 LLM 工作流、受控只读工具调用、混合检索与回答溯源。
 
