@@ -61,7 +61,8 @@ export function evaluateCase(item, report) {
   const operationalPassed = dependencyPassed || configuredBypassReady;
   const expectationMet = item.expectedTitle === null ? selected.length === 0 : selected.includes(item.expectedTitle);
   return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
-    dependencyPassed, rerankSkipped, operationalPassed, expectationMet, passed:dependencyPassed && expectationMet,
+    dependencyPassed, rerankSkipped, operationalPassed, expectationMet,
+    strictRerankedPass:dependencyPassed && expectationMet, passed:operationalPassed && expectationMet,
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
     selectedEvidence,
     extraSelectionsForReview:item.expectedTitle === null ? selected : selected.filter(title => title !== item.expectedTitle),
@@ -95,6 +96,7 @@ export function summarize(results) {
     failedIds:results.filter(r=>!r.passed).map(r=>r.id),
     dependencyFailures:results.filter(r=>!(r.operationalPassed ?? r.dependencyPassed)).length,
     rerankSkippedCases:results.filter(r=>r.rerankSkipped).length,
+    strictRerankedPasses:results.filter(r=>r.strictRerankedPass ?? (r.dependencyPassed && r.expectationMet)).length,
     configuredModeTargetPasses:results.filter(r=>(r.operationalPassed ?? r.dependencyPassed) && r.expectationMet).length,
     coveredTopicHits:results.filter(r=>r.expectedTitle !== null && r.expectationMet).length,
     coveredTopicCases:results.filter(r=>r.expectedTitle !== null).length,

@@ -17,15 +17,17 @@ test('target ranks and latency use explicit denominators, preserving unknown dur
   assert.equal(summarize([]).retrievalLatencyMs.p95,null);
 });
 const report = {semanticStatus:'READY',rerankStatus:'OK',retrieval:{evidence:[{title:'Fixture'}]},candidates:[]};
-test('explicit bypass is not a provider failure or a strict reranked pass', () => {
+test('explicit bypass passes configured mode but not the strict reranked mode', () => {
   const item={id:'bypass',query:'fixture',expectedTitle:'Fixture'};
   const bypass={...report,rerankStatus:'DISABLED_BY_CONFIGURATION',mode:'HYBRID_QDRANT_UNRERANKED'};
   const result=evaluateCase(item,bypass);
-  assert.equal(result.passed,false);
+  assert.equal(result.passed,true);
+  assert.equal(result.strictRerankedPass,false);
   assert.equal(result.operationalPassed,true);
   assert.equal(summarize([result]).dependencyFailures,0);
   assert.equal(summarize([result]).rerankSkippedCases,1);
   assert.equal(summarize([result]).configuredModeTargetPasses,1);
+  assert.equal(summarize([result]).strictRerankedPasses,0);
   for(const invalid of [{...bypass,semanticStatus:'SEARCH_UNAVAILABLE'},
     {...bypass,mode:'DEPENDENCY_BLOCKED_UNRERANKED'},
     {...bypass,rerankStatus:'HTTP_403:AllocationQuota.FreeTierOnly'}]) {
@@ -47,6 +49,7 @@ test('covered topic selection passes but extras remain flagged for review', () =
   const result = evaluateCase({id:'covered',query:'fixture',expectedTitle:'Fixture'},
     {...report,retrieval:{evidence:[{title:'Fixture'},{title:'Fixture'},{title:'Other'}]}});
   assert.equal(result.passed,true);
+  assert.equal(result.strictRerankedPass,true);
   assert.deepEqual(result.selected,['Fixture','Other']);
   assert.deepEqual(result.extraSelectionsForReview,['Other']);
 });
