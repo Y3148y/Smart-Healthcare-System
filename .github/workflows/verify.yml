@@ -20,6 +20,8 @@ jobs:
         run: mvn --batch-mode test
       - name: Inspect public corpus with the application chunker
         run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+      - name: Check chunk-boundary regression examples
+        run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java --self-test
 
   node:
     runs-on: ubuntu-latest

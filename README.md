@@ -145,7 +145,7 @@ npm run evaluate:public
 
 评估区分候选召回、最终片段选择和答案质量。公开主题集仅检查12个作者标注的目标文档标题，不是独立留出集或穷举相关片段标签；旧评估集对应历史批准资料，标题与当前语料不符时评估器会拒绝而非记为召回失败。正确率、忠实度及置信校准需要人工标签；未标注时输出未知。
 
-公开语料可独立校验：`node tools/knowledge-sync/validate-document.mjs knowledge/corpus/neurology/migraine/document.zh-CN.md` 检查单篇正文和来源指纹；JDK17编译后，`java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 用实际切分器检查全部11篇的边界与原文覆盖。当前78个片段中26个短于80码点，实际没有触发长段重叠；这些数据不是医学质量或召回率结论。
+公开语料可独立校验：`node tools/knowledge-sync/validate-document.mjs knowledge/corpus/neurology/migraine/document.zh-CN.md` 检查单篇正文和来源指纹；JDK17编译后，`java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 用实际切分器检查全部11篇的原文覆盖、段落不跨片段、边界与哈希。当前78个片段中26个短于80码点，实际没有触发长段重叠；段落完整也不能证明医学条件完整、答案质量或召回率。
 
 ## 开发与测试
 

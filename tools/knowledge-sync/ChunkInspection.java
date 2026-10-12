@@ -10,6 +10,7 @@ class ChunkInspection {
   private static final Pattern HEADING = Pattern.compile("^#{1,6}\\s+.+");
 
   public static void main(String[] args) throws Exception {
+    if(args.length==1 && "--self-test".equals(args[0])) { selfTest(); return; }
     if (args.length != 1) throw new IllegalArgumentException("Usage: ChunkInspection <corpus-directory>");
     var chunker=new MarkdownChunker();
     int documents=0,total=0,shortChunks=0,longest=0,overlappingWindows=0;
@@ -49,9 +50,18 @@ class ChunkInspection {
         }
         boolean fenced=false;
         int offset=0;
+        int paragraphStart=-1;
+        int paragraphEnd=-1;
         for(String line:body.split("\n",-1)) {
           String stripped=line.strip();
           boolean heading=!fenced && HEADING.matcher(stripped).matches();
+          if(heading || (!fenced && stripped.isEmpty())) {
+            if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd);
+            paragraphStart=-1;
+          } else {
+            if(paragraphStart<0)paragraphStart=body.codePointCount(0,offset);
+            paragraphEnd=body.codePointCount(0,offset+line.length());
+          }
           if(!heading) {
             int point=body.codePointCount(0,offset);
             for(int i=0;i<line.length();) {
@@ -65,6 +75,7 @@ class ChunkInspection {
           if(stripped.startsWith("```") || stripped.startsWith("~~~"))fenced=!fenced;
           offset+=line.length()+1;
         }
+        if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd);
         if(!chunks.equals(chunker.split(path.getParent().toString(),body.lines().findFirst().orElseThrow(),"local-source",body)))
           throw new IllegalStateException(path+": nondeterministic chunks");
         System.out.printf("%s bodyCodePoints=%d chunks=%d shortUnder80=%d maxChunk=%d%n",
@@ -77,5 +88,30 @@ class ChunkInspection {
     if(documents==0)throw new IllegalStateException("No corpus documents found");
     System.out.printf("documents=%d totalChunks=%d shortUnder80=%d longest=%d overlappingWindows=%d maxLength=%d overlapSetting=%d chunker=%s%n",
       documents,total,shortChunks,longest,overlappingWindows,MarkdownChunker.MAX_LENGTH,MarkdownChunker.OVERLAP,MarkdownChunker.VERSION);
+  }
+
+  private static void assertParagraphContained(Path path, List<com.aihospital.knowledge.domain.KnowledgeChunk> chunks,
+      int start, int end) {
+    if(start>=end)return;
+    if(chunks.stream().noneMatch(chunk->chunk.start()<=start && chunk.end()>=end))
+      throw new IllegalStateException(path+": paragraph split across chunks near code point "+start
+        +"; review whether medical conditions were separated");
+  }
+
+  private static void selfTest() {
+    var chunker=new MarkdownChunker();
+    String prefix="# Synthetic\n\n";
+    String shortBody=prefix+"a".repeat(100);
+    assertParagraphContained(Path.of("synthetic"),
+        chunker.split("synthetic","Synthetic","local",shortBody),prefix.length(),shortBody.length());
+    String longBody=prefix+"a".repeat(MarkdownChunker.MAX_LENGTH+30);
+    try {
+      assertParagraphContained(Path.of("synthetic"),
+          chunker.split("synthetic","Synthetic","local",longBody),prefix.length(),longBody.length());
+      throw new AssertionError("Split paragraph was not rejected");
+    } catch (IllegalStateException expected) {
+      if(!expected.getMessage().contains("paragraph split across chunks"))throw expected;
+    }
+    System.out.println("paragraph-boundary-positive-and-negative=passed");
   }
 }
