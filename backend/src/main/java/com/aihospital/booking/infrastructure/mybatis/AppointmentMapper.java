@@ -11,6 +11,9 @@ import java.util.Map;
 
 @Mapper
 public interface AppointmentMapper {
+    @Insert("INSERT INTO sim_booking_request(patient_id,idempotency_key) VALUES(#{patient},#{key})")
+    int claimRequest(@Param("patient") String patient, @Param("key") String key);
+
     @Select("SELECT id,patient_id,session_id,doctor_json,status,created_at FROM sim_appointment WHERE patient_id=#{patient} ORDER BY created_at DESC")
     List<Map<String, Object>> appointments(@Param("patient") String patient);
 

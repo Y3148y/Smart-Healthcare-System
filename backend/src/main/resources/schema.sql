@@ -115,6 +115,12 @@ CREATE TABLE IF NOT EXISTS sim_appointment (
   UNIQUE (patient_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS sim_booking_request (
+  patient_id VARCHAR(128) NOT NULL,
+  idempotency_key VARCHAR(64) NOT NULL,
+  PRIMARY KEY (patient_id, idempotency_key)
+);
+
 CREATE TABLE IF NOT EXISTS patient_profile (
   patient_id VARCHAR(128) PRIMARY KEY,
   display_name VARCHAR(80) NOT NULL,

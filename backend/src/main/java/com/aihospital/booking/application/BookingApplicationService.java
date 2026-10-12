@@ -1,6 +1,7 @@
 package com.aihospital.booking.application;
 
 import com.aihospital.shared.model.Models.Appointment;
+import com.aihospital.booking.domain.BookingStore;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,9 +14,13 @@ public class BookingApplicationService {
     }
 
     public Appointment book(String doctorId, String sessionId, String patient, String idempotencyKey) {
-        // One transactional authority: existing idempotent receipt first, then current risk/ownership/slot gates.
-        // Missing session identity is never silently converted to an independent booking.
-        return booking.book(doctorId, sessionId, patient, idempotencyKey);
+        // Catch outside the transactional method: after the losing claim rolls back,
+        // replay the winner's committed receipt without deducting another slot.
+        try {
+            return booking.book(doctorId, sessionId, patient, idempotencyKey);
+        } catch (BookingStore.KeyClaimConflict conflict) {
+            return booking.replayClaim(doctorId, sessionId, patient, idempotencyKey);
+        }
     }
 
     public List<Appointment> appointments(String patient) { return booking.appointments(patient); }

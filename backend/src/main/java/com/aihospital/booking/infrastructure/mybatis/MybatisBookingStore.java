@@ -5,6 +5,7 @@ import com.aihospital.shared.model.Models.Appointment;
 import com.aihospital.shared.model.Models.Doctor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -21,6 +22,14 @@ public class MybatisBookingStore implements BookingStore {
     public MybatisBookingStore(AppointmentMapper mapper, ObjectMapper json) {
         this.mapper = mapper;
         this.json = json;
+    }
+
+    @Override public void claimRequest(String patient, String idempotencyKey) {
+        try {
+            mapper.claimRequest(patient, idempotencyKey);
+        } catch (DuplicateKeyException ex) {
+            throw new KeyClaimConflict(ex);
+        }
     }
 
     @Override public List<Appointment> appointments(String patient) {

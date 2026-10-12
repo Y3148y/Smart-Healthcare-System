@@ -5,6 +5,7 @@ import com.aihospital.shared.model.Models.Doctor;
 import com.aihospital.catalog.infrastructure.mybatis.SlotMapper;
 import com.aihospital.shared.security.JwtService;
 import com.aihospital.booking.application.SimulationBookingService;
+import com.aihospital.booking.application.BookingApplicationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class SimulationBookingTests {
     @Autowired SimulationBookingService booking;
+    @Autowired BookingApplicationService bookingApplication;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired SlotMapper slots;
@@ -102,6 +104,96 @@ class SimulationBookingTests {
         } finally {
             pool.shutdownNow();
             slots.setRemaining(doctor.id(), doctor.date(), doctor.remaining());
+        }
+    }
+
+    @Test
+    void concurrentSameKeyReplaysOneReceiptAndConsumesOneSlot() throws Exception {
+        Doctor doctor = booking.doctors("骨科").get(0);
+        int initial = doctor.remaining();
+        slots.setRemaining(doctor.id(), doctor.date(), 2);
+        String patient = "same-key-" + UUID.randomUUID();
+        String key = UUID.randomUUID().toString();
+        CountDownLatch start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> {
+                start.await();
+                return bookingApplication.book(doctor.id(), "walk-in", patient, key);
+            });
+            var second = pool.submit(() -> {
+                start.await();
+                return bookingApplication.book(doctor.id(), "walk-in", patient, key);
+            });
+            start.countDown();
+            assertEquals(first.get(10, TimeUnit.SECONDS), second.get(10, TimeUnit.SECONDS));
+            assertEquals(1, booking.appointments(patient).size());
+            assertEquals(1, slots.remaining(doctor.id(), doctor.date()));
+        } finally {
+            pool.shutdownNow();
+            slots.setRemaining(doctor.id(), doctor.date(), initial);
+        }
+    }
+
+    @Test
+    void concurrentSameKeyWithDifferentDoctorsCannotConsumeBothSlots() throws Exception {
+        Doctor firstDoctor = booking.doctors("骨科").get(0);
+        Doctor secondDoctor = booking.doctors("全科医学科").get(0);
+        int firstInitial = firstDoctor.remaining();
+        int secondInitial = secondDoctor.remaining();
+        slots.setRemaining(firstDoctor.id(), firstDoctor.date(), 2);
+        slots.setRemaining(secondDoctor.id(), secondDoctor.date(), 2);
+        String patient = "conflicting-key-" + UUID.randomUUID();
+        String key = UUID.randomUUID().toString();
+        CountDownLatch start = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        try {
+            var first = pool.submit(() -> attemptBookingWithKey(start, firstDoctor.id(), patient, key));
+            var second = pool.submit(() -> attemptBookingWithKey(start, secondDoctor.id(), patient, key));
+            start.countDown();
+            assertEquals(1, (first.get(10, TimeUnit.SECONDS) ? 1 : 0)
+                    + (second.get(10, TimeUnit.SECONDS) ? 1 : 0));
+            assertEquals(1, booking.appointments(patient).size());
+            assertEquals(3, slots.remaining(firstDoctor.id(), firstDoctor.date())
+                    + slots.remaining(secondDoctor.id(), secondDoctor.date()));
+        } finally {
+            pool.shutdownNow();
+            slots.setRemaining(firstDoctor.id(), firstDoctor.date(), firstInitial);
+            slots.setRemaining(secondDoctor.id(), secondDoctor.date(), secondInitial);
+        }
+    }
+
+    @Test
+    void failedClaimAndSlotUpdateRollBackSoSameKeyCanBeRetried() {
+        Doctor doctor = booking.doctors("骨科").get(0);
+        int initial = doctor.remaining();
+        String patient = "retry-key-" + UUID.randomUUID();
+        String key = UUID.randomUUID().toString();
+        try {
+            slots.setRemaining(doctor.id(), doctor.date(), 0);
+            var full = assertThrows(org.springframework.web.server.ResponseStatusException.class,
+                    () -> bookingApplication.book(doctor.id(), "walk-in", patient, key));
+            assertEquals(409, full.getStatusCode().value());
+            assertTrue(booking.appointments(patient).isEmpty());
+            slots.setRemaining(doctor.id(), doctor.date(), 1);
+            Appointment created = bookingApplication.book(doctor.id(), "walk-in", patient, key);
+            assertEquals(created.id(), bookingApplication.book(doctor.id(), "walk-in", patient, key).id());
+            assertEquals(0, slots.remaining(doctor.id(), doctor.date()));
+            assertEquals(1, booking.appointments(patient).size());
+        } finally {
+            slots.setRemaining(doctor.id(), doctor.date(), initial);
+        }
+    }
+
+    private boolean attemptBookingWithKey(CountDownLatch start, String doctorId, String patient, String key)
+            throws InterruptedException {
+        start.await();
+        try {
+            bookingApplication.book(doctorId, "walk-in", patient, key);
+            return true;
+        } catch (org.springframework.web.server.ResponseStatusException conflict) {
+            assertEquals(409, conflict.getStatusCode().value());
+            return false;
         }
     }
 
