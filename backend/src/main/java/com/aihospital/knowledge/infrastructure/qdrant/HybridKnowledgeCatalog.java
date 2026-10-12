@@ -1,6 +1,7 @@
 package com.aihospital.knowledge.infrastructure.qdrant;
 
 import com.aihospital.knowledge.domain.Bm25Retriever;
+import com.aihospital.knowledge.domain.NegatedTitleTopics;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
 import com.aihospital.knowledge.domain.StoredKnowledgeDocument;
@@ -223,6 +224,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         long start = System.nanoTime();
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
         var corpus = local.approvedCorpus();
+        Set<String> explicitlyNegatedTitles = NegatedTitleTopics.excludedTitles(query, corpus);
         var requestLexicalIndex = lexicalIndex(corpus);
         List<Evidence> lexical = requestLexicalIndex.search(query, depth, minimumScore);
         var origins = chunkOrigins();
@@ -249,7 +251,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 + (c.semanticRank == 0 ? 0 : 1.0 / (k + c.semanticRank));
         var ranked = candidates.values().stream().sorted(Comparator.comparingDouble((Candidate c) -> c.fused)
                 .reversed().thenComparing(c -> Bm25Retriever.key(c.evidence))).toList();
-        List<Evidence> pool = ranked.stream().limit(depth).map(c -> new Evidence(c.evidence.title(), c.evidence.source(),
+        var eligibleRanked = ranked.stream().filter(c -> !explicitlyNegatedTitles.contains(c.evidence.title())).toList();
+        List<Evidence> pool = eligibleRanked.stream().limit(depth).map(c -> new Evidence(c.evidence.title(), c.evidence.source(),
                 c.evidence.excerpt(), c.fused)).toList();
         var reranked = !rerankEnabled ? new BailianReranker.Result(List.of(), "DISABLED_BY_CONFIGURATION")
                 : reranker == null ? new BailianReranker.Result(List.of(), "NOT_CONFIGURED") : reranker.rank(query, pool, limit);
@@ -263,15 +266,17 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         // This is retrieval diversity, not an assertion of answer support.
         Set<String> reserved = new HashSet<>();
         if (!rerankEnabled && denseOk && !blocked) {
-            dense.stream().limit((limit + 1) / 2).forEach(e -> reserved.add(Bm25Retriever.key(e)));
+            dense.stream().filter(e -> !explicitlyNegatedTitles.contains(e.title()))
+                    .limit((limit + 1) / 2).forEach(e -> reserved.add(Bm25Retriever.key(e)));
         }
         List<Evidence> unreranked = !reserved.isEmpty()
-                ? selectUnreranked(ranked, reserved, denseConfirmed, limit, requireDenseConfirmation)
+                ? selectUnreranked(eligibleRanked, reserved, denseConfirmed, limit, requireDenseConfirmation)
                 : pool.stream().filter(e -> !requireDenseConfirmation || denseConfirmed.contains(Bm25Retriever.key(e)))
                         .limit(limit).toList();
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
                 : unreranked;
-        selected = selected.stream().map(e -> withSectionContext(e, origins)).toList();
+        selected = selected.stream().filter(e -> !explicitlyNegatedTitles.contains(e.title()))
+                .map(e -> withSectionContext(e, origins)).toList();
         String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
         lastMode = mode;
@@ -282,6 +287,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 c.evidence.excerpt(), c.lexicalRank, c.lexicalScore, c.semanticRank, c.semanticScore, c.fused,
                 rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).evidence().score() : null,
                 kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
+                : explicitlyNegatedTitles.contains(c.evidence.title()) ? "explicitly_negated_title_topic"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
                 : requireDenseConfirmation && c.semanticRank == 0 ? "unconfirmed_lexical_only_without_rerank"
                 : kept.contains(Bm25Retriever.key(c.evidence)) && reserved.contains(Bm25Retriever.key(c.evidence))

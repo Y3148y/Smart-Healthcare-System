@@ -11,6 +11,35 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void deniedTitleTopicStaysInDiagnosticsButCannotBeSelectedWithoutRerank() {
+        var local = new InMemoryKnowledgeCatalog(false);
+        for (String title : List.of("甲主题：说明", "乙主题：说明")) {
+            var document = local.addDocument(title, "# " + title + "\n\n甲主题乙主题的合成测试文字。");
+            local.approveDocument(document.id());
+        }
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble())).thenReturn(
+                new QdrantSemanticIndex.SearchResult(local.approvedCorpus(), "READY"));
+        var reranker = mock(BailianReranker.class);
+        var catalog = new HybridKnowledgeCatalog(local, semantic, reranker);
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", false);
+        var report = catalog.inspect("甲主题，没有乙主题", 3, 0);
+        assertTrue(report.retrieval().evidence().stream().allMatch(e -> e.title().startsWith("甲主题")));
+        assertTrue(report.candidates().stream().anyMatch(c -> c.title().startsWith("乙主题")
+                && !c.kept() && "explicitly_negated_title_topic".equals(c.reason())));
+        assertTrue(catalog.inspect("甲主题，没有乙主题，但后来乙主题", 3, 0).candidates().stream()
+                .noneMatch(c -> "explicitly_negated_title_topic".equals(c.reason())));
+        ReflectionTestUtils.setField(catalog, "rerankEnabled", true);
+        when(reranker.rank(anyString(), anyList(), anyInt())).thenReturn(
+                new BailianReranker.Result(List.of(local.approvedCorpus().stream()
+                        .filter(e -> e.title().startsWith("乙主题")).findFirst().orElseThrow()), "OK"));
+        assertTrue(catalog.inspect("甲主题，没有乙主题", 3, 0).retrieval().evidence().isEmpty(),
+                "Even a faulty reranker must not reintroduce an explicitly excluded title");
+        verify(reranker).rank(eq("甲主题，没有乙主题"), argThat(pool ->
+                pool.stream().noneMatch(e -> e.title().startsWith("乙主题"))), eq(3));
+    }
+
     @Test void selectedSectionsComeFromApprovedChunkNotUntrustedVectorPayload() {
         var local = new InMemoryKnowledgeCatalog(false);
         var document = local.addDocument("合成资料", "# 合成主题\n\n## 检查限定\n\n这是一段合成测试正文，不是医学资料。");
