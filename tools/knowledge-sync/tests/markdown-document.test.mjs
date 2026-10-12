@@ -44,6 +44,10 @@ test('lean front matter resolves one bound provenance record without embedding a
   lean.provenanceFile='provenance.json';lean.provenanceSha256=sha(provenance);
   const p=parseMarkdownDocument(document(lean),provenance);
   assert.equal(p.metadata.sources[0].sourceId,'fixture');
+  assert.equal(p.metadata.intakeAudit.documentId,'fixture');
+  assert.equal(p.metadata.intakeAudit.provenanceSha256,sha(provenance));
+  assert.equal(p.metadata.intakeAudit.contentSha256,p.contentSha256);
+  assert.equal(p.metadata.intakeAudit.sourceSnapshots[0].sha256,sha(source));
   assert.ok(!p.body.includes('Not medical evidence'));
   assert.equal(inspectMarkdownDocument(document(lean),source,provenance).sourceVerified,true);
   assert.throws(()=>parseMarkdownDocument(document(lean),provenance+' '),/HASH/);
@@ -56,6 +60,6 @@ test('all sources are bound and source filenames cannot traverse directories',()
     const provenance=JSON.stringify({...header,metadata:meta,sourceSnapshots:snapshots});
     return ()=>inspectMarkdownDocument(document({...lean,provenanceFile:'provenance.json',provenanceSha256:sha(provenance)}),source,provenance);
   };
-  assert.throws(check([{sourceId:'fixture',file:'../source.en.md',sha256:sha(source)}]),/PROVENANCE/);
-  assert.throws(check([{sourceId:'other',file:'source.en.md',sha256:sha(source)}]),/INCOMPLETE/);
+  assert.throws(check([{sourceId:'fixture',file:'../source.en.md',sha256:sha(source)}]),/PROVENANCE|INTAKE_AUDIT/);
+  assert.throws(check([{sourceId:'other',file:'source.en.md',sha256:sha(source)}]),/INCOMPLETE|INTAKE_AUDIT/);
 });

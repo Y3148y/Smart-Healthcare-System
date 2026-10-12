@@ -11,6 +11,17 @@ test('body tampering and undeclared evidence use fail closed',()=>{
   assert.throws(()=>validateLocalPacket({...packet(),body:'changed'}),/HASH/);
   const p=packet();p.metadata.evidenceUses=[];assert.throws(()=>validateLocalPacket(p),/EVIDENCE_USE/);
 });
+test('bound intake audit survives validation and rejects changed body or source manifest',()=>{
+  const p=packet(),sha=createHash('sha256').update('source').digest('hex');
+  p.metadata.intakeAudit={documentId:'fixture',provenanceSha256:sha,contentSha256:p.contentSha256,
+    extractionWarnings:[],sourceSnapshots:[{file:'source.en.md',sourceId:'fixture',sha256:sha}]};
+  assert.equal(validateLocalPacket(p).metadata.intakeAudit.contentSha256,p.contentSha256);
+  p.metadata.intakeAudit.contentSha256='a'.repeat(64);
+  assert.throws(()=>validateLocalPacket(p),/INVALID_INTAKE_AUDIT/);
+  p.metadata.intakeAudit.contentSha256=p.contentSha256;
+  p.metadata.intakeAudit.sourceSnapshots[0].sourceId='unrelated';
+  assert.throws(()=>validateLocalPacket(p),/INVALID_INTAKE_AUDIT/);
+});
 test('external or credential-bearing backend is rejected',()=>{
   for(const url of ['https://example.org/api/','http://user:secret@localhost:8081/api/','http://localhost:8081/api/?token=x'])
     assert.throws(()=>localApiBase(url),/LOCAL_BACKEND/);

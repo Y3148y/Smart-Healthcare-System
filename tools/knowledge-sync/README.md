@@ -36,7 +36,9 @@
 
 ## 采集和审核边界
 
-本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。只有分隔符之后正文进入切分/向量化；审核说明不进入正文。后端保存来源/适用元数据与导入审计清单；原始网页正文和章节到来源的逐段映射仍留在本地。客户端哈希记录不等于服务端独立认证来源。
+本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。导入器将受绑定的文档ID、provenance/正文哈希、来源快照清单和抽取告警放入 `metadata.intakeAudit`，与正文一同提交；只有分隔符之后正文进入切分/向量化，审核说明不进入正文。后端保存来源/适用元数据与该审计清单；原始网页正文和章节到来源的逐段映射仍留在本地。客户端哈希记录不等于服务端独立认证来源。
+
+早期版本导入的同标题/正文资料可能缺少 `intakeAudit`。本机测试准入命令只对**内容完全一致、具有原 `TEST_ONLY_LOCAL` 依据且唯一命中**的记录执行撤回→补审计清单→重新审批；非测试审批、内容变化或身份不唯一均拒绝自动修复。普通 `import:local` 遇到旧记录的元数据冲突仍返回409，不能静默覆盖。
 
 使用 `npm run import:local -- document.md` 先离线校验；加 `--apply` 才创建待审记录。contentKind沿用后端 reviewed_summary 枚举，这个名称不表示已经完成医学审核。
 

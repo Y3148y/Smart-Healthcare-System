@@ -12,6 +12,7 @@ export function parseMarkdownDocument(text,provenanceText) {
       || header.approvalStatus!=='PENDING_REVIEW' || header.clinicalReviewStatus!=='NOT_REVIEWED')
     throw new Error('INVALID_DOCUMENT_REVIEW_STATE');
   const body=match[2];
+  const contentSha256=createHash('sha256').update(body).digest('hex');
   let metadata=header.metadata;
   if(header.provenanceFile!==undefined) {
     if(header.provenanceFile!=='provenance.json' || typeof provenanceText!=='string'
@@ -22,10 +23,12 @@ export function parseMarkdownDocument(text,provenanceText) {
     if(audit.documentId!==header.documentId || audit.approvalStatus!==header.approvalStatus
         || audit.clinicalReviewStatus!==header.clinicalReviewStatus) throw new Error('INVALID_PROVENANCE');
     if(header.metadata!==undefined) throw new Error('DUPLICATE_DOCUMENT_METADATA');
-    metadata=audit.metadata;
+    metadata={...audit.metadata,intakeAudit:{documentId:header.documentId,
+      provenanceSha256:header.provenanceSha256,contentSha256,
+      extractionWarnings:audit.extractionWarnings??[],sourceSnapshots:audit.sourceSnapshots}};
   }
   const packet={schemaVersion:1,title:header.title,body,
-    contentSha256:createHash('sha256').update(body).digest('hex'),metadata};
+    contentSha256,metadata};
   validateLocalPacket(packet);
   return packet;
 }

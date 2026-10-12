@@ -13,6 +13,24 @@ export function validateLocalPacket(packet) {
       || !['pending','restricted','permitted'].includes(m.permissionStatus)) throw new Error('INVALID_METADATA');
   if (m.permissionStatus === 'permitted' && (typeof m.permissionEvidence !== 'string' || !m.permissionEvidence.trim()))
     throw new Error('PERMISSION_EVIDENCE_REQUIRED');
+  if(m.intakeAudit!==undefined && m.intakeAudit!==null) {
+    const audit=m.intakeAudit;
+    if(typeof audit.documentId!=='string' || !audit.documentId.trim() || audit.documentId.length>160
+        || !/^[a-f0-9]{64}$/.test(audit.provenanceSha256??'') || audit.contentSha256!==hash
+        || !Array.isArray(audit.extractionWarnings) || audit.extractionWarnings.length>100
+        || audit.extractionWarnings.some(value=>typeof value!=='string' || !value.trim() || value.length>500)
+        || !Array.isArray(audit.sourceSnapshots) || audit.sourceSnapshots.length!==m.sources.length
+        || audit.sourceSnapshots.length>8) throw new Error('INVALID_INTAKE_AUDIT');
+    const sourceIds=new Set(m.sources.map(source=>source.sourceId));
+    const names=new Set(),ids=new Set();
+    for(const snapshot of audit.sourceSnapshots) {
+      if(!snapshot || !/^source(?:\.[a-z]+)?\.en\.md$/.test(snapshot.file??'')
+          || typeof snapshot.sourceId!=='string' || !sourceIds.has(snapshot.sourceId)
+          || !/^[a-f0-9]{64}$/.test(snapshot.sha256??'')
+          || names.has(snapshot.file) || ids.has(snapshot.sourceId)) throw new Error('INVALID_INTAKE_AUDIT');
+      names.add(snapshot.file);ids.add(snapshot.sourceId);
+    }
+  }
   for (const source of m.sources) {
     let url;
     try {url=new URL(source.url);} catch {throw new Error('INVALID_SOURCE');}
