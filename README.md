@@ -108,6 +108,8 @@ mvn spring-boot:run
 
 默认后端为 `http://127.0.0.1:8081`。本机有多个 JDK 时先设置 `JAVA_HOME` 为 JDK 17；IDEA 运行配置选择 JDK 17，并保存数据库和模型环境变量一次，之后直接点击运行，不需要重复添加模式、端口或 profile 参数。
 
+没有模型凭据而只验证界面与确定性演示流程时，可在启动前显式设置 `$env:AI_MODE='demo'`；该模式不调用外部 LLM，不可拿来验收真实 Agent 或 RAG 回答。恢复真实模式需移除此覆盖并提供下一节的模型配置。默认模式仍要求真实模型凭据，缺失时启动报错。
+
 ### 3. 启动前端
 
 另开终端：
@@ -180,7 +182,7 @@ node scripts/check-public-content.cjs
 ```
 
 后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。
-同样的离线检查已配置在 [GitHub Actions](.github/workflows/verify.yml)；远端运行结果应以实际工作流记录为准，不能用本机通过代替。
+同样的离线检查和 Compose 配置语法检查已配置在 [GitHub Actions](.github/workflows/verify.yml)；配置检查不启动 MySQL/Qdrant，也不证明干净环境服务已经跑通。远端运行结果应以实际工作流记录为准，不能用本机通过代替。
 
 前后端已在本机启动时，可选用 Node.js 22 和 Chromium 运行只读页面检查：
 
