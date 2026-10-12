@@ -14,6 +14,8 @@
 
 管理员在医学知识库同时选择一篇资料的正文MD、provenance.json和全部来源快照，核验后提交待审；普通TXT/MD需填写来源及许可。仅在使用权限核查完成、待审元数据明确为 `permitted` 后，授权审批才可使其进入检索；公开副本的转载许可不自动完成这一步。应用不会自动读取该目录。上传附件统一归档仍未实现，现有接口只保存正文、基础来源和适用元数据，不能声称已保存全部源附件。
 
+2026-10-12维护者允许11篇示例资料用于**隔离本机测试**，可按 [测试准入命令](../tools/knowledge-sync/README.md) 在独立测试库导入、标记测试授权并审批。Git中的资料继续保持待审/未经临床审核；测试数据库的 `READY` 不代表医院或临床批准，不可将该库当作面向真实患者的发布库。
+
 Markdown头记录编写时的待审状态；实际审批看数据库及releases/回执。操作者批准不等于临床审核。
 
 目录按主题组织：allergy、cardiovascular、digestive、gynaecology、neurology、orthopaedics、respiratory。每篇的JSON front matter通过SHA-256绑定provenance.json，后者记录来源、日期、适用范围、章节来源和快照哈希。文件使用Git二进制式换行保留规则，避免checkout换行转换破坏绑定。正文和元数据保持原稿，公开提交不自动解除原有审核阻断。

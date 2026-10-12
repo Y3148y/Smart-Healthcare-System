@@ -12,6 +12,7 @@
     "test": "node --test tests/*.test.mjs",
     "intake": "node cli.mjs intake",
     "import:local": "node import-local.mjs",
+    "approve:test": "node approve-test-corpus.mjs",
     "sources": "node cli.mjs sources",
     "fetch": "node cli.mjs fetch",
     "diff": "node cli.mjs diff",
