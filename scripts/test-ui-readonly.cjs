@@ -173,9 +173,16 @@ async function run() {
         { status: 200, headers: { 'Content-Type': 'application/json' } }))
       window.__uiSmokePaths = []
       window.__uiSmokePermission = 'pending'
+      window.__uiSmokeApprovalCalls = 0
       window.fetch = (input, init) => {
         const url = String(input)
         if (url.includes('ui-smoke-pending')) window.__uiSmokePaths.push(url)
+        if (url === '/api/admin/knowledge/ui-smoke-pending/approve' && init?.method === 'POST') {
+          if (window.__uiSmokePermission !== 'permitted') throw Error('Fixture approval requires permitted usage')
+          window.__uiSmokeApprovalCalls++
+          doc.status = 'READY'
+          return reply(doc)
+        }
         if (!init?.method || init.method === 'GET') {
           if (url === '/api/admin/knowledge') return reply([doc])
           if (url === '/api/admin/knowledge/ui-smoke-pending/details') return reply({ document: doc,
@@ -190,7 +197,8 @@ async function run() {
               sources: [] } })
           if (url === '/api/admin/knowledge/ui-smoke-pending/chunks') return reply([])
         }
-        if (url.includes('/ui-smoke-pending/approve')) throw Error('Approval write must never leave the browser fixture')
+        if (url.includes('/ui-smoke-pending/') && init?.method !== 'GET')
+          throw Error('Synthetic knowledge write must never leave the browser fixture')
         return original(input, init)
       }
       return true
@@ -216,6 +224,10 @@ async function run() {
     await click('.admin-document .admin-title button.mini')
     await click('.table-card.admin-scroll tbody tr button.mini')
     await waitUntil(() => page.evaluate('document.querySelector(".admin-document button.primary")?.disabled === false'))
+    await click('.admin-document button.primary') // intercepted POST; synthetic document only
+    await waitUntil(() => page.evaluate('window.__uiSmokeApprovalCalls === 1 && document.querySelector(".admin-document h3")?.innerText === "Synthetic pending approval fixture" && !document.querySelector(".admin-document button.primary")'))
+    assert.equal(await page.evaluate('document.querySelector(".admin-document")?.innerText.includes("向量状态")'), true,
+      'Approval result must leave the refreshed detail and index status visible')
     await page.evaluate('window.fetch = window.__uiSmokeOriginalFetch; true')
     await click('.admin-document .admin-title button.mini')
     await click('.admin-title button.mini')
@@ -238,7 +250,7 @@ async function run() {
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Observation refresh did not load all technical endpoints')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → pending-permission approval guard → observation refresh.`)
+    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh.`)
   } finally {
     page?.socket.close()
     child.kill()
