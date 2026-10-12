@@ -93,7 +93,7 @@ SSE 推送阶段进度，正文检查后整段返回，不是逐 token 展示。
 
 ## 评估：工程回归与人工质量分开
 
-普通 JDK 17 Maven 测试使用模型桩，不调用供应商；真实集成测试须显式设置 `AI_RAG_LIVE_TEST=true`。夹具测试只证明机械行为，不证明医学质量。
+普通 JDK 17 Maven 测试使用模型桩，不调用供应商；带供应商凭据的在线检索评估须显式设置 `AI_RAG_LIVE_TEST=true`。另有 `QdrantLiveIntegrationTest`：CI 以合成二维 embedding 对真实隔离 Qdrant 执行新增、增量、查询及撤回后的活动集合过滤；本机可用 `-Dtest=QdrantLiveIntegrationTest -Dai.test.qdrant-url=http://127.0.0.1:<隔离端口>` 单独运行。它不调用供应商，也不使用医学资料；通过只证明向量接口与活动集合闸门的机械行为，不是召回率或医学质量。
 
 工具入口：
 
