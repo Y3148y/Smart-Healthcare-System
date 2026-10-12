@@ -51,7 +51,7 @@ jobs:
           npm test
           npm run audit:corpus
       - name: Verify every public document and its provenance
-        run: find knowledge/corpus -name document.zh-CN.md -print0 | xargs -0 -r node tools/knowledge-sync/validate-document.mjs
+        run: node tools/knowledge-sync/validate-document.mjs --corpus
       - name: Offline RAG evaluation tool tests
         working-directory: tools/rag-eval
         run: npm test

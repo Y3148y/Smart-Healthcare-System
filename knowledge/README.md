@@ -18,7 +18,7 @@ Markdown头记录编写时的待审状态；实际审批看数据库及releases/
 
 目录按主题组织：allergy、cardiovascular、digestive、gynaecology、neurology、orthopaedics、respiratory。每篇的JSON front matter通过SHA-256绑定provenance.json，后者记录来源、日期、适用范围、章节来源和快照哈希。文件使用Git二进制式换行保留规则，避免checkout换行转换破坏绑定。正文和元数据保持原稿，公开提交不自动解除原有审核阻断。
 
-离线校验：`node tools/knowledge-sync/validate-document.mjs knowledge/corpus/neurology/migraine/document.zh-CN.md`。
+全部11篇离线校验：`node tools/knowledge-sync/validate-document.mjs --corpus`；单篇可传入具体MD路径。
 真实片段检查：JDK17编译backend后，运行 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus`。
 
 日志与工程评估放在本机reports/；当前开发方案与安全缺口仍在docs/，旧交接归档docs/archive/。不在业务目录保存一次性发布脚本或构建副本。

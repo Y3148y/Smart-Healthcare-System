@@ -2,11 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseMarkdownDocument,inspectMarkdownDocument} from '../lib/markdown-document.mjs';
 import {createHash} from 'node:crypto';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 const header={schemaVersion:1,documentId:'fixture',title:'Engineering fixture',approvalStatus:'PENDING_REVIEW',
   clinicalReviewStatus:'NOT_REVIEWED',metadata:{schemaVersion:1,language:'en',contentKind:'source_extract',
     sources:[{sourceId:'fixture',publisher:'Test',url:'https://example.org'}],topics:['fixture'],population:[],
     exclusions:[],prerequisites:[],evidenceUses:['general_information'],permissionStatus:'pending',permissionEvidence:null}};
 const document=h=>'---\n'+JSON.stringify(h)+'\n---\n# Fixture\n\n## Section\nSynthetic body.\n';
+test('corpus validation is a portable read-only command covering every public document',()=>{
+  const cli=fileURLToPath(new URL('../validate-document.mjs',import.meta.url));
+  const checked=spawnSync(process.execPath,[cli,'--corpus'],{encoding:'utf8'});
+  assert.equal(checked.status,0,checked.stderr);
+  assert.deepEqual(JSON.parse(checked.stdout),{documents:11,allSourceVerified:true,reviewStatuses:['PENDING_REVIEW']});
+  const missing=spawnSync(process.execPath,[cli,'does-not-exist.md'],{encoding:'utf8'});
+  assert.equal(missing.status,1);
+  assert.ok(!missing.stderr.includes('does-not-exist.md'));
+});
 test('front matter is validated but excluded from the indexed body',()=>{
   const p=parseMarkdownDocument(document(header));
   assert.equal(p.body,'# Fixture\n\n## Section\nSynthetic body.\n');
