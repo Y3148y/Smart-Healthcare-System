@@ -21,10 +21,12 @@ export async function approveTestDocument(packet,{base,token,fetcher=fetch}) {
   if(packet?.metadata?.permissionStatus!=='pending' || !packet.metadata.sources?.length)
     throw new Error('PENDING_CORPUS_PACKET_REQUIRED');
   let id;
+  let conflictingImport=false;
   try {
     id=(await importPendingPacket(packet,{base:url.href,token,fetcher})).id;
   } catch(error) {
     if(error.message!=='IMPORT_HTTP_409') throw error;
+    conflictingImport=true;
     // A prior test import used the same body but omitted its audit manifest.
     // Only an exact, uniquely identified, TEST_ONLY_LOCAL record may be repaired.
     const documents=await jsonRequest(new URL('admin/knowledge',url),requestOptions(token,'GET'),fetcher);
@@ -40,6 +42,10 @@ export async function approveTestDocument(packet,{base,token,fetcher=fetch}) {
     throw new Error('EXISTING_DOCUMENT_CONTENT_MISMATCH');
   const currentAudit=JSON.stringify(declared.metadata?.intakeAudit??null);
   const expectedAudit=JSON.stringify(packet.metadata.intakeAudit??null);
+  // A 409 proves that the idempotency key is shared, not that this command
+  // owns the pre-existing record. Never promote an unmarked pending document.
+  if(conflictingImport && declared.metadata?.permissionEvidence!==TEST_EVIDENCE)
+    throw new Error('CONFLICTING_IMPORT_NOT_TEST_ONLY');
   if(detail?.document?.status==='READY') {
     if(declared.metadata?.permissionEvidence!==TEST_EVIDENCE)
       throw new Error('EXISTING_APPROVAL_NOT_TEST_ONLY');

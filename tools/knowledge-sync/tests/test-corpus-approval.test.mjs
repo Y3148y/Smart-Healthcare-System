@@ -85,3 +85,19 @@ test('an exact prior TEST_ONLY_LOCAL document can gain a missing audit after con
   assert.equal((await approveTestDocument(p,{token:'fixture',fetcher})).chunks,1);
   assert.deepEqual(calls.map(v=>v.split(' ')[0]),['POST','GET','GET','GET','POST','PUT','POST','GET']);
 });
+test('a conflicting pending document without test-only ownership is never promoted',async()=>{
+  const packet=fixture();
+  const calls=[];
+  const fetcher=async(url,options)=>{
+    const path=new URL(url).pathname;
+    calls.push(options.method+' '+path);
+    if(path.endsWith('/documents')) return {ok:false,status:409};
+    const value=path.endsWith('/knowledge')?[{id:'other',title:packet.title,body:packet.body}]:
+      path.endsWith('/details')?{document:{status:'PENDING_REVIEW',title:packet.title,body:packet.body}}:
+      path.endsWith('/metadata')?{metadata:{permissionStatus:'pending',permissionEvidence:null}}:null;
+    if(value===null) throw new Error('UNEXPECTED_MUTATION');
+    return {ok:true,json:async()=>value};
+  };
+  await assert.rejects(approveTestDocument(packet,{token:'fixture',fetcher}),/CONFLICTING_IMPORT_NOT_TEST_ONLY/);
+  assert.deepEqual(calls.map(call=>call.split(' ')[0]),['POST','GET','GET','GET']);
+});
