@@ -44,7 +44,7 @@ MyBatis 保存正文、来源/适用元数据、当前审批状态和导入审�
 
 `MarkdownChunker` 按标题和段落切分，同章节短段依次打包、不跨标题；长段最多 420 个 Unicode 码点，重叠 60 码点，优先句末切开。每片段保留文档/内容版本、稳定 chunk ID、章节路径、原始位置、正文哈希和切分策略。切分成功不证明医学条件完整，仍需片段级审核。
 
-JDK17编译后运行 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus`，使用应用的同一切分器逐篇检查原文覆盖、偏移、哈希与确定性。当前11篇得到78片段、26片段短于80码点、最长207码点、实际没有长段重叠窗口；420/60是配置上限，不是此次语料的实际片段长度或重叠量。这是机械审计，不能代替适用条件和警示语的医学复核，也不能凭短片段数量单独断定召回质量。
+JDK17编译后运行 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus`，使用应用的同一切分器逐篇检查原文覆盖、段落边界、每段对应的章节路径、偏移、哈希与确定性。`--self-test`包含正确/错误章节路径与段落跨片段的正反例。当前11篇得到78片段、26片段短于80码点、最长207码点、实际没有长段重叠窗口；420/60是配置上限，不是此次语料的实际片段长度或重叠量。这是机械审计，不能代替适用条件和警示语的医学复核，也不能凭短片段数量单独断定召回质量。
 
 BM25 和 embedding/Qdrant 使用同一批准片段集合：
 

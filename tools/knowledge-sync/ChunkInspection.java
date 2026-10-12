@@ -7,7 +7,7 @@ import java.util.regex.Pattern;
 // Runs the application chunker against the public drafts; checks mechanics, not clinical accuracy.
 class ChunkInspection {
   private static final Pattern FRONT_MATTER = Pattern.compile("(?s)^---\\n.*?\\n---\\n");
-  private static final Pattern HEADING = Pattern.compile("^#{1,6}\\s+.+");
+  private static final Pattern HEADING = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
 
   public static void main(String[] args) throws Exception {
     if(args.length==1 && "--self-test".equals(args[0])) { selfTest(); return; }
@@ -52,15 +52,27 @@ class ChunkInspection {
         int offset=0;
         int paragraphStart=-1;
         int paragraphEnd=-1;
+        var sectionPath=new ArrayList<String>();
+        var headingLevels=new ArrayList<Integer>();
         for(String line:body.split("\n",-1)) {
           String stripped=line.strip();
-          boolean heading=!fenced && HEADING.matcher(stripped).matches();
+          var headingMatch=HEADING.matcher(stripped);
+          boolean heading=!fenced && headingMatch.matches();
           if(heading || (!fenced && stripped.isEmpty())) {
-            if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd);
+            if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd,sectionPath);
             paragraphStart=-1;
           } else {
             if(paragraphStart<0)paragraphStart=body.codePointCount(0,offset);
             paragraphEnd=body.codePointCount(0,offset+line.length());
+          }
+          if(heading) {
+            int level=headingMatch.group(1).length();
+            while(!headingLevels.isEmpty() && headingLevels.get(headingLevels.size()-1)>=level) {
+              headingLevels.remove(headingLevels.size()-1);
+              sectionPath.remove(sectionPath.size()-1);
+            }
+            headingLevels.add(level);
+            sectionPath.add(headingMatch.group(2));
           }
           if(!heading) {
             int point=body.codePointCount(0,offset);
@@ -75,7 +87,7 @@ class ChunkInspection {
           if(stripped.startsWith("```") || stripped.startsWith("~~~"))fenced=!fenced;
           offset+=line.length()+1;
         }
-        if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd);
+        if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd,sectionPath);
         if(!chunks.equals(chunker.split(path.getParent().toString(),body.lines().findFirst().orElseThrow(),"local-source",body)))
           throw new IllegalStateException(path+": nondeterministic chunks");
         System.out.printf("%s bodyCodePoints=%d chunks=%d shortUnder80=%d maxChunk=%d%n",
@@ -91,11 +103,14 @@ class ChunkInspection {
   }
 
   private static void assertParagraphContained(Path path, List<com.aihospital.knowledge.domain.KnowledgeChunk> chunks,
-      int start, int end) {
+      int start, int end, List<String> expectedSectionPath) {
     if(start>=end)return;
-    if(chunks.stream().noneMatch(chunk->chunk.start()<=start && chunk.end()>=end))
+    var containing=chunks.stream().filter(chunk->chunk.start()<=start && chunk.end()>=end).findFirst();
+    if(containing.isEmpty())
       throw new IllegalStateException(path+": paragraph split across chunks near code point "+start
         +"; review whether medical conditions were separated");
+    if(!containing.get().sectionPath().equals(expectedSectionPath))
+      throw new IllegalStateException(path+": chunk section path differs from source headings near code point "+start);
   }
 
   private static void selfTest() {
@@ -103,15 +118,22 @@ class ChunkInspection {
     String prefix="# Synthetic\n\n";
     String shortBody=prefix+"a".repeat(100);
     assertParagraphContained(Path.of("synthetic"),
-        chunker.split("synthetic","Synthetic","local",shortBody),prefix.length(),shortBody.length());
+        chunker.split("synthetic","Synthetic","local",shortBody),prefix.length(),shortBody.length(),List.of("Synthetic"));
+    try {
+      assertParagraphContained(Path.of("synthetic"),
+          chunker.split("synthetic","Synthetic","local",shortBody),prefix.length(),shortBody.length(),List.of("Wrong"));
+      throw new AssertionError("Incorrect section path was not rejected");
+    } catch (IllegalStateException expected) {
+      if(!expected.getMessage().contains("section path differs"))throw expected;
+    }
     String longBody=prefix+"a".repeat(MarkdownChunker.MAX_LENGTH+30);
     try {
       assertParagraphContained(Path.of("synthetic"),
-          chunker.split("synthetic","Synthetic","local",longBody),prefix.length(),longBody.length());
+          chunker.split("synthetic","Synthetic","local",longBody),prefix.length(),longBody.length(),List.of("Synthetic"));
       throw new AssertionError("Split paragraph was not rejected");
     } catch (IllegalStateException expected) {
       if(!expected.getMessage().contains("paragraph split across chunks"))throw expected;
     }
-    System.out.println("paragraph-boundary-positive-and-negative=passed");
+    System.out.println("paragraph-boundary-and-section-path-positive-and-negative=passed");
   }
 }
