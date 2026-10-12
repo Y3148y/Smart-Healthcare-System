@@ -33,10 +33,10 @@ jobs:
       - name: Test backend without external model credentials
         working-directory: backend
         run: mvn --batch-mode test
-      - name: Verify simulated booking against MySQL 8.4
+      - name: Verify booking and knowledge approval boundaries against MySQL 8.4
         working-directory: backend
         run: >-
-          mvn --batch-mode -Dtest=SimulationBookingTests
+          mvn --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest
           -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/ai_hospital
           -Dspring.datasource.username=root
           -Dspring.datasource.password=synthetic-ci-only test
