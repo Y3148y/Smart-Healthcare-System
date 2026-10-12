@@ -109,6 +109,15 @@ class AdminKnowledgeWorkflowTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.metadata.intakeAudit.documentId").value("original-fixture"))
                 .andExpect(jsonPath("$.metadata.intakeAudit.contentSha256").value(bodyHash))
                 .andExpect(jsonPath("$.metadata.intakeAudit.sourceSnapshots[0].sha256").value("c".repeat(64)));
+        mvc.perform(post("/api/admin/knowledge/" + id + "/approve").header("Authorization", admin()))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/admin/knowledge/" + id + "/details").header("Authorization", admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.document.status").value("PENDING_REVIEW"))
+                .andExpect(jsonPath("$.indexStatus").value("NOT_APPROVED"));
+        assertTrue(catalog.retrieve("Canonical audit fixture", 3, 0.28).evidence().stream()
+                .noneMatch(e -> e.title().equals("Canonical import fixture")),
+                "An admin click cannot publish material with unresolved usage permission");
     }
 
     @Test void debugProducesRequestLocalCandidatesAndBoundedMetadataWithoutPatientText() throws Exception {
