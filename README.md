@@ -183,6 +183,8 @@ node scripts/check-public-content.cjs
 ```
 
 后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。
+
+`RuntimeJourneyTest` 使用真实随机 HTTP 端口验证合成目录新增、预约幂等重放、容量冲突、停用保留历史、知识审批/撤回与患者会话隔离；CI 同时在隔离 MySQL 8.4 上执行。它不连接本机8081，不调用外部模型，不代表浏览器完整写流程或医学质量验收。
 同样的离线检查和 Compose 配置语法检查已配置在 [GitHub Actions](.github/workflows/verify.yml)；配置检查不启动 MySQL/Qdrant，也不证明干净环境服务已经跑通。远端运行结果应以实际工作流记录为准，不能用本机通过代替。
 
 前后端已在本机启动时，可选用 Node.js 22 和 Chromium 运行只读页面检查：
