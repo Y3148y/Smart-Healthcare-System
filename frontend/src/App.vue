@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { api, setToken } from './api'
+import { api, setToken, clearSession } from './api'
 import { patientResources } from './patientResources'
 import TriagePage from './features/triage/TriagePage.vue'
 import HomePage from './features/home/HomePage.vue'
@@ -13,7 +13,6 @@ import type { Doctor, ChatSession, TimelineEvent } from './features/triage/types
 const params=new URLSearchParams(window.location.search), demo=params.get('demo'), loginFromForm=(params.get('login')||'').trim(), initialRole=(demo==='admin'||loginFromForm.toLowerCase()==='admin')?'ADMIN':'PATIENT', isDemoEntry=Boolean(demo||loginFromForm)
 const readStored=(key:string)=>{try{return localStorage.getItem(key)}catch{return null}}
 const store=(key:string,value:string)=>{try{localStorage.setItem(key,value)}catch{}}
-const clearStored=()=>{try{localStorage.clear()}catch{}}
 // Demo routes authenticate first; rendering the app before that request succeeds caused false "login failed" states.
 // A native demo-login form navigates with ?login=...; enter the matching demo role immediately,
 // then obtain/refresh its API token in the background so the UI never appears to ignore a click.
@@ -82,7 +81,7 @@ async function book(d:Doctor, sessionId='walk-in'){
     window.location.assign(patientRoute('visits',{booked:a.registrationNo}))
   }catch(e:any){showToast(`预约结果待确认：${e.message}。请先查看我的就诊；本页重试相同号源会复用请求标识。`)}finally{bookingRunning.value=false}
 }
-function logout(){clearStored();history.replaceState({},'',window.location.pathname);loggedIn.value=false;role.value='PATIENT';page.value='home'}
+function logout(){clearSession();patientLoadVersion++;history.replaceState({},'',window.location.pathname);loggedIn.value=false;adminReady.value=false;patientReady.value=false;role.value='PATIENT';page.value='home'}
 const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:doctors.value.filter(d=>d.department===selectedDept.value))
 </script>
 

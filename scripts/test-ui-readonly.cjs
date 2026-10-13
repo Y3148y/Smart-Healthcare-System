@@ -331,6 +331,13 @@ async function run() {
     await click('.admin-title button.mini')
     await waitUntil(() => page.evaluate('document.querySelector(".catalog-fields")?.disabled === false && !document.querySelector(".catalog-error")'))
     assert.equal(await page.evaluate('window.__catalogFixtureWrites'),1, 'Refreshing after a successful write must never create again')
+    await page.evaluate('localStorage.setItem("ui-smoke-retain", "fixture"); true')
+    await click('.account-menu summary')
+    await click('.account-logout')
+    await waitUntil(() => page.evaluate('Boolean(document.querySelector(".login-form"))'))
+    assert.equal(await page.evaluate('localStorage.getItem("ai-hospital-token")'),null)
+    assert.equal(await page.evaluate('localStorage.getItem("ai-hospital-login")'),null)
+    assert.equal(await page.evaluate('localStorage.getItem("ui-smoke-retain")'),'fixture', 'Logout must not clear unrelated storage')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
     console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh → tools single-load/failure/recovery/synthetic trial/uncertain toggle → catalog single-load/synthetic write/read-back failure/recovery.`)
   } finally {

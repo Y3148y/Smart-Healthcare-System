@@ -14,15 +14,16 @@ function loadApi(search, fetch, initialToken = 'expired-token') {
   const values = new Map([['ai-hospital-token', initialToken]])
   const storage = {
     getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value)
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key)
   }
   const context = {
     exports: {}, fetch, localStorage: storage,
     window: { location: { search } },
-    Headers, URLSearchParams, FormData
+    Headers, URLSearchParams, FormData, TextDecoder
   }
   vm.runInNewContext(compiled, context, { filename: 'api.ts' })
-  return { api: context.exports.api, storage }
+  return { api: context.exports.api, streamResult:context.exports.streamResult, setToken:context.exports.setToken, clearSession:context.exports.clearSession, storage }
 }
 
 function response(status, body) {
@@ -78,6 +79,67 @@ test('normal login does not silently use a demo account', async () => {
 
   await assert.rejects(api('/appointments'), /Unauthorized/)
   assert.equal(loginCount, 0)
+})
+
+test('logout clears memory and only application login storage',async()=>{
+  const authorizations=[]
+  const {api,storage,clearSession}=loadApi('',async(url,init)=>{
+    authorizations.push(init.headers.get('Authorization'));return response(200,{})
+  })
+  storage.setItem('unrelated-preference','keep')
+  storage.setItem('ai-hospital-login','zhangsan')
+  clearSession();await api('/appointments')
+  assert.equal(storage.getItem('ai-hospital-token'),null)
+  assert.equal(storage.getItem('ai-hospital-login'),null)
+  assert.equal(storage.getItem('unrelated-preference'),'keep')
+  assert.deepEqual(authorizations,[null])
+})
+
+test('late refresh cannot restore a logged-out session or replay its request',async()=>{
+  let release,loginStarted,requests=0
+  const started=new Promise(resolve=>{loginStarted=resolve})
+  const {api,storage,clearSession}=loadApi('?demo=patient',async url=>{
+    requests++
+    if(url==='/api/auth/login'){loginStarted();return new Promise(resolve=>{release=resolve})}
+    return response(401,{message:'Unauthorized'})
+  })
+  const pending=api('/appointments')
+  await started;clearSession();release(response(200,{token:'late-token'}))
+  await assert.rejects(pending,/登录状态已改变/)
+  assert.equal(storage.getItem('ai-hospital-token'),null);assert.equal(requests,2)
+  await assert.rejects(api('/appointments'),/Unauthorized/)
+  assert.equal(requests,3,'logout must also stop implicit demo login')
+})
+
+test('late refresh cannot overwrite an explicitly established new login',async()=>{
+  let release,loginStarted
+  const started=new Promise(resolve=>{loginStarted=resolve})
+  const {api,storage,setToken}=loadApi('?demo=patient',async url=>{
+    if(url==='/api/auth/login'){loginStarted();return new Promise(resolve=>{release=resolve})}
+    return response(401,{message:'Unauthorized'})
+  })
+  const pending=api('/appointments')
+  await started;setToken('new-account-token');release(response(200,{token:'old-account-token'}))
+  await assert.rejects(pending,/登录状态已改变/)
+  assert.equal(storage.getItem('ai-hospital-token'),'new-account-token')
+})
+
+test('a response body arriving after logout is not delivered to the former view',async()=>{
+  let release,bodyStarted
+  const started=new Promise(resolve=>{bodyStarted=resolve})
+  const {api,clearSession}=loadApi('',async()=>({status:200,ok:true,json:()=>{
+    bodyStarted();return new Promise(resolve=>{release=resolve})
+  }}))
+  const pending=api('/appointments')
+  await started;clearSession();release({privateFixture:true})
+  await assert.rejects(pending,/登录状态已改变/)
+})
+
+test('stream results are rejected after the session changes during stage delivery',async()=>{
+  const {streamResult,clearSession}=loadApi('',async()=>new Response(
+    'event: status\ndata: {"stage":"QUERYING"}\n\nevent: result\ndata: {"privateFixture":true}\n\n',
+    {headers:{'Content-Type':'text/event-stream'}}))
+  await assert.rejects(streamResult('/triage/test',{},()=>clearSession()),/登录状态已改变/)
 })
 
 test('live proxy recovers a stale patient token', { skip: process.env.AI_HOSPITAL_LIVE !== '1' }, async () => {
