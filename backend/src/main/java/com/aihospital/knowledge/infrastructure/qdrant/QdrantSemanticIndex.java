@@ -146,8 +146,8 @@ public class QdrantSemanticIndex {
             return true;
         } catch (Exception ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            status = "INDEX_UNAVAILABLE";
-            log.warn("Semantic index unavailable; retrieval policy controls fallback ({})", ex.getClass().getSimpleName());
+            status = ex instanceof UpstreamHttpException upstream ? upstream.safeStatus() : "INDEX_UNAVAILABLE";
+            log.warn("Semantic index unavailable; retrieval policy controls fallback ({})", status);
             return false;
         }
     }
@@ -214,10 +214,10 @@ public class QdrantSemanticIndex {
             return new SearchResult(List.copyOf(found), "READY");
         } catch (Exception ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            status = "SEARCH_UNAVAILABLE";
+            status = ex instanceof UpstreamHttpException upstream ? upstream.safeStatus() : "SEARCH_UNAVAILABLE";
             synchronized (this) { indexed = false; indexedPointIds.clear(); }
-            log.warn("Semantic retrieval failed; retrieval policy controls fallback ({})", ex.getClass().getSimpleName());
-            return new SearchResult(List.of(), "SEARCH_UNAVAILABLE");
+            log.warn("Semantic retrieval failed; retrieval policy controls fallback ({})", status);
+            return new SearchResult(List.of(), status);
         }
     }
 
@@ -267,7 +267,15 @@ public class QdrantSemanticIndex {
         if (embeddingRequest) builder.header("Authorization", "Bearer " + apiKey);
         HttpRequest request = builder.method(method, HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-        if (response.statusCode() / 100 != 2) throw new IllegalStateException("外部索引服务响应 HTTP " + response.statusCode());
+        if (response.statusCode() / 100 != 2)
+            throw new UpstreamHttpException(embeddingRequest ? "EMBEDDING" : "QDRANT", response.statusCode());
         return json.readTree(response.body());
+    }
+
+    private static final class UpstreamHttpException extends Exception {
+        private final String service;
+        private final int code;
+        private UpstreamHttpException(String service, int code) { this.service = service; this.code = code; }
+        private String safeStatus() { return service + "_HTTP_" + code; }
     }
 }

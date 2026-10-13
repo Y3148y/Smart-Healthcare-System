@@ -19,6 +19,50 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class QdrantSemanticIndexTest {
     @Test
+    void classifiesEmbeddingHttpFailureWithoutExposingResponseBody() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> respond(exchange, 429, "{\"message\":\"private detail\"}"));
+        server.createContext("/collections/diagnostic-test", exchange -> respond(exchange, 404, "{}"));
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            ReflectionTestUtils.setField(index, "model", "test-embedding");
+            ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+            ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+            ReflectionTestUtils.setField(index, "qdrantUrl", base);
+            ReflectionTestUtils.setField(index, "collection", "diagnostic-test");
+            assertFalse(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("EMBEDDING_HTTP_429", index.status());
+        } finally { server.stop(0); }
+    }
+
+    @Test
+    void classifiesQdrantSearchHttpFailureSeparatelyFromEmbedding() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> respond(exchange, 200,
+                "{\"data\":[{\"index\":0,\"embedding\":[1.0,0.0]}]}"));
+        server.createContext("/collections/diagnostic-test", exchange ->
+                respond(exchange, "GET".equals(exchange.getRequestMethod()) ? 404 : 200, "{\"result\":true}"));
+        server.createContext("/collections/diagnostic-test/points", exchange -> respond(exchange, 200, "{\"result\":true}"));
+        server.createContext("/collections/diagnostic-test/points/search", exchange ->
+                respond(exchange, 503, "{\"message\":\"private detail\"}"));
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            ReflectionTestUtils.setField(index, "model", "test-embedding");
+            ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+            ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+            ReflectionTestUtils.setField(index, "qdrantUrl", base);
+            ReflectionTestUtils.setField(index, "collection", "diagnostic-test");
+            assertTrue(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("QDRANT_HTTP_503", index.searchDetailed("query", 3, 0.45).status());
+            assertEquals("QDRANT_HTTP_503", index.status());
+        } finally { server.stop(0); }
+    }
+
+    @Test
     void configuredSemanticIndexCreatesCollectionAndReturnsCitedChunk() throws Exception {
         var upsertedTitles = new CopyOnWriteArrayList<String>();
         var upsertedPoints = new java.util.concurrent.ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode>();
