@@ -249,8 +249,56 @@ async function run() {
     await waitUntil(() => page.evaluate('window.__uiSmokeRefresh?.started >= 4 && window.__uiSmokeRefresh.pending === 0 && document.querySelector(".admin-title button.mini")?.innerText === "刷新状态与记录"'))
     assert.equal(await page.evaluate('document.querySelector(".admin-workspace [role=alert]")?.innerText || null'), null,
       'Observation refresh did not load all technical endpoints')
+    await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+      const original = window.fetch.bind(window)
+      window.__toolsRequests = []
+      window.fetch = (input, init) => { window.__toolsRequests.push(String(input)); return original(input, init) }
+    })()` })
+    await click('.admin-side a[href*="adminPage=tools"]')
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-title h2")?.innerText === "Agent 工具中心" && document.querySelectorAll(".admin-scroll tbody tr").length > 0'))
+    assert.deepEqual(await page.evaluate('window.__toolsRequests.filter(path => path.startsWith("/api/admin/"))'), ['/api/admin/tools'],
+      'Opening tools should not preload unrelated admin resources')
+    await page.evaluate(`(() => {
+      const original = window.fetch.bind(window)
+      window.__toolFixtureFail = true
+      window.__toolFixtureWrites = 0
+      const tool = {code:'department_search',name:'Synthetic directory',description:'Browser fixture only',enabled:true}
+      const reply = (value, status=200) => Promise.resolve(new Response(JSON.stringify(value), {status,headers:{'Content-Type':'application/json'}}))
+      window.fetch = (input, init) => {
+        const url = String(input)
+        if(url === '/api/admin/tools') return window.__toolFixtureFail ? reply({message:'Synthetic list unavailable'},503) : reply([tool])
+        if(url.startsWith('/api/admin/tools/') && init?.method === 'PATCH') {
+          window.__toolFixtureWrites++; return reply({message:'Synthetic uncertain response'},503)
+        }
+        if(url === '/api/admin/tools/department_search/run' && init?.method === 'POST') {
+          window.__toolFixtureWrites++
+          if(JSON.parse(init.body).department !== 'Synthetic') throw Error('Wrong protocol parameter')
+          return reply({data:{exists:false},trace:{success:true,outcome:'Synthetic no department',elapsedMs:7}})
+        }
+        if(url.startsWith('/api/admin/tools/') && init?.method) throw Error('Unexpected fixture write')
+        return original(input,init)
+      }
+      return true
+    })()`)
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-tool-error")?.innerText.includes("Synthetic list unavailable")'))
+    assert.equal(await page.evaluate('Array.from(document.querySelectorAll(".admin-scroll tbody button")).every(button => button.disabled)'), true)
+    await page.evaluate('window.__toolFixtureFail = false; true')
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('document.querySelectorAll(".admin-scroll tbody tr").length === 1 && !document.querySelector(".admin-tool-error")'))
+    await click('.admin-scroll tbody button.mini')
+    await page.evaluate(`(() => { const input = document.querySelector('.admin-tool-trial input'); input.value='Synthetic'; input.dispatchEvent(new Event('input',{bubbles:true})); return true })()`)
+    await click('.admin-tool-trial button.primary')
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-tool-trial pre")?.innerText.includes("false")'))
+    assert.equal(await page.evaluate('window.__toolFixtureWrites'),1)
+    await click('.admin-scroll tbody button.switch')
+    await waitUntil(() => page.evaluate('document.querySelector(".admin-tool-error")?.innerText.includes("状态变更结果待确认")'))
+    assert.equal(await page.evaluate('document.querySelector(".admin-scroll tbody button.switch")?.disabled'),true)
+    assert.equal(await page.evaluate('window.__toolFixtureWrites'),2, 'No automatic write retry after uncertain toggle')
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('!document.querySelector(".admin-tool-error") && document.querySelector(".admin-scroll tbody button.switch")?.disabled === false'))
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh.`)
+    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh → tools single-load/failure/recovery/synthetic trial/uncertain toggle.`)
   } finally {
     page?.socket.close()
     child.kill()
