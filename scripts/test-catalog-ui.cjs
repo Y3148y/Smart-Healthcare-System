@@ -1,7 +1,7 @@
 // Synthetic catalogue fixtures are disabled at the end, never represented as hospital data.
+const base = require('./local-test-target.cjs').localTestTarget(process.env.ADMIN_TEST_BASE_URL)
 const { chromium } = require('playwright')
 const assert = require('node:assert/strict')
-const base = process.env.ADMIN_TEST_BASE_URL || 'http://127.0.0.1:5188'
 ;(async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'})
  const page=await browser.newPage()
@@ -30,6 +30,8 @@ const base = process.env.ADMIN_TEST_BASE_URL || 'http://127.0.0.1:5188'
   await page.getByLabel('总容量',{exact:true}).fill('0')
   await page.getByRole('button',{name:'保存医生',exact:true}).click()
   await page.getByRole('alert').filter({hasText:'容量不能低于已预约数量'}).waitFor()
+  await page.getByRole('button',{name:'刷新目录',exact:true}).click()
+  await page.locator('.catalog-fields:not([disabled])').waitFor()
   await page.getByLabel('总容量',{exact:true}).fill('3')
   await page.getByRole('button',{name:'保存医生',exact:true}).click()
   await page.getByRole('status').filter({hasText:'医生与模拟号源已保存'}).waitFor()

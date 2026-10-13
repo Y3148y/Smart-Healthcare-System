@@ -171,6 +171,8 @@ npm run evaluate:public
 
 ## 开发与测试
 
+旧版写入/真实模型探针（`scripts/test-*-live.cjs` 以及 `test-admin-ui`、`test-catalog-ui`、`test-human-review-ui`、`test-patient-profile-ui`）必须显式设置脚本使用的 `ADMIN_TEST_BASE_URL` 或 `AI_HOSPITAL_BASE_URL`，并传入 `--apply`。仅接受不含凭据的本机 HTTP origin；请使用隔离测试实例，它们可能留下合成会话、预约、资料或消耗模型额度。浏览器探针另需在 `NODE_PATH` 中提供 Playwright，不属于默认安装/验收命令。日常只读检查优先使用 `test-ui-readonly.cjs`，无需该写入开关。离线 SSE 检查 `node scripts/test-progress-client.cjs` 只依赖前端已安装的 TypeScript，不再依赖任何 `.codex` 临时目录。
+
 ```powershell
 cd backend
 mvn test

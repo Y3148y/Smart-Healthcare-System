@@ -71,12 +71,15 @@ jobs:
           node scripts/check-public-files.cjs
           node --test scripts/check-public-content.test.cjs
           node scripts/check-public-content.cjs
+          node --test scripts/local-test-target.test.cjs
       - name: Frontend test and build
         working-directory: frontend
         run: |
           npm ci
           npm test
           npm run build
+      - name: Verify fragmented SSE transport without live services
+        run: node scripts/test-progress-client.cjs
       - name: Knowledge source validation tests
         working-directory: tools/knowledge-sync
         run: |

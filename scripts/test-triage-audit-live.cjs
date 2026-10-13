@@ -1,7 +1,7 @@
 // Explicit live integration check. Creates one synthetic lisi session, no booking or catalogue writes.
 // Medical text is sent by the configured backend to its existing provider. No credentials or text printed.
 const assert = require('node:assert/strict')
-const base = (process.env.AI_HOSPITAL_BASE_URL || 'http://127.0.0.1:8081').replace(/\/$/, '')
+const base = require('./local-test-target.cjs').localTestTarget(process.env.AI_HOSPITAL_BASE_URL)
 const endpoint = new URL(base)
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname), 'This probe is local-only')
 

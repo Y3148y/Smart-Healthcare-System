@@ -1,6 +1,6 @@
 // Real SSE and browser checks using synthetic lisi conversations, no booking or slot deduction.
+const base=require('./local-test-target.cjs').localTestTarget(process.env.ADMIN_TEST_BASE_URL)
 const {chromium}=require('playwright'),assert=require('node:assert/strict')
-const base=process.env.ADMIN_TEST_BASE_URL||'http://127.0.0.1:5188'
 ;(async()=>{
  const login=await(await fetch(base+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'lisi',password:'123456'})})).json()
  const headers={'Content-Type':'application/json',Authorization:'Bearer '+login.token}

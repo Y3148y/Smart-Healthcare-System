@@ -1,6 +1,6 @@
 // Explicit local integration probe: invalid requests only; no booking or model call.
 const assert = require('node:assert/strict')
-const base = (process.env.AI_HOSPITAL_BASE_URL || 'http://127.0.0.1:8081').replace(/\/$/, '')
+const base = require('./local-test-target.cjs').localTestTarget(process.env.AI_HOSPITAL_BASE_URL)
 assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(new URL(base).hostname), 'Local service only')
 async function main() {
   const login = await fetch(base + '/api/auth/login', {

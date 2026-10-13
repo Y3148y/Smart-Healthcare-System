@@ -1,7 +1,7 @@
 // Uses the lisi demo account; synthetic health fields are restored after the test.
+const base=require('./local-test-target.cjs').localTestTarget(process.env.ADMIN_TEST_BASE_URL)
 const {chromium}=require('playwright')
 const assert=require('node:assert/strict')
-const base=process.env.ADMIN_TEST_BASE_URL||'http://127.0.0.1:5188'
 ;(async()=>{
  const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'})
  const page=await browser.newPage();let baseline,token

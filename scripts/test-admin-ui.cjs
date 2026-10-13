@@ -1,7 +1,7 @@
 // Run with Playwright available in NODE_PATH. Uses real HTTP APIs on a local demo instance.
+const base=require('./local-test-target.cjs').localTestTarget(process.env.ADMIN_TEST_BASE_URL)
 const { chromium } = require('playwright')
 const assert = require('node:assert/strict')
-const base = process.env.ADMIN_TEST_BASE_URL || 'http://127.0.0.1:5188'
 const executablePath = process.env.ADMIN_TEST_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe'
 const expectedMode = process.env.ADMIN_TEST_EXPECT_MODE || 'HYBRID_QDRANT_RERANKED'
 
