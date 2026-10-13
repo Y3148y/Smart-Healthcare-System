@@ -223,7 +223,7 @@ public class QdrantSemanticIndex {
 
     private List<List<Double>> embeddings(List<String> input) throws Exception {
         JsonNode response = request("POST", embeddingBaseUrl.replaceAll("/+$", "") + "/embeddings",
-                Map.of("model", model, "input", input), true);
+                Map.of("model", model, "input", input, "encoding_format", "float"), true);
         List<List<Double>> vectors = new ArrayList<>();
         for (int i = 0; i < input.size(); i++) vectors.add(null);
         for (JsonNode item : response.path("data")) {
@@ -268,14 +268,38 @@ public class QdrantSemanticIndex {
         HttpRequest request = builder.method(method, HttpRequest.BodyPublishers.ofString(json.writeValueAsString(body))).build();
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() / 100 != 2)
-            throw new UpstreamHttpException(embeddingRequest ? "EMBEDDING" : "QDRANT", response.statusCode());
+            throw new UpstreamHttpException(embeddingRequest ? "EMBEDDING" : "QDRANT", response.statusCode(),
+                    embeddingRequest ? safeEmbeddingError(response.body()) : "");
         return json.readTree(response.body());
+    }
+
+    // Only known identifiers are retained. A syntactically safe arbitrary string can still be a key or input.
+    private String safeEmbeddingError(String body) {
+        if (body == null || body.length() > 16_384) return "";
+        try {
+            JsonNode root = json.readTree(body);
+            JsonNode error = root.path("error").isObject() ? root.path("error") : root;
+            String code = error.path("code").asText("");
+            if (!Set.of("InvalidParameter", "InternalError.Algo.InvalidParameter", "invalid_parameter",
+                    "invalid_value", "invalid_request_error", "invalid_api_key", "InvalidApiKey",
+                    "InvalidInput", "ModelNotFound", "model_not_found", "unsupported_model",
+                    "AccessDenied", "access_denied", "AccessDenied.Unpurchased", "Model.AccessDenied",
+                    "Arrearage", "insufficient_quota", "Throttling", "Throttling.RateQuota",
+                    "Throttling.AllocationQuota", "rate_limit_exceeded", "DataInspectionFailed",
+                    "data_inspection_failed", "InternalError", "ServiceUnavailable").contains(code)) return "";
+            String param = error.path("param").asText("");
+            return ":" + code + (Set.of("model", "input", "dimensions", "encoding_format").contains(param)
+                    ? ":" + param : "");
+        } catch (Exception ignored) { return ""; }
     }
 
     private static final class UpstreamHttpException extends Exception {
         private final String service;
         private final int code;
-        private UpstreamHttpException(String service, int code) { this.service = service; this.code = code; }
-        private String safeStatus() { return service + "_HTTP_" + code; }
+        private final String detail;
+        private UpstreamHttpException(String service, int code, String detail) {
+            this.service = service; this.code = code; this.detail = detail;
+        }
+        private String safeStatus() { return service + "_HTTP_" + code + detail; }
     }
 }

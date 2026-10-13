@@ -81,6 +81,8 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 
 embedding 或 Qdrant 的非成功 HTTP 响应在管理员检索状态中分别记录为 `EMBEDDING_HTTP_状态码`、`QDRANT_HTTP_状态码`，不记录供应商响应正文、密钥或患者问题。无法分类的传输/解析异常仍为 `INDEX_UNAVAILABLE` 或 `SEARCH_UNAVAILABLE`；`configured=true` 只表示参数齐全，不表示调用成功。要求语义检索的运行模式遇到这些故障仍阻断资料依据，不把依赖失败伪装成无资料。
 
+embedding 请求显式指定 `encoding_format=float`，与数值向量解析契约一致，接口参数见[百炼官方说明](https://help.aliyun.com/zh/model-studio/text-embedding-synchronous-api/)。非成功响应仅提取预设白名单中的错误标识及 `model/input/dimensions/encoding_format` 参数名，例如 `EMBEDDING_HTTP_400:InvalidParameter:model`；不保留自由文本 message、未知 code/param 或超长响应。HTTP 400 本身不能证明额度耗尽；根据安全错误标识核对配置或账户，不自动切换模型、供应商或关闭语义依赖闸门。
+
 诊断记录各路排名、标题/正文 BM25 词项贡献、重排分数、选择理由和片段版本。片段章节由本轮批准正文按完整身份映射，不相信向量 payload 中的单方声明；身份或章节歧义保持未知。标题不同可能来自同一警示条件，但高分不能证明病因或个人适用性。
 
 检索候选加入一个窄范围否定约束：当患者原话以“没有/并无/不伴/未出现/否认”明确否认某个**已审批资料标题冒号前的完整主题**，且同一问题没有再次肯定提到该主题时，该标题的片段仍可在诊断候选中看到，但不得进入最终证据或重排候选。它不修改安全评估原话，也不推断疾病或从任意句子抽取医学事实；隐含否定、同义词、混合主体和标题不一致的情况并未解决。无重排模式同样应用该约束，不能把一次负向用例通过说成医学相关性已验收。

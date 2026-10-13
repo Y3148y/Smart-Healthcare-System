@@ -19,6 +19,42 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class QdrantSemanticIndexTest {
     @Test
+    void exposesOnlyKnownProviderErrorAndParameterIdentifiers() {
+        var index = new QdrantSemanticIndex(new ObjectMapper());
+        assertEquals(":InvalidParameter:model", ReflectionTestUtils.invokeMethod(index, "safeEmbeddingError",
+                "{\"error\":{\"code\":\"InvalidParameter\",\"param\":\"model\",\"message\":\"private detail\"}}"));
+        assertEquals(":Arrearage", ReflectionTestUtils.invokeMethod(index, "safeEmbeddingError",
+                "{\"code\":\"Arrearage\",\"message\":\"private detail\"}"));
+        assertEquals(":invalid_request_error:input", ReflectionTestUtils.invokeMethod(index, "safeEmbeddingError",
+                "{\"error\":{\"code\":\"invalid_request_error\",\"param\":\"input\"}}"));
+        for (String body : List.of("not json", "{}", "x".repeat(16_385),
+                "{\"error\":{\"code\":\"private-user-input\",\"param\":\"model\"}}"))
+            assertEquals("", ReflectionTestUtils.invokeMethod(index, "safeEmbeddingError", body));
+        assertEquals(":InvalidParameter", ReflectionTestUtils.invokeMethod(index, "safeEmbeddingError",
+                "{\"error\":{\"code\":\"InvalidParameter\",\"param\":\"private-user-input\"}}"));
+    }
+
+    @Test
+    void embedding400PreservesSafeCodeButNeverRawMessage() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> respond(exchange, 400,
+                "{\"error\":{\"code\":\"InvalidParameter\",\"param\":\"model\",\"message\":\"private detail\"}}"));
+        server.createContext("/collections/diagnostic-test", exchange -> respond(exchange, 404, "{}"));
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            ReflectionTestUtils.setField(index, "model", "test-embedding");
+            ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+            ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+            ReflectionTestUtils.setField(index, "qdrantUrl", base);
+            ReflectionTestUtils.setField(index, "collection", "diagnostic-test");
+            assertFalse(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("EMBEDDING_HTTP_400:InvalidParameter:model", index.status());
+        } finally { server.stop(0); }
+    }
+
+    @Test
     void classifiesEmbeddingHttpFailureWithoutExposingResponseBody() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/embeddings", exchange -> respond(exchange, 429, "{\"message\":\"private detail\"}"));
@@ -65,12 +101,14 @@ class QdrantSemanticIndexTest {
     @Test
     void configuredSemanticIndexCreatesCollectionAndReturnsCitedChunk() throws Exception {
         var upsertedTitles = new CopyOnWriteArrayList<String>();
+        var embeddingFormats = new CopyOnWriteArrayList<String>();
         var upsertedPoints = new java.util.concurrent.ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode>();
         var corruptPayload = new java.util.concurrent.atomic.AtomicBoolean();
         var collectionConfig = new AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/embeddings", exchange -> {
             var body = new ObjectMapper().readTree(exchange.getRequestBody());
+            embeddingFormats.add(body.path("encoding_format").asText());
             int count = body.path("input").size();
             StringBuilder response = new StringBuilder("{\"data\":[");
             for (int i = 0; i < count; i++) {
@@ -136,6 +174,8 @@ class QdrantSemanticIndexTest {
             assertEquals(beforeRepeat, upsertedTitles.size(), "重复审批或检索不得重复 upsert 相同 point id");
             corruptPayload.set(true);
             assertTrue(index.search("膝关节外伤", 3, 0.28).isEmpty(), "mismatched remote payload is not evidence");
+            assertTrue(embeddingFormats.size() >= 2, "indexing and query embedding both exercised");
+            assertTrue(embeddingFormats.stream().allMatch("float"::equals));
         } finally { server.stop(0); }
     }
 
