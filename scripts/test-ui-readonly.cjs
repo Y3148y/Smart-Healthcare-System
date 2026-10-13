@@ -297,8 +297,42 @@ async function run() {
     assert.equal(await page.evaluate('window.__toolFixtureWrites'),2, 'No automatic write retry after uncertain toggle')
     await click('.admin-title button.mini')
     await waitUntil(() => page.evaluate('!document.querySelector(".admin-tool-error") && document.querySelector(".admin-scroll tbody button.switch")?.disabled === false'))
+    await click('.admin-side a[href*="adminPage=catalog"]')
+    await waitUntil(() => page.evaluate('document.querySelector(".catalog-fields")?.disabled === false'))
+    assert.deepEqual(await page.evaluate('window.__toolsRequests.filter(path => path.startsWith("/api/admin/"))'),
+      ['/api/admin/catalog/departments', '/api/admin/catalog/doctors'], 'Catalog initial load must read each resource only once')
+    await page.evaluate(`(() => {
+      const original = window.fetch.bind(window)
+      window.__catalogFixtureWrites = 0
+      window.__catalogFixtureReadFails = true
+      const department = {id:'ui-smoke-department',name:'Synthetic department',enabled:true}
+      const reply = (data,status=200) => Promise.resolve(new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json'}}))
+      window.fetch = (input,init) => {
+        const url=String(input)
+        if(url === '/api/admin/catalog/departments' && init?.method === 'POST') {
+          window.__catalogFixtureWrites++;return reply(department)
+        }
+        if(url.startsWith('/api/admin/catalog/')) {
+          if(init?.method && init.method !== 'GET') throw Error('Unexpected catalog fixture write')
+          return window.__catalogFixtureReadFails ? reply({message:'Synthetic read failure'},503)
+            : reply(url.endsWith('/departments') ? [department] : [])
+        }
+        return original(input,init)
+      }
+      const input=document.querySelector('.catalog-form input')
+      input.value='Synthetic department';input.dispatchEvent(new Event('input',{bubbles:true}))
+      return true
+    })()`)
+    await click('.catalog-form button.primary')
+    await waitUntil(() => page.evaluate('document.querySelector(".catalog-error")?.innerText.includes("操作已成功，但目录刷新失败")'))
+    assert.equal(await page.evaluate('document.querySelector(".catalog-fields")?.disabled'),true)
+    assert.equal(await page.evaluate('window.__catalogFixtureWrites'),1)
+    await page.evaluate('window.__catalogFixtureReadFails = false; true')
+    await click('.admin-title button.mini')
+    await waitUntil(() => page.evaluate('document.querySelector(".catalog-fields")?.disabled === false && !document.querySelector(".catalog-error")'))
+    assert.equal(await page.evaluate('window.__catalogFixtureWrites'),1, 'Refreshing after a successful write must never create again')
     assert.deepEqual(page.pageErrors, [], 'Browser reported an uncaught exception')
-    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh → tools single-load/failure/recovery/synthetic trial/uncertain toggle.`)
+    console.log(`Read-only UI smoke passed: patient triage → synthetic history read/reset → visits; admin knowledge load/failure/recovery${hasDocuments ? ' → document detail' : ' (empty catalog)'} → synthetic permission guard/approval refresh → observation refresh → tools single-load/failure/recovery/synthetic trial/uncertain toggle → catalog single-load/synthetic write/read-back failure/recovery.`)
   } finally {
     page?.socket.close()
     child.kill()
