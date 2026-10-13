@@ -12,7 +12,13 @@ public final class TurnTraceContext implements AutoCloseable {
     private final long started;
     private String route = "UNDECIDED";
     private boolean closed;
-    public record Metadata(String traceId, String userMessageId, String route, String safetyPolicyVersion, long elapsedMs) {}
+    private java.util.List<Execution> executions = new java.util.concurrent.CopyOnWriteArrayList<>();
+    /** Technical summaries only; no tool arguments, patient text or provider error bodies. */
+    public record Execution(String kind, String name, String status, long elapsedMs,
+                            Boolean rrfUsed, Boolean rerankEnabled, Boolean rerankUsed,
+                            Integer selectedCount) {}
+    public record Metadata(String traceId, String userMessageId, String route, String safetyPolicyVersion,
+                           long elapsedMs, java.util.List<Execution> executions) {}
     private TurnTraceContext(String userMessageId, String policyVersion) {
         id = UUID.randomUUID().toString(); started = System.nanoTime();
         previous = CURRENT.get(); this.userMessageId = userMessageId; this.policyVersion = policyVersion;
@@ -21,6 +27,7 @@ public final class TurnTraceContext implements AutoCloseable {
     private TurnTraceContext(Metadata snapshot) {
         previous = CURRENT.get(); id = snapshot.traceId(); userMessageId = snapshot.userMessageId();
         policyVersion = snapshot.safetyPolicyVersion(); route = snapshot.route();
+        if (snapshot.executions() != null) executions = snapshot.executions();
         started = System.nanoTime() - java.util.concurrent.TimeUnit.MILLISECONDS.toNanos(snapshot.elapsedMs());
         CURRENT.set(this);
     }
@@ -30,6 +37,10 @@ public final class TurnTraceContext implements AutoCloseable {
     }
     public static TurnTraceContext open(String userMessageId, String policyVersion) { return new TurnTraceContext(userMessageId, policyVersion); }
     public static String currentId() { return CURRENT.get() == null ? null : CURRENT.get().id; }
+    public static void record(Execution execution) {
+        var context = CURRENT.get();
+        if (context != null && context.executions.size() < 64) context.executions.add(execution);
+    }
     public static String currentOrNewId() { return currentId() == null ? UUID.randomUUID().toString() : currentId(); }
     public void route(String route) {
         if (!java.util.Set.of("GUIDANCE", "ASSESSMENT", "SAFETY", "POLICY_REFUSAL").contains(route)) throw new IllegalArgumentException("Unknown workflow branch");
@@ -38,7 +49,7 @@ public final class TurnTraceContext implements AutoCloseable {
     public static Metadata metadata() {
         var context = CURRENT.get();
         return context == null ? null : new Metadata(context.id, context.userMessageId, context.route,
-                context.policyVersion, Math.max(0, (System.nanoTime() - context.started) / 1_000_000));
+                context.policyVersion, Math.max(0, (System.nanoTime() - context.started) / 1_000_000), context.executions);
     }
     @Override public void close() {
         if (closed) return;

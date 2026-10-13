@@ -298,6 +298,10 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 + "; selected=" + selected.size() + "; retrieval relevance does not prove answer support"), mode,
                 semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);
         recordEvent(report);
+        com.aihospital.shared.diagnostics.TurnTraceContext.record(
+                new com.aihospital.shared.diagnostics.TurnTraceContext.Execution("RETRIEVAL", mode,
+                        semanticReport.status() + " / " + reranked.status(), report.elapsedMs(),
+                        !ranked.isEmpty(), rerankEnabled, "OK".equals(reranked.status()), selected.size()));
         return report;
     }
     private static Evidence withSectionContext(Evidence evidence,

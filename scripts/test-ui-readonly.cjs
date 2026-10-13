@@ -97,7 +97,13 @@ async function run() {
             { id: 'fixture-user', role: 'USER', content: 'Synthetic historical question', createdAt: session.createdAt },
             { id: 'fixture-assistant', role: 'ASSISTANT', content: 'Synthetic historical reply',
               createdAt: session.updatedAt, provenance: { modelStatus: 'DEMO', knowledgeHits: 0,
-                localToolCalls: 0, toolFailures: 0 } }
+                localToolCalls: 1, toolFailures: 0,
+                turnTrace: { executions: [
+                  {kind:'TOOL',name:'medical_knowledge_retrieve',status:'SUCCEEDED',elapsedMs:12},
+                  {kind:'RETRIEVAL',name:'LOCAL_BM25_UNRERANKED',status:'UNAVAILABLE / DISABLED_BY_CONFIGURATION',elapsedMs:11,rrfUsed:true,rerankEnabled:false,rerankUsed:false,selectedCount:1}
+                ]},
+                answerEvidence: {retrievalStatus:'RETRIEVED',validationStatus:'NOT_RUN',adoptedReferenceIds:[],
+                  retrievedReferences:[{id:'E1',title:'Synthetic document',excerpt:'Synthetic excerpt only',sectionPath:['Synthetic section']}]} } }
           ] })
         }
         return original(input, init)
@@ -117,6 +123,10 @@ async function run() {
     await waitUntil(() => page.evaluate('document.querySelector(".chat-scroll")?.innerText.includes("Synthetic historical reply")'))
     assert.equal(await page.evaluate('window.__uiSmokeHistoryReads'), 1,
       'Historical conversation must be loaded from the read endpoint')
+    await click('.answer-provenance > summary')
+    assert.ok(await page.evaluate(`document.querySelector('.execution').innerText.includes('rerank 已开启：否') && document.querySelector('.execution').innerText.includes('成功使用 rerank：否') && document.querySelector('.execution').innerText.includes('medical_knowledge_retrieve')`), 'Execution facts must distinguish configuration and actual rerank use')
+    await click('.execution details > summary')
+    assert.ok(await page.evaluate(`document.querySelector('.execution').innerText.includes('Synthetic excerpt only') && document.querySelector('.execution').innerText.includes('不代表已引用')`), 'Retrieved excerpts must not claim adoption')
     await click('.conversation-list .side-title button')
     await waitUntil(() => page.evaluate('!document.querySelector(".chat-scroll")?.innerText.includes("Synthetic historical reply")'))
     await click('a[href*="page=visits"]')

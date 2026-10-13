@@ -75,6 +75,10 @@ public class HospitalToolExecutor {
     }
 
     private void record(Execution execution) {
+        com.aihospital.shared.diagnostics.TurnTraceContext.record(
+                new com.aihospital.shared.diagnostics.TurnTraceContext.Execution("TOOL", execution.trace().tool(),
+                        execution.trace().success() ? "SUCCEEDED" : "FAILED", execution.trace().elapsedMs(),
+                        null, null, null, null));
         calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), execution.trace().tool(),
                 "工具调用", "LOCAL_TOOL", 0, 0, execution.trace().elapsedMs(), execution.trace().success(),
                 List.of(execution.trace())));

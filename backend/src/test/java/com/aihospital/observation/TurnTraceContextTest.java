@@ -6,6 +6,30 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TurnTraceContextTest {
+    @Test void executionSummaryFollowsExplicitWorkerScopeAndPersistsWithoutCrossTurnLeak() throws Exception {
+        var json = new com.fasterxml.jackson.databind.ObjectMapper();
+        try (var scope = TurnTraceContext.open("message", "policy")) {
+            var snapshot = TurnTraceContext.metadata();
+            var pool = Executors.newSingleThreadExecutor();
+            try {
+                pool.submit(() -> {
+                    try (var worker = TurnTraceContext.restore(snapshot)) {
+                        TurnTraceContext.record(new TurnTraceContext.Execution("RETRIEVAL", "LOCAL_BM25_UNRERANKED",
+                                "UNAVAILABLE / DISABLED_BY_CONFIGURATION", 10, true, false, false, 2));
+                    }
+                }).get(5, TimeUnit.SECONDS);
+            } finally { pool.shutdownNow(); }
+            var restored = json.readValue(json.writeValueAsString(TurnTraceContext.metadata()), TurnTraceContext.Metadata.class);
+            assertEquals(1, restored.executions().size());
+            assertTrue(restored.executions().get(0).rrfUsed());
+            assertFalse(restored.executions().get(0).rerankUsed());
+        }
+        try (var scope = TurnTraceContext.open("other", "policy")) {
+            assertTrue(TurnTraceContext.metadata().executions().isEmpty());
+        }
+        var old = json.readValue("{\"traceId\":\"old\",\"elapsedMs\":1}", TurnTraceContext.Metadata.class);
+        assertNull(old.executions());
+    }
     @Test void historicalJsonDoesNotAcquireCurrentTurnAndInvalidTraceIsNotExposed() throws Exception {
         try (var scope = TurnTraceContext.open("new-message", "policy")) {
             var old = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
