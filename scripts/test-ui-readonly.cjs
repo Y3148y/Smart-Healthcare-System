@@ -341,6 +341,43 @@ async function run() {
     await click('.admin-title button.mini')
     await waitUntil(() => page.evaluate('document.querySelector(".catalog-fields")?.disabled === false && !document.querySelector(".catalog-error")'))
     assert.equal(await page.evaluate('window.__catalogFixtureWrites'),1, 'Refreshing after a successful write must never create again')
+    await page.send('Page.addScriptToEvaluateOnNewDocument', {source:`(() => {
+      if(new URLSearchParams(location.search).get('adminPage')!=='reviews')return
+      const original=window.fetch.bind(window)
+      let row={id:'synthetic-review',status:'PENDING',summaryAccessible:true,createdAt:'2026-10-15T00:00:00Z'}
+      window.__reviewWrites=0;window.__reviewFail=true
+      const reply=data=>Promise.resolve(new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}}))
+      window.fetch=(input,init)=>{
+        const url=String(input)
+        if(url==='/api/admin/human-reviews')return reply([row])
+        if(url==='/api/admin/human-reviews/synthetic-review/summary')return reply({request:row,sessionTitle:'Synthetic review only',patientStatement:'Synthetic summary only',riskLevel:'待补充信息',source:'PATIENT_SELF_REPORT'})
+        if(url==='/api/admin/human-reviews/synthetic-review'&&init?.method==='PATCH'){
+          window.__reviewWrites++
+          if(window.__reviewFail)return Promise.reject(Error('Synthetic uncertain write'))
+          row={...row,status:JSON.parse(init.body).status};return reply(row)
+        }
+        return original(input,init)
+      }
+    })()`})
+    await open('/?demo=admin&page=admin&adminPage=reviews','人工导诊申请')
+    await waitUntil(()=>page.evaluate('document.querySelector("tbody tr button")?.disabled===false'))
+    await click('tbody tr button')
+    await waitUntil(()=>page.evaluate('document.querySelector(".review-summary")?.innerText.includes("Synthetic summary only")'))
+    await click('tbody tr button:nth-of-type(2)')
+    await waitUntil(()=>page.evaluate('document.querySelector("[role=alert]")?.innerText.includes("操作结果待核对")'))
+    assert.equal(await page.evaluate('Boolean(document.querySelector(".review-summary"))'),false)
+    assert.ok(await page.evaluate('[...document.querySelectorAll("tbody tr button")].every(b=>b.disabled)'))
+    assert.equal(await page.evaluate('window.__reviewWrites'),1)
+    await page.evaluate('window.__reviewFail=false;true')
+    await click('.admin-title button')
+    await waitUntil(()=>page.evaluate('document.querySelector("tbody tr button")?.disabled===false'))
+    assert.equal(await page.evaluate('window.__reviewWrites'),1,'Refresh must not retry a status mutation')
+    await click('tbody tr button')
+    await waitUntil(()=>page.evaluate('Boolean(document.querySelector(".review-summary"))'))
+    await click('tbody tr button:nth-of-type(2)')
+    await waitUntil(()=>page.evaluate('document.querySelector("[role=status]")?.innerText.includes("申请状态已更新")'))
+    assert.equal(await page.evaluate('Boolean(document.querySelector(".review-summary"))'),false)
+    assert.equal(await page.evaluate('window.__reviewWrites'),2)
     await page.evaluate('localStorage.setItem("ui-smoke-retain", "fixture"); true')
     await click('.account-menu summary')
     await click('.account-logout')
