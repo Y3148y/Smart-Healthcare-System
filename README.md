@@ -67,6 +67,8 @@ SSE 只推送处理阶段，正文检查后整段返回，并非逐 token 输出
 
 后端按业务模块分层组织，保留领域端口与外部适配器。会话服务负责身份和保存，工作流负责协调，路由返回类型化结果，普通咨询回答链复用既有证据检查。实现细节见 [架构说明](docs/ARCHITECTURE.md)、[Agent与工作流](docs/AGENT.md) 和 [RAG 设计与评估](docs/RAG.md)。
 
+当前词法检索是自实现内存 BM25：对批准片段统计词频与文档频率，查询时逐片段评分；中文使用2/3字符gram，未使用Elasticsearch、Lucene、IK或医学词典。回答依据核对是生成后的另一次模型请求，不是向量相似度阈值判定；通过核对也不代表医学审核通过。
+
 可复现的11篇医学示例资料位于 [knowledge/corpus](knowledge/corpus)，包含中文正文、来源元数据及必要文本快照；[资料说明](knowledge/README.md)和[来源许可](knowledge/LICENSE.md)说明导入方式及使用边界。公开资料不等于临床审核通过，也不会随启动自动导入或批准。
 
 ## 快速开始
@@ -99,6 +101,8 @@ docker compose up -d mysql qdrant
 ```
 
 已有 MySQL 时无需再启动 Compose MySQL。应用启动时初始化数据表；旧 H2 数据不会自动迁移。应用运行依赖仅含 MySQL 驱动，H2 保留为自动化测试依赖。
+
+当前 Compose 只运行 MySQL 和 Qdrant，前后端按下面步骤在宿主机启动；尚未提供应用 Dockerfile、应用容器健康检查或镜像体积实测。
 
 ### 2. 启动后端
 
