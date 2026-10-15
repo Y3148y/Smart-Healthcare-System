@@ -11,6 +11,25 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class HybridRetrievalPipelineTest {
+    @Test void lexicalFailureRemainsVisibleWhileIndependentDenseRouteCanContinue() {
+        var local = new InMemoryKnowledgeCatalog();
+        var semantic = mock(QdrantSemanticIndex.class);
+        when(semantic.ensureIndexed(anyList())).thenReturn(true);
+        when(semantic.searchDetailed(anyString(), anyInt(), anyDouble())).thenReturn(
+                new QdrantSemanticIndex.SearchResult(List.of(local.approvedCorpus().get(0)), "READY"));
+        var lexical = mock(com.aihospital.knowledge.domain.LexicalSearch.class);
+        when(lexical.search(anyString(), anyList(), anyInt(), anyDouble())).thenReturn(
+                new com.aihospital.knowledge.domain.LexicalSearch.Result(List.of(), "ELASTICSEARCH_UNAVAILABLE", java.util.Map.of()));
+        var catalog = new HybridKnowledgeCatalog(local, semantic, null, null,
+                new com.fasterxml.jackson.databind.ObjectMapper(), lexical);
+        var report = catalog.inspect("合成查询", 3, .28);
+        assertEquals("ELASTICSEARCH_UNAVAILABLE", report.lexicalStatus());
+        assertFalse(report.retrieval().evidence().isEmpty());
+        assertTrue(report.candidates().stream().allMatch(candidate -> candidate.lexicalRank() == 0));
+        assertEquals("ELASTICSEARCH_UNAVAILABLE", catalog.retrievalEvents().get(0).lexicalStatus());
+        verify(lexical).search(eq("合成查询"), eq(local.approvedCorpus()), eq(20), eq(.28));
+    }
+
     @Test void deniedTitleTopicStaysInDiagnosticsButCannotBeSelectedWithoutRerank() {
         var local = new InMemoryKnowledgeCatalog(false);
         for (String title : List.of("甲主题：说明", "乙主题：说明")) {
@@ -150,14 +169,15 @@ class HybridRetrievalPipelineTest {
                 .thenReturn(new QdrantSemanticIndex.SearchResult(List.of(), "READY"));
         var catalog = new HybridKnowledgeCatalog(local, semantic);
         catalog.inspect("流鼻涕", 3, 0.28);
-        Object first = ReflectionTestUtils.getField(catalog, "lexicalIndex");
+        Object adapter = ReflectionTestUtils.getField(catalog, "lexicalSearch");
+        Object first = ReflectionTestUtils.getField(adapter, "index");
         catalog.inspect("胸痛", 3, 0.28);
-        assertSame(first, ReflectionTestUtils.getField(catalog, "lexicalIndex"));
+        assertSame(first, ReflectionTestUtils.getField(adapter, "index"));
 
         var pending = catalog.addDocument("测试新资料", "新的测试内容");
         catalog.approveDocument(pending.id());
         catalog.inspect("新的测试内容", 3, 0.28);
-        assertNotSame(first, ReflectionTestUtils.getField(catalog, "lexicalIndex"));
+        assertNotSame(first, ReflectionTestUtils.getField(adapter, "index"));
     }
 
     @Test void mergesBothRoutesBeforeTruncationAndReranksAgainstOriginalQuery() {

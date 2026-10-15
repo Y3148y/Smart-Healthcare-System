@@ -52,7 +52,8 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 
 | 索引 | 实现与生命周期 |
 | --- | --- |
-| BM25 | 自实现不可变内存倒排索引（词项→片段位置），只对命中 postings 的候选评分；未使用 ES/Lucene。`searchDetailed` 提供候选数和 postings 访问数，不代表质量或延迟指标 |
+| BM25（默认ES） | `LexicalSearch` 端口接入 Elasticsearch，Lucene负责倒排与BM25；内置CJK分析器，标题/正文独立字段，k1=1.2、b=0.75、标题boost默认2，尚未调优 |
+| BM25（轻量选项） | `AI_LEXICAL_BACKEND=memory` 选择不可变内存postings，中文2/3字符gram；`searchDetailed` 提供访问计数，不代表质量或延迟指标 |
 | Qdrant | embedding 向量及溯源 payload；幂等 point ID，查询校验模型、版本、哈希和活动语料身份 |
 
 新 collection 可配置 HNSW；小数据可能全扫描。已有 collection 不会因应用默认值变化自动改配置，向量存储成功也不等于查询使用了 HNSW。应查看实际 collection 配置及 `indexed_vectors_count`，缺字段记未知，不推造性能结论。
@@ -60,6 +61,16 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 `KnowledgeIndexBuildRunner` 通过 `ai.knowledge.offline-index.enabled=true` 显式启用，复用批准语料同步入口；`ai.knowledge.offline-index.manifest-path` 指定本地清单。清单含片段身份、模型、语料指纹和实际 collection 配置，不含患者问题或正文；数量或身份不一致拒绝成功。
 
 ## 在线：多路召回到回答
+
+### ES索引和失败边界
+
+ES 8.17.6 使用原生 [CJK分析器](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/analysis-cjk-analyzer.html)，不是医学词典。例如“急性心肌梗死”实测为“急性/性心/心肌/肌梗/梗死”，不保留完整术语；医学词典、同义词和分析器消融仍待评估。标题boost默认2不是经验效果承诺。
+
+首次查询某批准语料快照时，以稳定片段内容身份生成文档ID，语料排序后的ID及分析策略版本生成SHA-256索引后缀。按100片段分批bulk写入，逐项检查状态并使用 `refresh=wait_for`，全部成功才在本进程标为可查询。进程重启可复用同名索引并幂等写入；存在索引须通过schema/快照元数据检查，不覆盖其他索引。审批新增、正文变化和撤回导致下一次查询选择新的快照；这是请求触发同步，不是后台增量任务或原子alias发布。旧快照暂不自动删除，运维须保留在途读取窗口后按明确索引名清理，不能直接通配删除。跨实例批准缓存同步仍未完成。
+
+查询通过 `multi_match` 搜索标题和正文；ES专用 `AI_ELASTICSEARCH_MIN_SCORE` 默认0，不套用内存BM25的0.28。ES结果再次校验文档ID、当前快照原文及来源；部分结果、超时和异常响应不采用。故障返回明确 `ELASTICSEARCH_*` 状态，不自动切到内存；Qdrant和已有语义/重排依赖策略继续独立生效，不能把词法故障当“资料不存在”。后台检索详情、事件及轮次trace保存词法状态，ES没有本地TF解释时不伪造解释项。
+
+本机Compose仅绑定9201，关闭认证仅供开发；远端端点须HTTPS，API Key从 `AI_ELASTICSEARCH_API_KEY` 注入。默认离线测试显式使用memory；`ElasticsearchLiveIntegrationTest` 须传 `-Dai.test.elasticsearch-url=http://127.0.0.1:<隔离端口>`，只创建合成语料和唯一测试前缀，按校验后的明确名称清理。该集成测试验证Lucene分析和索引接口，不提供医学召回率或质量结论。
 
 ```text
 本轮问题与有界上下文

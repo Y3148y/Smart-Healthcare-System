@@ -7,6 +7,8 @@ spring:
     init:
       mode: always
 ai:
+  retrieval:
+    lexical-backend: memory
   mode: demo
   agent:
     mode: OFF

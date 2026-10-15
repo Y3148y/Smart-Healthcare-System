@@ -2,7 +2,7 @@
 
 [![构建与测试](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg)](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml)
 [![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](backend/pom.xml)
-[![Docker Compose：MySQL + Qdrant](https://img.shields.io/badge/Docker%20Compose-MySQL%20%2B%20Qdrant-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-MySQL%20%2B%20Qdrant%20%2B%20ES-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
 基于 **LangChain4j、Spring Boot 与 Vue 3** 的多轮导诊示例应用，覆盖症状咨询、资料检索、就诊方向、模拟预约和管理员知识运营。目标是让开发者复现有业务约束的 LLM 工作流、受控只读工具调用、混合检索与回答溯源。
@@ -48,7 +48,7 @@ SSE 只推送处理阶段，正文检查后整段返回，并非逐 token 输出
 | --- | --- |
 | 模型接入 | LangChain4j 0.35.0、OpenAI-compatible API；特定请求参数使用有界 HTTP 适配器 |
 | 后端 | Java 17、Spring Boot 3.3.5、MyBatis |
-| 存储与检索 | MySQL、Qdrant、进程内 BM25 索引 |
+| 存储与检索 | MySQL、Elasticsearch BM25、Qdrant；内存 BM25 用于轻量模式与测试 |
 | 前端 | Vue 3、TypeScript、Vite |
 | 验证 | JUnit 5、Node.js Test Runner、独立 RAG 评估 CLI |
 
@@ -67,13 +67,13 @@ SSE 只推送处理阶段，正文检查后整段返回，并非逐 token 输出
 
 后端按业务模块分层组织，保留领域端口与外部适配器。会话服务负责身份和保存，工作流负责协调，路由返回类型化结果，普通咨询回答链复用既有证据检查。实现细节见 [架构说明](docs/ARCHITECTURE.md)、[Agent与工作流](docs/AGENT.md) 和 [RAG 设计与评估](docs/RAG.md)。
 
-当前词法检索是自实现内存 BM25：对批准片段统计词频与文档频率，查询时逐片段评分；中文使用2/3字符gram，未使用Elasticsearch、Lucene、IK或医学词典。回答依据核对是生成后的另一次模型请求，不是向量相似度阈值判定；通过核对也不代表医学审核通过。
+默认词法检索使用 Elasticsearch，由 Lucene 建倒排索引并执行 BM25；使用内置 CJK 分析器、标题/正文独立字段，未安装 IK 或医学词典，不保证完整医学术语保留。已审批语料指纹绑定索引快照，具体同步和故障边界见 [RAG](docs/RAG.md)。`AI_LEXICAL_BACKEND=memory` 可显式选择原内存 BM25（中文2/3字符gram），自动化测试使用该实现。两种实现的分数和排名不保证相同，尚无质量收益结论。回答依据核对仍是生成后的另一次模型请求，通过不代表医学审核通过。
 
 可复现的11篇医学示例资料位于 [knowledge/corpus](knowledge/corpus)，包含中文正文、来源元数据及必要文本快照；[资料说明](knowledge/README.md)和[来源许可](knowledge/LICENSE.md)说明导入方式及使用边界。公开资料不等于临床审核通过，也不会随启动自动导入或批准。
 
 ## 快速开始
 
-需要 JDK 17、Maven、Node.js 20+ 与 MySQL。Qdrant 用于向量检索，可通过项目 Compose 启动。
+需要 JDK 17、Maven、Node.js 20+ 与 MySQL。默认检索依赖 Elasticsearch 和 Qdrant，可通过项目 Compose 启动。
 
 ### 1. 准备数据库
 
@@ -97,12 +97,12 @@ CREATE DATABASE IF NOT EXISTS ai_hospital CHARACTER SET utf8mb4 COLLATE utf8mb4_
 
 ```powershell
 $env:MYSQL_ROOT_PASSWORD = $env:AI_DB_PASSWORD
-docker compose up -d mysql qdrant
+docker compose up -d mysql qdrant elasticsearch
 ```
 
 已有 MySQL 时无需再启动 Compose MySQL。应用启动时初始化数据表；旧 H2 数据不会自动迁移。应用运行依赖仅含 MySQL 驱动，H2 保留为自动化测试依赖。
 
-当前 Compose 只运行 MySQL 和 Qdrant，前后端按下面步骤在宿主机启动；尚未提供应用 Dockerfile、应用容器健康检查或镜像体积实测。
+当前 Compose 只运行 MySQL、Qdrant 和 Elasticsearch，前后端仍在宿主机启动；尚未提供应用 Dockerfile、应用容器健康检查或镜像体积实测。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
 
 ### 2. 启动后端
 
@@ -146,6 +146,9 @@ IDEA保存的环境变量只供该启动进程及其子进程使用，不提交�
 | `AI_EMBEDDING_BASE_URL`、`AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY` | embedding 接口；地址和密钥可继承聊天配置 |
 | `AI_QDRANT_URL`、`AI_QDRANT_COLLECTION` | 默认 `http://127.0.0.1:6333`、`ai_hospital_knowledge_v2`；使用其他既有集合时显式覆盖，不自动迁移数据 |
 | `AI_RERANK_ENABLED` | 默认 `false`；有服务和额度后显式启用 |
+| `AI_LEXICAL_BACKEND` | 默认 `elasticsearch`；`memory` 为显式轻量选项 |
+| `AI_ELASTICSEARCH_URL`、`AI_ELASTICSEARCH_API_KEY` | 默认 `http://127.0.0.1:9201`；远端须 HTTPS，API Key 仅从环境注入 |
+| `AI_ELASTICSEARCH_MIN_SCORE`、`AI_ELASTICSEARCH_TITLE_BOOST` | 默认0 / 2；ES专用阈值与标题权重，尚未调优，不沿用内存0.28 |
 | `AI_RERANK_URL`、`AI_RERANK_MODEL`、`AI_RERANK_API_KEY` | 可选百炼重排接口与凭据 |
 | `SPRING_PROFILES_ACTIVE=rag-live` | 可选严格向量配置；默认不要求rerank，不是日常启动必选项 |
 | `AI_RETRIEVAL_REQUIRE_SEMANTIC`、`AI_RETRIEVAL_REQUIRE_RERANK` | 普通配置均默认 `false`；`rag-live` 仅前者默认 `true` |
@@ -197,7 +200,7 @@ node scripts/check-public-content.cjs
 后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。
 
 `RuntimeJourneyTest` 使用真实随机 HTTP 端口验证合成目录新增、预约幂等重放、容量冲突、停用保留历史、知识审批/撤回与患者会话隔离；CI 同时在隔离 MySQL 8.4 上执行。它不连接本机8081，不调用外部模型，不代表浏览器完整写流程或医学质量验收。
-同样的离线检查和 Compose 配置语法检查已配置在 [GitHub Actions](.github/workflows/verify.yml)；配置检查不启动 MySQL/Qdrant，也不证明干净环境服务已经跑通。远端运行结果应以实际工作流记录为准，不能用本机通过代替。
+离线检查、Compose配置检查及独立ES合成语料集成测试已配置在 [GitHub Actions](.github/workflows/verify.yml)。配置检查本身不启动依赖；远端运行结果以实际工作流记录为准，不能用本机通过代替。
 
 前后端已在本机启动时，可选用 Node.js 22 和 Chromium 运行只读页面检查：
 

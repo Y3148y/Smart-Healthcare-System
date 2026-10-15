@@ -1,6 +1,8 @@
 package com.aihospital.knowledge.infrastructure.qdrant;
 
 import com.aihospital.knowledge.domain.Bm25Retriever;
+import com.aihospital.knowledge.domain.LexicalSearch;
+import com.aihospital.knowledge.infrastructure.lexical.MemoryLexicalSearch;
 import com.aihospital.knowledge.domain.NegatedTitleTopics;
 import com.aihospital.knowledge.domain.KnowledgeCatalog;
 import com.aihospital.knowledge.domain.KnowledgeDocumentStore;
@@ -36,19 +38,15 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.retrieval.require-rerank:false}") private boolean requireRerank;
     @Value("${ai.rerank.enabled:true}") private boolean rerankEnabled = true;
     private volatile String lastMode = "NOT_QUERIED";
-    private volatile Bm25Retriever.Index lexicalIndex;
-    private synchronized Bm25Retriever.Index lexicalIndex(List<Evidence> corpus) {
-        if (lexicalIndex == null || !lexicalIndex.matches(corpus)) lexicalIndex = Bm25Retriever.index(corpus);
-        return lexicalIndex;
-    }
+    private final LexicalSearch lexicalSearch;
     private final java.util.Deque<RetrievalEvent> events = new java.util.ArrayDeque<>();
     public record RetrievalEvent(String id, java.time.Instant time, String mode, String semanticStatus,
-                                 String rerankStatus, int candidates, int selected, long elapsedMs) {}
+                                 String rerankStatus, int candidates, int selected, long elapsedMs, String lexicalStatus) {}
     @Override public synchronized List<RetrievalEvent> retrievalEvents() { return List.copyOf(events); }
     private synchronized void recordEvent(Report report) {
         events.addFirst(new RetrievalEvent(UUID.randomUUID().toString(), java.time.Instant.now(), report.mode(),
                 report.semanticStatus(), report.rerankStatus(), report.candidates().size(),
-                report.retrieval().evidence().size(), report.elapsedMs()));
+                report.retrieval().evidence().size(), report.elapsedMs(), report.lexicalStatus()));
         while (events.size() > 100) events.removeLast();
     }
     @Override public DocumentDetail documentDetails(String id) {
@@ -97,11 +95,16 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                                   BailianReranker reranker, KnowledgeDocumentStore documentStore) {
         this(local, semantic, reranker, documentStore, new ObjectMapper());
     }
-    @Autowired
     public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic,
                                   BailianReranker reranker, KnowledgeDocumentStore documentStore, ObjectMapper importJson) {
+        this(local, semantic, reranker, documentStore, importJson, new MemoryLexicalSearch());
+    }
+    @Autowired
+    public HybridKnowledgeCatalog(InMemoryKnowledgeCatalog local, QdrantSemanticIndex semantic,
+                                  BailianReranker reranker, KnowledgeDocumentStore documentStore, ObjectMapper importJson,
+                                  LexicalSearch lexicalSearch) {
         this.local = local; this.semantic = semantic; this.reranker = reranker; this.documentStore = documentStore;
-        this.importJson = importJson;
+        this.importJson = importJson; this.lexicalSearch = lexicalSearch;
     }
     @PostConstruct public void validateConfiguration() {
         if (documentStore != null) {
@@ -210,7 +213,12 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                                int semanticRank, Double semanticScore, double fusedScore, Double rerankScore, boolean kept, String reason,
                                List<Bm25Retriever.TermContribution> lexicalTerms) {}
     public record Report(Retrieval retrieval, String mode, String semanticStatus, String rerankStatus,
-                         List<FusionRecord> candidates, long elapsedMs) {}
+                         List<FusionRecord> candidates, long elapsedMs, String lexicalStatus) {
+        public Report(Retrieval retrieval, String mode, String semanticStatus, String rerankStatus,
+                      List<FusionRecord> candidates, long elapsedMs) {
+            this(retrieval, mode, semanticStatus, rerankStatus, candidates, elapsedMs, "NOT_QUERIED");
+        }
+    }
     @Override public List<Evidence> search(String query) { return retrieve(query, 5, lexicalMinScore).evidence(); }
     @Override public Report retrievalDetails(String query) { return inspect(query, 3, lexicalMinScore); }
     @Override public Retrieval retrieve(String query, int maxResults, double minimumScore) {
@@ -225,8 +233,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
         var corpus = local.approvedCorpus();
         Set<String> explicitlyNegatedTitles = NegatedTitleTopics.excludedTitles(query, corpus);
-        var requestLexicalIndex = lexicalIndex(corpus);
-        List<Evidence> lexical = requestLexicalIndex.search(query, depth, minimumScore);
+        var lexicalReport = lexicalSearch.search(query, corpus, depth, minimumScore);
+        List<Evidence> lexical = lexicalReport.evidence();
         var origins = chunkOrigins();
         boolean indexed = indexApprovedCorpus(corpus, origins);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
@@ -277,7 +285,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 : unreranked;
         selected = selected.stream().filter(e -> !explicitlyNegatedTitles.contains(e.title()))
                 .map(e -> withSectionContext(e, origins)).toList();
-        String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT" : "LOCAL_BM25";
+        String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT"
+                : lexicalReport.status().startsWith("ELASTICSEARCH") ? "ELASTICSEARCH_BM25" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
         lastMode = mode;
         Set<String> kept = new HashSet<>(); selected.forEach(e -> kept.add(Bm25Retriever.key(e)));
@@ -293,14 +302,14 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 : kept.contains(Bm25Retriever.key(c.evidence)) && reserved.contains(Bm25Retriever.key(c.evidence))
                         ? "selected_semantic_reserve_without_rerank"
                 : kept.contains(Bm25Retriever.key(c.evidence)) ? "selected_without_rerank" : "beyond_candidate_or_final_top_k",
-                c.lexicalRank == 0 ? List.of() : requestLexicalIndex.explain(query, c.evidence))).toList();
+                c.lexicalRank == 0 ? List.of() : lexicalReport.explanations().getOrDefault(Bm25Retriever.key(c.evidence), List.of()))).toList();
         var report = new Report(new Retrieval(selected, !selected.isEmpty(), mode + "; candidates=" + ranked.size()
                 + "; selected=" + selected.size() + "; retrieval relevance does not prove answer support"), mode,
-                semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000);
+                semanticReport.status(), reranked.status(), records, (System.nanoTime() - start) / 1_000_000, lexicalReport.status());
         recordEvent(report);
         com.aihospital.shared.diagnostics.TurnTraceContext.record(
                 new com.aihospital.shared.diagnostics.TurnTraceContext.Execution("RETRIEVAL", mode,
-                        semanticReport.status() + " / " + reranked.status(), report.elapsedMs(),
+                        lexicalReport.status() + " / " + semanticReport.status() + " / " + reranked.status(), report.elapsedMs(),
                         !ranked.isEmpty(), rerankEnabled, "OK".equals(reranked.status()), selected.size()));
         return report;
     }

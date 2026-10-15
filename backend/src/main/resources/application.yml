@@ -40,12 +40,20 @@ ai:
     planning-thinking: ${AI_AGENT_PLANNING_ENABLE_THINKING:false}
     total-planning-seconds: ${AI_AGENT_TOTAL_PLANNING_SECONDS:25}
   retrieval:
+    lexical-backend: ${AI_LEXICAL_BACKEND:elasticsearch}
     min-score: ${AI_RETRIEVAL_MIN_SCORE:0.28}
     semantic-min-score: ${AI_SEMANTIC_MIN_SCORE:0.45}
     candidate-limit: ${AI_RETRIEVAL_CANDIDATE_LIMIT:20}
     rrf-k: ${AI_RETRIEVAL_RRF_K:60}
     require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:false}
     require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:false}
+  elasticsearch:
+    url: ${AI_ELASTICSEARCH_URL:http://127.0.0.1:9201}
+    api-key: ${AI_ELASTICSEARCH_API_KEY:}
+    index-prefix: ${AI_ELASTICSEARCH_INDEX_PREFIX:ai-hospital-lexical}
+    min-score: ${AI_ELASTICSEARCH_MIN_SCORE:0}
+    title-boost: ${AI_ELASTICSEARCH_TITLE_BOOST:2}
+    timeout-seconds: ${AI_ELASTICSEARCH_TIMEOUT_SECONDS:5}
   rerank:
     enabled: ${AI_RERANK_ENABLED:false}
     url: ${AI_RERANK_URL:}

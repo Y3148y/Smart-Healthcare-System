@@ -27,6 +27,8 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 存储与一致性
 
+词法检索通过 `LexicalSearch` 端口选择适配器：默认Elasticsearch/Lucene BM25，`memory`为轻量与离线测试实现。ES采用批准语料指纹快照，查询触发批量同步，校验每项写入和返回原文身份，失败不静默切换；Qdrant、RRF与重排保持原编排。默认本机9201，医学词典及质量消融尚未完成。生命周期与旧索引清理边界见 [RAG](RAG.md)。
+
 应用通过 MyBatis 使用 MySQL，数据源统一配置在 `application.yml`。H2 仅用于测试；`schema.sql` 初始化表，`DatabaseIndexInitializer` 用 JDBC 元数据检查并幂等创建 trace 索引。旧 H2 数据不自动迁移。
 
 知识正文、来源元数据、审批状态和导入幂等请求存入数据库。导入使用稳定请求键与请求哈希；同键同内容返回原记录，同键不同内容返回冲突。审批成功后发布缓存与索引状态，写入失败不发布新缓存。检索缓存是进程内状态，跨实例同步与不可变审批历史仍待补齐。

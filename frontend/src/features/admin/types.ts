@@ -2,10 +2,13 @@ export interface Evidence { title: string; source: string; excerpt: string; scor
 export interface KnowledgeDocument { id: string; title: string; body: string; chunks: number; status: string; updatedAt: string }
 export interface DocumentDetail { document: KnowledgeDocument; source: string; segments: Evidence[]; indexStatus: string; indexedChunks: number; indexNote: string }
 export interface Candidate { title: string; source: string; excerpt: string; lexicalRank: number; lexicalScore: number | null; semanticRank: number; semanticScore: number | null; fusedScore: number; rerankScore: number | null; kept: boolean; reason: string }
-export interface RetrievalReport { retrieval: { evidence: Evidence[]; grounded: boolean; message: string }; mode: string; semanticStatus: string; rerankStatus: string; candidates: Candidate[]; elapsedMs: number }
-export interface RetrievalEvent { id: string; time: string; mode: string; semanticStatus: string; rerankStatus: string; candidates: number; selected: number; elapsedMs: number }
+export interface RetrievalReport { retrieval: { evidence: Evidence[]; grounded: boolean; message: string }; mode: string; lexicalStatus?: string; semanticStatus: string; rerankStatus: string; candidates: Candidate[]; elapsedMs: number }
+export interface RetrievalEvent { id: string; time: string; mode: string; lexicalStatus?: string; semanticStatus: string; rerankStatus: string; candidates: number; selected: number; elapsedMs: number }
 export type KnowledgeRuntime = Record<string, string>
 export const stateLabels: Record<string, string> = {
+  MEMORY_BM25_READY: '内存 BM25 成功', ELASTICSEARCH_READY: 'ES BM25 成功', ELASTICSEARCH_EMPTY_CORPUS: 'ES：无批准语料',
+  ELASTICSEARCH_UNAVAILABLE: 'ES 不可用', ELASTICSEARCH_INTERRUPTED: 'ES 请求中断',
+  ELASTICSEARCH_INVALID_RESPONSE: 'ES 返回身份校验失败', ELASTICSEARCH_PARTIAL_RESULT: 'ES 返回不完整，未采用',
   READY: '最近检索成功', NOT_QUERIED: '尚未执行检索', NOT_CONFIGURED: '未配置', NOT_READY: '未就绪',
   INDEXED: '最近索引成功', NOT_APPROVED: '待审批', PENDING_REVIEW: '待审批', NOT_INDEXED: '尚未写入',
   INDEXED_IN_PROCESS: '本进程已验证', PARTIAL: '部分写入或验证', INDEX_UNAVAILABLE: '最近索引失败',
