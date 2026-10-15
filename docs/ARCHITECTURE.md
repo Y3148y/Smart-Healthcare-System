@@ -21,7 +21,7 @@
 
 `TriageConversationService` 负责身份、同会话并发控制和持久化；`TriageWorkflow` 协调一轮计算，`WorkflowRouter` 复用原规则返回类型化 `RouteDecision`。风险规则优先于检索和模型；急症路径直接给出安全提示并停止普通预约。普通咨询可以追问或回答一般知识，分诊推荐还需满足证据与业务条件。普通咨询的检索、生成与审核由 `GuidanceAnswerService` 承担，固定安全/合规回复仍在原策略中；组件读写边界见 [Agent与工作流](AGENT.md)。
 
-默认由 Java 显式调用 `HospitalToolExecutor`；普通咨询可通过 `AgentWorkflowCoordinator` 启用受控模型工具选择。管理员认证的 `/mcp` 共用执行器，提供协议子集演示；患者流程没有通过 MCP 客户端执行工具。
+普通咨询默认启用 `AgentWorkflowCoordinator`，由模型在受控范围选择只读工具；关闭Agent、规划失败或走其他业务分支时，由 Java 工作流显式调用 `HospitalToolExecutor`。管理员认证的 `/mcp` 共用执行器，提供协议子集演示；患者流程没有通过 MCP 客户端执行工具。
 
 LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`OptionalNarrationModel` 使用消息列表构建多轮提示；显式思考/JSON 请求参数通过 `ConfiguredChatTransport` 适配。项目没有接入 Spring AI。
 
