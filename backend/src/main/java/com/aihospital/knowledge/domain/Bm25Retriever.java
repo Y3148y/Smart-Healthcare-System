@@ -16,18 +16,28 @@ public final class Bm25Retriever {
 
     public static Index index(List<Evidence> corpus) { return new Index(corpus); }
 
+    public record SearchResult(List<Evidence> hits, int corpusSize, int candidateCount, long postingEntriesVisited) {}
+
     /** Immutable corpus snapshot; query evaluation does not mutate shared statistics. */
     public static final class Index {
         private final List<Evidence> corpus;
         private final List<Map<String, Integer>> documents;
         private final Map<String, Integer> frequencies;
+        private final Map<String, List<Integer>> postings;
         private final double average;
 
         private Index(List<Evidence> corpus) {
             this.corpus = List.copyOf(corpus);
             documents = this.corpus.stream().map(e -> Map.copyOf(tokens(e.title() + " " + e.excerpt()))).toList();
             Map<String, Integer> counts = new HashMap<>();
-            for (var document : documents) for (String term : document.keySet()) counts.merge(term, 1, Integer::sum);
+            Map<String, List<Integer>> inverted = new HashMap<>();
+            for (int i = 0; i < documents.size(); i++) for (String term : documents.get(i).keySet()) {
+                counts.merge(term, 1, Integer::sum);
+                inverted.computeIfAbsent(term, ignored -> new ArrayList<>()).add(i);
+            }
+            Map<String, List<Integer>> frozen = new HashMap<>();
+            inverted.forEach((term, positions) -> frozen.put(term, List.copyOf(positions)));
+            postings = Map.copyOf(frozen);
             frequencies = Map.copyOf(counts);
             average = documents.stream().mapToInt(Bm25Retriever::length).average().orElse(1);
         }
@@ -63,17 +73,29 @@ public final class Bm25Retriever {
         }
 
         public List<Evidence> search(String query, int limit, double minimum) {
+            return searchDetailed(query, limit, minimum).hits();
+        }
+
+        /** Request-local access counters, not quality or latency measurements. */
+        public SearchResult searchDetailed(String query, int limit, double minimum) {
             Set<String> queryTerms = tokens(query).keySet();
-            if (queryTerms.isEmpty() || corpus.isEmpty()) return List.of();
+            BitSet candidates = new BitSet();
+            long visited = 0;
+            for (String term : queryTerms) {
+                List<Integer> positions = postings.getOrDefault(term, List.of());
+                visited += positions.size();
+                for (int position : positions) candidates.set(position);
+            }
             List<Evidence> hits = new ArrayList<>();
-            for (int i = 0; i < documents.size(); i++) {
+            for (int i = candidates.nextSetBit(0); i >= 0; i = candidates.nextSetBit(i + 1)) {
                 Map<String, Integer> document = documents.get(i);
                 double score = contributions(queryTerms, document).stream().mapToDouble(TermContribution::score).sum();
                 Evidence e = corpus.get(i);
                 if (score > 0 && score >= minimum) hits.add(new Evidence(e.title(), e.source(), e.excerpt(), score));
             }
-            return hits.stream().sorted(Comparator.comparingDouble(Evidence::score).reversed()
+            List<Evidence> ranked = hits.stream().sorted(Comparator.comparingDouble(Evidence::score).reversed()
                     .thenComparing(Bm25Retriever::key)).limit(Math.max(1, Math.min(limit, 100))).toList();
+            return new SearchResult(ranked, corpus.size(), candidates.cardinality(), visited);
         }
     }
 

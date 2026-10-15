@@ -52,7 +52,7 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 
 | 索引 | 实现与生命周期 |
 | --- | --- |
-| BM25 | 自实现内存统计快照，查询逐片段扫描评分；未建倒排postings，未使用ES/Lucene |
+| BM25 | 自实现不可变内存倒排索引（词项→片段位置），只对命中 postings 的候选评分；未使用 ES/Lucene。`searchDetailed` 提供候选数和 postings 访问数，不代表质量或延迟指标 |
 | Qdrant | embedding 向量及溯源 payload；幂等 point ID，查询校验模型、版本、哈希和活动语料身份 |
 
 新 collection 可配置 HNSW；小数据可能全扫描。已有 collection 不会因应用默认值变化自动改配置，向量存储成功也不等于查询使用了 HNSW。应查看实际 collection 配置及 `indexed_vectors_count`，缺字段记未知，不推造性能结论。
