@@ -63,6 +63,7 @@ ai:
     timeout-seconds: ${AI_RERANK_TIMEOUT_SECONDS:12}
   mode: ${AI_MODE:openai-compatible} # demo is an explicit offline choice
   demo-auth-enabled: ${AI_DEMO_AUTH_ENABLED:true}
+  demo-local-container: ${AI_DEMO_LOCAL_CONTAINER:false}
   base-url: ${AI_BASE_URL:}
   api-key: ${AI_API_KEY:}
   model: ${AI_MODEL:qwen3.7-flash-2026-07-15}

@@ -65,6 +65,35 @@ jobs:
       - name: Check chunk-boundary regression examples
         run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java --self-test
 
+  containers:
+    runs-on: ubuntu-latest
+    env:
+      MYSQL_ROOT_PASSWORD: synthetic-container-ci-only
+      AI_MODE: demo
+      AI_AGENT_MODE: 'OFF'
+      AI_DEMO_LOCAL_CONTAINER: 'true'
+      CONTAINER_TEST_BASE_URL: http://127.0.0.1:5188
+      CONTAINER_TEST_PASSWORD: synthetic-container-ci-only
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the isolated demo stack
+        run: docker compose -f docker-compose.yml -f compose.app.yml up --build -d --wait --wait-timeout 240
+      - name: Verify static page and backend readiness through Nginx
+        run: |
+          curl --fail --silent http://127.0.0.1:5188/health
+          curl --fail --silent http://127.0.0.1:5188/api/health/ready
+          curl --fail --silent http://127.0.0.1:5188/ | grep -q '<div id="app">'
+      - name: Verify explicit backend restart
+        run: |
+          session=$(node scripts/test-container-smoke.cjs --apply | python3 -c 'import json,sys; print(json.load(sys.stdin)["sessionId"])')
+          docker compose -f docker-compose.yml -f compose.app.yml restart backend
+          docker compose -f docker-compose.yml -f compose.app.yml up -d --wait --wait-timeout 120
+          curl --fail --silent http://127.0.0.1:5188/api/health/ready
+          node scripts/test-container-smoke.cjs --apply --resume "$session"
+      - name: Remove the synthetic CI stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f compose.app.yml down -v
+
   node:
     runs-on: ubuntu-latest
     steps:
@@ -87,6 +116,7 @@ jobs:
           node --test scripts/check-public-content.test.cjs
           node scripts/check-public-content.cjs
           node --test scripts/local-test-target.test.cjs
+          node --test scripts/container-contract.test.cjs
       - name: Frontend test and build
         working-directory: frontend
         run: |

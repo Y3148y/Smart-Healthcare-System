@@ -102,7 +102,7 @@ docker compose up -d mysql qdrant elasticsearch
 
 已有 MySQL 时无需再启动 Compose MySQL。应用启动时初始化数据表；旧 H2 数据不会自动迁移。应用运行依赖仅含 MySQL 驱动，H2 保留为自动化测试依赖。
 
-当前 Compose 只运行 MySQL、Qdrant 和 Elasticsearch，前后端仍在宿主机启动；尚未提供应用 Dockerfile、应用容器健康检查或镜像体积实测。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
+基础 Compose 运行 MySQL、Qdrant 和 Elasticsearch；可按下面步骤用 IDEA/Vite 启动应用，或使用后文的可选全栈容器方案。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
 
 ### 2. 启动后端
 
@@ -157,6 +157,26 @@ IDEA保存的环境变量只供该启动进程及其子进程使用，不提交�
 临时跳过重排时同时设置 `AI_RERANK_ENABLED=false`、`AI_RETRIEVAL_REQUIRE_RERANK=false`。检索会记录未重排状态，已有重排模式评测结果不能直接沿用。
 
 完整参数以 [应用配置](backend/src/main/resources/application.yml) 为准。密钥通过后端进程环境注入，不写入仓库或 `VITE_*` 变量。
+
+## 可选：本机全栈容器
+
+前后端分别采用多阶段构建，运行镜像只包含JRE/应用产物或Nginx/静态文件，不复制本机缓存、密钥、资料包或患者数据。Compose覆盖文件不改变日常IDEA/Vite启动方式，不能与占用8081/5188的宿主机服务同时运行。
+
+在已设置数据库及模型环境变量的终端，从项目根目录运行：
+
+```powershell
+$env:MYSQL_ROOT_PASSWORD = $env:AI_DB_PASSWORD
+$env:AI_DEMO_LOCAL_CONTAINER = 'true'
+docker compose -f docker-compose.yml -f compose.app.yml up -d --build --wait
+```
+
+`AI_DEMO_LOCAL_CONTAINER` 默认关闭，上述命令是显式接受本机演示边界：Docker内部允许后端监听0.0.0.0，所有发布端口仍绑定127.0.0.1。应用只验证Docker标记，无法验证宿主机实际端口/代理暴露；不得改为公网发布或外网反向代理。关闭演示认证并不自动提供医院SSO。开关不改变LLM模式，纯离线容器测试须另显式设置 `AI_MODE=demo`；不能把demo测试当真实模型验收。模型与数据库凭据仅经运行环境注入，不进入镜像；有Docker管理权限的操作者仍可读取容器环境。
+
+后端以非root用户运行，`/api/health/live` 检查进程，`/api/health/ready` 检查数据库连接；不探测LLM、Qdrant或ES。Nginx提供静态页面和API代理，关闭阶段SSE缓冲，正文仍非逐token流。Compose配置 `unless-stopped`，人工停止后不会自动恢复；健康状态不会自动重启容器，不宣称已做OOM恢复或Kubernetes探针。启动依赖顺序见 [Docker官方说明](https://docs.docker.com/compose/how-tos/startup-order/)。
+
+本机已用独立MySQL及随机回环端口验证demo启动、页面/API代理、演示登录和合成会话重启回读，未调用外部LLM；未完成完整容器业务或真实模型验收。镜像实测后端145608418字节、前端21047403字节，不保证其他架构相同。Docker Hub认证端点曾超时，后端使用 `--build-arg MAVEN_IMAGE=docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17` 的既有同版本镜像验证，未改默认官方镜像地址或全局代理。当前前端依赖仍有npm审计告警，容器化不代表依赖安全审核完成。
+
+容器冒烟脚本 `scripts/test-container-smoke.cjs --apply` 必须设置 `CONTAINER_TEST_BASE_URL` 为显式本机HTTP origin、`CONTAINER_TEST_PASSWORD` 为演示登录密码；它会创建一个空的合成会话。重启测试实例后用 `--resume <sessionId>` 验证持久化回读，不自动重放聊天或预约。请只对隔离实例运行。切回同终端的宿主机启动时移除 `AI_DEMO_LOCAL_CONTAINER`，不得把Docker例外当成宿主机绑定许可。
 
 ## 知识库与评估
 

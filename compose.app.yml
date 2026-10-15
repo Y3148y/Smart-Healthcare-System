@@ -1,0 +1,47 @@
+# Optional full-stack deployment; normal IDEA/Vite development stays unchanged.
+services:
+  mysql:
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  backend:
+    build: ./backend
+    image: ai-hospital-backend:local
+    restart: unless-stopped
+    mem_limit: 768m
+    ports: ["127.0.0.1:${AI_HTTP_PORT:-8081}:8081"]
+    environment:
+      AI_DB_URL: jdbc:mysql://mysql:3306/ai_hospital?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      AI_DB_USER: root
+      AI_DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the process environment}
+      AI_QDRANT_URL: http://qdrant:6333
+      AI_ELASTICSEARCH_URL: http://elasticsearch:9200
+      AI_MODE: ${AI_MODE:-openai-compatible}
+      AI_DEMO_AUTH_ENABLED: ${AI_DEMO_AUTH_ENABLED:-true}
+      AI_DEMO_LOCAL_CONTAINER: ${AI_DEMO_LOCAL_CONTAINER:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-qwen3.7-flash-2026-07-15}
+      AI_EMBEDDING_BASE_URL: ${AI_EMBEDDING_BASE_URL:-${AI_BASE_URL:-}}
+      AI_EMBEDDING_API_KEY: ${AI_EMBEDDING_API_KEY:-${AI_API_KEY:-}}
+      AI_EMBEDDING_MODEL: ${AI_EMBEDDING_MODEL:-qwen3.7-text-embedding}
+      AI_AGENT_MODE: ${AI_AGENT_MODE:-ENABLED}
+      AI_RERANK_ENABLED: ${AI_RERANK_ENABLED:-false}
+      AI_RERANK_URL: ${AI_RERANK_URL:-}
+      AI_RERANK_MODEL: ${AI_RERANK_MODEL:-}
+      AI_RERANK_API_KEY: ${AI_RERANK_API_KEY:-${AI_API_KEY:-}}
+      AI_JWT_SECRET: ${AI_JWT_SECRET:-}
+      HUMAN_REVIEW_AUTHORIZED_SUBJECTS: ${HUMAN_REVIEW_AUTHORIZED_SUBJECTS:-}
+    depends_on:
+      mysql: {condition: service_healthy}
+      qdrant: {condition: service_started}
+      elasticsearch: {condition: service_started}
+  frontend:
+    build: ./frontend
+    image: ai-hospital-frontend:local
+    restart: unless-stopped
+    ports: ["127.0.0.1:${AI_WEB_PORT:-5188}:80"]
+    depends_on:
+      backend: {condition: service_healthy}
