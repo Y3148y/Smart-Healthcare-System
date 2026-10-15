@@ -155,6 +155,19 @@ node tools/rag-eval/answer-review-cli.mjs reports/rag/review.json
 
 整份答案忠实度要求 `claimsExhaustive=true`，且逐断言审核；SUPPORTED 断言须引用实际采用的资料。部分审核、无标签或无事实断言保持未知。纯检索报告没有答案快照，不能计算回答正确率/忠实度。工具不认证评审人的独立性或临床资质；未脱敏会话不能公开提交或外发。
 
+## 离线消融工具
+
+`ablation-cli.mjs` 可对比同一冻结语料、相同case ID及原话查询的多个检索报告，适用于分别采集memory与ES配置后的结果。无需模型、embedding或rerank额度：
+
+```powershell
+node tools/rag-eval/ablation-cli.mjs memory-report.json es-report.json --output reports/rag/comparison.json --k 3
+# 完整人工相关性标签绑定相同语料、query或querySha256时，再加入 --labels reviewed-labels.json
+```
+
+工具复算已捕获候选的纯RRF（K=10/30/60/100），分别展示BM25、Qdrant、RRF和实际最终结果。RRF回放位于否定门禁、向量预留与rerank之前，不冒充当前线上选择逻辑或新的召回。改变分析器、候选深度或阈值必须重新采集，不能靠旧候选模拟。未标注时指标为null，只输出排名变化；完整标签才计算Recall、Precision和MRR，Precision沿用当前工具的返回片段数分母。不计算答案忠实度，不把报告耗时当离线算法性能或患者端延迟；重排不在离线工具内重新执行。无标签、旧引擎状态缺失和故障均保留未知。
+
+报告须含完整原文及稳定快照；片段身份、引用正文、来源、路由排名或查询漂移会拒绝。输出只允许被忽略的 `reports/rag/` 新文件，不覆盖旧报告，不复制患者原话或语料正文。独立评审与真实质量结果仍待，工具通过不代表RRF的K已调优。
+
 ## 尚未完成
 
 - 专业临床审核、独立留出集和完整答案质量验收。

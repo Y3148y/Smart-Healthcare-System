@@ -69,6 +69,7 @@ export function evaluateCase(item, report) {
   return {id:item.id, groupId:item.groupId ?? item.id, query:item.query, expectedTitle:item.expectedTitle, selected,
     dependencyPassed, rerankSkipped, operationalPassed, targetMet, expectationMet, excludedSelected,
     strictRerankedPass:dependencyPassed && expectationMet, passed:operationalPassed && expectationMet,
+    lexicalStatus:report.lexicalStatus ?? 'UNKNOWN',
     semanticStatus:report.semanticStatus, rerankStatus:report.rerankStatus, mode:report.mode,
     selectedEvidence,
     extraSelectionsForReview:item.expectedTitle === null ? selected : selected.filter(title => title !== item.expectedTitle),
