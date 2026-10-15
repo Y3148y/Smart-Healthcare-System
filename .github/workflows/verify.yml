@@ -121,6 +121,7 @@ jobs:
         working-directory: frontend
         run: |
           npm ci
+          npm audit --registry=https://registry.npmjs.org --audit-level=moderate
           npm test
           npm run build
       - name: Verify fragmented SSE transport without live services
