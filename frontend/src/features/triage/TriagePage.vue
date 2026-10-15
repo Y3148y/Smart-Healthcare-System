@@ -5,10 +5,11 @@ import AssessmentCard from './components/AssessmentCard.vue'
 import AnswerSources from './components/AnswerSources.vue'
 import AnswerExecution from './components/AnswerExecution.vue'
 import { recoverConversation } from './recoverConversation'
+import {turnIdentity,clearTurnIdentity} from './turnIdentity'
 import { responseDuration } from './responseDuration'
 import { conversationProcessing, conversationSendBlocked } from './conversationProcessing'
 import { selectionVersion } from './selectionVersion'
-import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result } from './types'
+import type { Assessment, ChatSession, Conversation, Doctor, HumanReview, ResponseProvenance, Result, Turn } from './types'
 
 const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRunning:boolean}>()
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],updated:[],notify:[message:string]}>()
@@ -74,12 +75,15 @@ async function startTriage(){
   const previousUserCount=activeConversation.value?.messages.filter(message=>message.role==='USER').length||0
   question.value='';triageRunning.value=true;triageStatus.value='正在提交请求…';pendingMessage.value=content
   const started=performance.now()
+  let requestId:string|undefined
   elapsedSeconds.value=0
   elapsedTimer=setInterval(()=>{elapsedSeconds.value=(performance.now()-started)/1000},250)
   try{
     if(!activeConversation.value)activeConversation.value=await api<Conversation>('/triage/sessions',{method:'POST',body:JSON.stringify({adultConfirmed:eligible.value,forSelfConfirmed:eligible.value,notPregnantConfirmed:eligible.value})})
     const stages:Record<string,string>={ACCEPTED:'请求已接收',SAFETY_CHECK:'正在检查危险信号…',KNOWLEDGE_RETRIEVAL:'正在检索知识依据…',ANSWER_GENERATION:'正在生成并校验回答…',SCHEDULE_LOOKUP:'正在查询模拟号源…',SAVING:'正在保存本轮结果…'}
-    const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content},stage=>{triageStatus.value=stages[stage]||'正在处理…'})
+    requestId=await turnIdentity(activeConversation.value.session.id,content)
+    const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content,requestId},stage=>{triageStatus.value=stages[stage]||'正在处理…'})
+    clearTurnIdentity(activeConversation.value.session.id)
     applyConversation(result)
     const replies=result.messages.filter(message=>message.role==='ASSISTANT')
     const lastReply=replies[replies.length-1]
@@ -94,13 +98,16 @@ async function startTriage(){
     if(activeConversation.value){
       triageStatus.value='连接中断，正在核对已保存的结果…'
       const id=activeConversation.value.session.id
-      const recovered=await recoverConversation(()=>api<Conversation>(`/triage/sessions/${id}`),previousUserCount,content)
+      const recovered=await recoverConversation(()=>api<Conversation>(`/triage/sessions/${id}`),previousUserCount,content,undefined,20,requestId,
+        requestId?()=>api<Turn>(`/triage/sessions/${id}/turns/${encodeURIComponent(requestId!)}`):undefined)
       saved=recovered.saved;processing=recovered.processing
       if(saved && recovered.conversation){
         applyConversation(recovered.conversation)
-        const lastReply=recovered.conversation.messages[recovered.conversation.messages.length-1]
+        const lastReply=recovered.turn?recovered.conversation.messages.find(m=>m.id===recovered.turn?.assistantMessageId)
+          : recovered.conversation.messages[recovered.conversation.messages.length-1]
         completed=!processing && lastReply?.role==='ASSISTANT'
-        if(completed){
+        if(!processing && recovered.turn?.requestId===requestId)clearTurnIdentity(id)
+        if(completed && lastReply){
           replyDurations.value[lastReply.id]=(performance.now()-started)/1000
           emit('updated')
         }
@@ -116,6 +123,7 @@ async function openConversation(id:string){
   try{
     const conversation=await api<Conversation>(`/triage/sessions/${id}`)
     if(!selection.isCurrent(version))return
+    if(conversation.latestTurn && conversation.latestTurn.status!=='RUNNING')clearTurnIdentity(id)
     applyConversation(conversation);question.value=''
   }
   catch(e:any){if(selection.isCurrent(version))emit('notify',`会话加载失败：${e?.message||'请求失败'}`)}

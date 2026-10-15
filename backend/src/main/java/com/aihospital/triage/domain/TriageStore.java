@@ -7,6 +7,12 @@ import java.util.List;
 
 /** The application layer uses this port without knowing MyBatis or JSON storage. */
 public interface TriageStore {
+    TriageTurn.Claim beginTurn(String sessionId, String requestId, String content, int leaseSeconds);
+    void completeTurn(TriageTurn turn, Runnable persistAnswer);
+    void failTurn(TriageTurn turn, String failureCode);
+    void reconcileTurns(String sessionId);
+    TriageTurn turn(String sessionId, String requestId);
+    TriageTurn latestTurn(String sessionId);
     List<Session> sessions(String patient);
     void createSession(String id, String patient, LocalDateTime now);
     List<Message> messages(String sessionId);

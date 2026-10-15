@@ -35,7 +35,7 @@ public class TriageStreamController {
         try{workers.execute(()->{
             try{
                 event(emitter,disconnected,"status",Map.of("stage","ACCEPTED"));
-                var result=service.send(id,patient,text,stage->event(emitter,disconnected,"status",Map.of("stage",stage.name())));
+                var result=service.send(id,patient,text,request.requestId(),stage->event(emitter,disconnected,"status",Map.of("stage",stage.name())));
                 event(emitter,disconnected,"result",result);emitter.complete();
             }catch(Exception ex){
                 String message=ex instanceof ResponseStatusException r&&r.getReason()!=null?r.getReason():"本次处理未完成，请刷新会话核对保存状态";

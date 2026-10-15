@@ -37,6 +37,7 @@ class DispositionConsistencyTest {
     }
     @Test void jsonAndProgressCallsShareTheSameSessionGuardAndReleaseItAfterCompletion() throws Exception {
         var store = mock(TriageStore.class);
+        TurnStoreStub.configure(store);
         var engine = mock(TriageEngine.class);
         var catalog = mock(DoctorCatalogService.class);
         when(store.sessions("patient")).thenReturn(List.of(new Session("s1", "新会话", "", "待补充信息",
@@ -117,6 +118,7 @@ class DispositionConsistencyTest {
     @Test
     void pendingAssessmentKeepsVersionButHasNoBookableDoctorAndPendingSession() {
         TriageStore store = mock(TriageStore.class);
+        TurnStoreStub.configure(store);
         TriageEngine engine = mock(TriageEngine.class);
         DoctorCatalogService catalog = mock(DoctorCatalogService.class);
         Doctor doctor = new Doctor("d1", "测试医生", "医师", "全科医学科", "上午", "2026-10-03", 1, 1, 0);

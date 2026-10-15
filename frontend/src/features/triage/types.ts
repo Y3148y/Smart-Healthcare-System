@@ -13,5 +13,6 @@ export type ChatSession={id:string,title:string,preview:string,status:string,cre
 export type Assessment={version:number,result:Result,createdAt:string,assistantMessageId:string|null}
 export type HumanReview={id:string,sessionId:string,patient:string,reason:string,status:string,createdAt:string}
 export type HumanReviewQueueItem={id:string,status:string,createdAt:string,summaryAccessible:boolean}
-export type Conversation={session:ChatSession,messages:ChatMessage[],assessments:Assessment[],humanReview:HumanReview|null}
+export type Turn={id:string,sessionId:string,requestId:string,status:string,userMessageId:string,assistantMessageId:string|null,failureCode:string|null}
+export type Conversation={session:ChatSession,messages:ChatMessage[],assessments:Assessment[],humanReview:HumanReview|null,latestTurn?:Turn|null}
 export type TimelineEvent={sessionId:string,sessionTitle:string,messageId:string,content:string,source:string,occurredAt:string}

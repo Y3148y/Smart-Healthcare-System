@@ -34,6 +34,8 @@ public class TriageConversationService {
     private final com.aihospital.observation.domain.CallLogStore calls;
     private final TriageWorkflow workflow;
     private final Set<String> inFlight = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    @org.springframework.beans.factory.annotation.Value("${ai.triage.turn-lease-seconds:180}")
+    private int turnLeaseSeconds = 180;
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TriageConversationService.class);
 
     public TriageConversationService(TriageStore store, TriageEngine triageEngine, DoctorCatalogService catalog,
@@ -70,10 +72,20 @@ public class TriageConversationService {
     }
 
     public Conversation conversation(String id, String patient) {
+        requireOwner(id,patient);
+        store.reconcileTurns(id);
         Session session = requireOwner(id, patient);
         List<Message> messages = store.messages(id);
         List<Assessment> assessments = store.assessments(id);
-        return new Conversation(session, messages, associateLegacyAnchors(messages, assessments), store.humanReview(id));
+        return new Conversation(session, messages, associateLegacyAnchors(messages, assessments), store.humanReview(id),store.latestTurn(id));
+    }
+
+    public com.aihospital.triage.domain.TriageTurn turn(String id,String patient,String requestId) {
+        requireOwner(id,patient);
+        store.reconcileTurns(id);
+        var turn = store.turn(id,requestId);
+        if (turn == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND,"轮次不存在");
+        return turn;
     }
 
     public Session requireOwner(String id, String patient) {
@@ -87,30 +99,46 @@ public class TriageConversationService {
 
     public Conversation send(String id,String patient,String text,
             java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress) {
+        return send(id,patient,text,null,progress);
+    }
+    public Conversation send(String id,String patient,String text,String requestId,
+            java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress) {
         Session session = requireOwner(id, patient);
         if (!inFlight.add(id))
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该会话正在处理，请等待或刷新会话核对");
         try {
-            return sendOwned(id, patient, text, progress, session);
+            return sendOwned(id, patient, text, requestId, progress, session);
         } finally {
             inFlight.remove(id);
         }
     }
 
-    private Conversation sendOwned(String id,String patient,String text,
+    private Conversation sendOwned(String id,String patient,String text,String requestId,
             java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress, Session session) {
         java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates=progress==null?stage->{}:progress;
-        if ("紧急提示".equals(session.status()))
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "紧急会话不能继续普通分诊，请立即寻求线下帮助");
         String content = text == null ? "" : text.trim();
         if (content.isBlank() || content.length() > 2000)
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "症状描述应为 1 至 2000 字");
 
-        String userMessageId = append(id, "USER", content);
+        String key = requestId == null ? java.util.UUID.randomUUID().toString() : requestId;
+        if (!key.matches("[A-Za-z0-9][A-Za-z0-9_-]{7,79}"))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"轮次请求标识格式无效");
+        if (turnLeaseSeconds < 30 || turnLeaseSeconds > 900) throw new IllegalStateException("Invalid turn lease configuration");
+        var claim = store.beginTurn(id,key,content,turnLeaseSeconds);
+        if ("REPLAY".equals(claim.outcome())) return conversation(id,patient);
+        if (!"CLAIMED".equals(claim.outcome())) throw new ResponseStatusException(HttpStatus.CONFLICT,
+                switch(claim.outcome()) {
+                    case "CONFLICT" -> "同一请求标识不能更换问题内容";
+                    case "INTERRUPTED" -> "本轮已终止，请先查看保存状态；如需重新提问，请发起新轮次";
+                    case "BLOCKED" -> "紧急会话不能继续普通分诊，请立即寻求线下帮助";
+                    default -> "该会话正在处理，请等待或刷新会话核对";
+                });
+        var turn = claim.turn();
+        String userMessageId = turn.userMessageId();
         try (var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open(userMessageId,
                 com.aihospital.triage.domain.TriageSafetyPolicy.POLICY_VERSION)) {
             try {
-                Conversation result = processTurn(id, patient, content, session, updates, progress, trace);
+                Conversation result = processTurn(id, patient, content, session, updates, progress, trace,turn);
                 var provenance = result.messages().stream().filter(m -> "ASSISTANT".equals(m.role()))
                         .reduce((a,b) -> b).map(Message::provenance).orElse(null);
                 boolean success = provenance != null && !Set.of("FALLBACK", "FALLBACK_UNGROUNDED", "VALIDATION_BLOCKED", "EVIDENCE_BLOCKED").contains(provenance.modelStatus())
@@ -118,6 +146,8 @@ public class TriageConversationService {
                 recordTerminal(trace, success, provenance == null ? "NO_ANSWER" : provenance.modelStatus());
                 return result;
             } catch (RuntimeException failure) {
+                try { store.failTurn(turn,"TURN_PROCESSING_FAILED"); }
+                catch (RuntimeException unavailable) { log.warn("Turn failure state unavailable causeType={}",unavailable.getClass().getSimpleName()); }
                 recordTerminal(trace, false, "FAILED/" + failure.getClass().getSimpleName());
                 throw failure;
             }
@@ -139,9 +169,8 @@ public class TriageConversationService {
     private Conversation processTurn(String id, String patient, String content, Session session,
             java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> updates,
             java.util.function.Consumer<com.aihospital.triage.domain.TriageProgress> progress,
-            com.aihospital.shared.diagnostics.TurnTraceContext trace) {
+            com.aihospital.shared.diagnostics.TurnTraceContext trace, com.aihospital.triage.domain.TriageTurn turn) {
         String title = "新会话".equals(session.title()) ? content.substring(0, Math.min(24, content.length())) : session.title();
-        update(id, title, content.substring(0, Math.min(120, content.length())), "处理中");
 
         Conversation current = conversation(id, patient);
         List<NarrationModel.Turn> history = current.messages().stream()
@@ -150,22 +179,18 @@ public class TriageConversationService {
         List<String> patientTexts = current.messages().stream().filter(message -> "USER".equals(message.role()))
                 .map(Message::content).toList();
         String combined = patientTexts.stream().collect(Collectors.joining("。"));
-        final TriageWorkflow.Outcome outcome;
-        try {
-            var computed = workflow.execute(current, patient, combined, content, history, updates, progress != null, trace);
-            outcome = computed instanceof TriageWorkflow.AssessmentOutcome assessed
-                    ? new TriageWorkflow.AssessmentOutcome(withCurrentAvailability(assessed.result())) : computed;
-        } catch (RuntimeException failure) {
-            update(id, title, content.substring(0, Math.min(120, content.length())), "待重试");
-            throw failure;
-        }
+        var computed = workflow.execute(current, patient, combined, content, history, updates, progress != null, trace);
+        TriageWorkflow.Outcome outcome = computed instanceof TriageWorkflow.AssessmentOutcome assessed
+                ? new TriageWorkflow.AssessmentOutcome(withCurrentAvailability(assessed.result())) : computed;
         if (outcome instanceof TriageWorkflow.GuidanceOutcome guided) {
             TriageEngine.Guidance guidance = guided.guidance();
             updates.accept(com.aihospital.triage.domain.TriageProgress.SAVING);
             if ("POLICY_REFUSAL".equals(guidance.modelStatus())) trace.route("POLICY_REFUSAL");
-            store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
-                    guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures(), guidance.answerEvidence()));
-            update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
+            store.completeTurn(turn, () -> {
+                store.appendAssistantMessage(id, guidance.text(), new ResponseProvenance(guidance.modelStatus(),
+                        guidance.knowledgeHits(), guidance.localToolCalls(), guidance.toolFailures(), guidance.answerEvidence()));
+                update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
+            });
             return conversation(id, patient);
         }
 
@@ -179,13 +204,17 @@ public class TriageConversationService {
         if (result.safetyAssessment() != null && result.safetyAssessment().humanReviewRecommended()) trace.route("SAFETY");
         if ("POLICY_REFUSAL".equals(result.modelStatus())) trace.route("POLICY_REFUSAL");
         if (!result.grounded() && !result.safetyAssessment().humanReviewRecommended()) {
-            store.appendAssistantMessage(id, result.summary(), provenance(result));
-            update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
+            store.completeTurn(turn, () -> {
+                store.appendAssistantMessage(id, result.summary(), provenance(result));
+                update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.PENDING);
+            });
             return conversation(id, patient);
         }
         int version = current.assessments().size() + 1;
-        store.saveAssessmentAndAnswer(id, version, result);
-        update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.sessionStatus(result.riskLevel()));
+        store.completeTurn(turn, () -> {
+            store.saveAssessmentAndAnswer(id, version, result);
+            update(id, title, content.substring(0, Math.min(120, content.length())), Disposition.sessionStatus(result.riskLevel()));
+        });
         return conversation(id, patient);
     }
 

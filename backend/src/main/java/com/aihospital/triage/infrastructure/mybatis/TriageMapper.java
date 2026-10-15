@@ -12,6 +12,11 @@ import java.util.Map;
 
 @Mapper
 public interface TriageMapper {
+    @Select("SELECT status FROM triage_session WHERE id=#{id}") String sessionStatus(String id);
+    @Update("UPDATE triage_session SET title=CASE WHEN title='新会话' THEN #{title} ELSE title END,preview=#{preview},status='处理中',updated_at=#{now} WHERE id=#{id}")
+    int markProcessing(@Param("id") String id,@Param("title") String title,@Param("preview") String preview,@Param("now") LocalDateTime now);
+    @Update("UPDATE triage_session SET status='待重试',updated_at=#{now} WHERE id=#{id} AND status='处理中'")
+    int markRetry(@Param("id") String id,@Param("now") LocalDateTime now);
     @Select("SELECT id,title,preview,status,created_at,updated_at FROM triage_session WHERE patient_id=#{patient} ORDER BY updated_at DESC")
     List<Map<String, Object>> sessions(@Param("patient") String patient);
 

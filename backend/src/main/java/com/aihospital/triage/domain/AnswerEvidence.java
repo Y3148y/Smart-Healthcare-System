@@ -91,7 +91,7 @@ public final class AnswerEvidence {
         }
         return List.copyOf(result);
     }
-    private static String hash(String text) {
+    public static String hash(String text) {
         try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                 .digest(text.getBytes(StandardCharsets.UTF_8))); }
         catch (java.security.NoSuchAlgorithmException ex) { throw new IllegalStateException(ex); }

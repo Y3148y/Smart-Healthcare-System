@@ -30,6 +30,21 @@ class RuntimeJourneyTest {
     }
     private JsonNode get(String path, String token) { return request(HttpMethod.GET, path, token, null, 200); }
 
+    @Test void explicitTurnIdentityReplaysAcrossRequestsAndCannotChangeQuestion(){
+        String patient=login("lisi"),other=login("zhangsan");
+        var created=request(HttpMethod.POST,"/triage/sessions",patient,
+                Map.of("adultConfirmed",true,"forSelfConfirmed",true,"notPregnantConfirmed",true),200);
+        String path="/triage/sessions/"+created.path("session").path("id").asText(),key=UUID.randomUUID().toString();
+        var body=Map.of("content","咳嗽两天，想了解注意事项","requestId",key);
+        var first=request(HttpMethod.POST,path+"/turns",patient,body,200);
+        var replay=request(HttpMethod.POST,path+"/turns",patient,body,200);
+        assertEquals(first.path("messages"),replay.path("messages"));
+        assertEquals("COMPLETED",get(path+"/turns/"+key,patient).path("status").asText());
+        request(HttpMethod.POST,path+"/turns",patient,Map.of("content","Different question","requestId",key),409);
+        request(HttpMethod.POST,path+"/turns",patient,Map.of("content","Invalid key","requestId","bad"),400);
+        request(HttpMethod.GET,path+"/turns/"+key,other,null,404);
+    }
+
     @Test void catalogBookingReplayAndDisablingRemainConsistentAcrossHttpRequests() {
         String admin = login("admin"), patient = login("zhangsan"), other = login("lisi");
         String name = "runtime-fixture-" + UUID.randomUUID();

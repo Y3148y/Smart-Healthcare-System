@@ -177,6 +177,10 @@ npm run evaluate:public
 
 ## 开发与测试
 
+患者问答支持可选 `requestId`：同一会话中，同键同内容的已完成请求返回当前会话而不再生成，换内容返回409。轮次与消息保存在MySQL，处理期限默认180秒，过期记录在读取/新请求时对账，旧任务不能写回。浏览器断连后按轮次身份回读；这是结果恢复，没有SSE事件补发。旧客户端不传requestId时不能保证重试幂等。协议与升级边界见 [存储与一致性](docs/ARCHITECTURE.md#存储与一致性)。
+
+CI 的 MySQL 业务步骤还启用 `DurableTurnProcessIntegrationTest`：登记轮次后强制停止一个子JVM，由第二个JVM读取同一数据库并恢复。测试通过修改合成轮次的存储期限加速到期，不调用外部模型，不操作本机8081；本机需显式设置 `-Dai.test.turn-process-restart=true` 并使用隔离的本机MySQL测试库。
+
 旧版写入/真实模型探针（`scripts/test-*-live.cjs` 以及 `test-admin-ui`、`test-catalog-ui`、`test-human-review-ui`、`test-patient-profile-ui`）必须显式设置脚本使用的 `ADMIN_TEST_BASE_URL` 或 `AI_HOSPITAL_BASE_URL`，并传入 `--apply`。仅接受不含凭据的本机 HTTP origin；请使用隔离测试实例，它们可能留下合成会话、预约、资料或消耗模型额度。浏览器探针另需在 `NODE_PATH` 中提供 Playwright，不属于默认安装/验收命令。日常只读检查优先使用 `test-ui-readonly.cjs`，无需该写入开关。离线 SSE 检查 `node scripts/test-progress-client.cjs` 只依赖前端已安装的 TypeScript，不再依赖任何 `.codex` 临时目录。
 
 ```powershell

@@ -27,7 +27,11 @@ public final class TriageRecords {
     public record HumanReview(String id, String sessionId, String patient, String reason, String status,
                               LocalDateTime createdAt) {}
     public record Conversation(Session session, List<Message> messages, List<Assessment> assessments,
-                               HumanReview humanReview) {}
+                               HumanReview humanReview, TriageTurn latestTurn) {
+        public Conversation(Session session, List<Message> messages, List<Assessment> assessments, HumanReview humanReview) {
+            this(session,messages,assessments,humanReview,null);
+        }
+    }
     public record TimelineEvent(String sessionId, String sessionTitle, String messageId,
                                 String content, String source, LocalDateTime occurredAt) {}
     public record Eligibility(boolean adultConfirmed, boolean forSelfConfirmed, boolean notPregnantConfirmed) {}

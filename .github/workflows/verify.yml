@@ -36,7 +36,8 @@ jobs:
       - name: Verify booking, knowledge and HTTP business journeys against MySQL 8.4
         working-directory: backend
         run: >-
-          mvn --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest
+          mvn --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest,DurableTriageTurnTest,DurableTurnProcessIntegrationTest
+          -Dai.test.turn-process-restart=true
           -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/ai_hospital
           -Dspring.datasource.username=root
           -Dspring.datasource.password=synthetic-ci-only test

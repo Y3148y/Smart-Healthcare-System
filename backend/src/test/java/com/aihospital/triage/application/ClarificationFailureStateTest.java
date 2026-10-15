@@ -11,6 +11,7 @@ import static org.mockito.Mockito.*;
 class ClarificationFailureStateTest {
     @Test void failedGuidanceKeepsPatientMessageAndExitsProcessingWithoutInventingAnswer() {
         var store = mock(TriageStore.class);
+        com.aihospital.triage.TurnStoreStub.configure(store);
         var engine = mock(TriageEngine.class);
         var calls = new com.aihospital.observation.infrastructure.demo.InMemoryCallLogStore();
         var service = new TriageConversationService(store, engine, null, calls);

@@ -7,7 +7,9 @@ public final class Models {
     private Models() {}
     public record LoginRequest(String username, String password) {}
     public record LoginResponse(String token, String role, String displayName) {}
-    public record SendMessage(String content) {}
+    public record SendMessage(String content, String requestId) {
+        public SendMessage(String content) { this(content,null); }
+    }
     public record Doctor(String id, String name, String title, String department, String period, String date, int remaining, int total, int fee) {}
     public record Evidence(String title, String source, String excerpt, double score, List<String> sectionPath) {
         public Evidence { sectionPath = sectionPath == null ? List.of() : List.copyOf(sectionPath); }

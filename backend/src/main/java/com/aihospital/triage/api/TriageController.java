@@ -33,7 +33,12 @@ public class TriageController {
     }
     @PostMapping("/sessions/{id}/turns") public Conversation turn(@PathVariable String id, @RequestBody SendMessage body,
             @RequestHeader(value = "Authorization", required = false) String auth) {
-        return conversations.send(id, guard.require(auth, "PATIENT").subject(), decodeNumericHtmlEntities(body.content()));
+        return conversations.send(id, guard.require(auth, "PATIENT").subject(), decodeNumericHtmlEntities(body.content()),body.requestId(),null);
+    }
+    @GetMapping("/sessions/{id}/turns/{requestId}") public com.aihospital.triage.domain.TriageTurn turnStatus(
+            @PathVariable String id,@PathVariable String requestId,
+            @RequestHeader(value="Authorization",required=false) String auth) {
+        return conversations.turn(id,guard.require(auth,"PATIENT").subject(),requestId);
     }
     @GetMapping("/timeline") public List<TimelineEvent> timeline(@RequestHeader(value = "Authorization", required = false) String auth) {
         return conversations.timeline(guard.require(auth, "PATIENT").subject());

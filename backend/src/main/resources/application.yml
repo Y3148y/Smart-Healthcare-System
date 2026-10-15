@@ -25,6 +25,8 @@ spring:
     multipart:
       max-file-size: 5MB
 ai:
+  triage:
+    turn-lease-seconds: ${AI_TRIAGE_TURN_LEASE_SECONDS:180}
   agent:
     # OFF retains workflow; SHADOW extracts only; ENABLED permits read-only guidance tool planning.
     mode: ${AI_AGENT_MODE:ENABLED}

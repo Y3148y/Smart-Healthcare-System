@@ -18,10 +18,79 @@ import static com.aihospital.shared.infrastructure.mybatis.RowValues.*;
 public class MybatisTriageStore implements TriageStore {
     private final TriageMapper mapper;
     private final ObjectMapper json;
+    private final TriageTurnMapper turns;
 
-    public MybatisTriageStore(TriageMapper mapper, ObjectMapper json) {
+    public MybatisTriageStore(TriageMapper mapper, ObjectMapper json, TriageTurnMapper turns) {
         this.mapper = mapper;
         this.json = json;
+        this.turns = turns;
+    }
+
+    @Override @Transactional public com.aihospital.triage.domain.TriageTurn.Claim beginTurn(
+            String sessionId, String requestId, String content, int leaseSeconds) {
+        if (mapper.lockMessageSession(sessionId) == null) throw new IllegalArgumentException("Session does not exist");
+        reconcileLocked(sessionId);
+        var old = turns.find(sessionId, requestId);
+        String hash = com.aihospital.triage.domain.AnswerEvidence.hash(content);
+        if (old != null) {
+            String outcome = !hash.equals(string(old,"content_hash")) ? "CONFLICT"
+                    : "COMPLETED".equals(string(old,"status")) ? "REPLAY"
+                    : "RUNNING".equals(string(old,"status")) ? "BUSY" : "INTERRUPTED";
+            return new com.aihospital.triage.domain.TriageTurn.Claim(readTurn(old), outcome);
+        }
+        if (!turns.running(sessionId).isEmpty()) return new com.aihospital.triage.domain.TriageTurn.Claim(null,"BUSY");
+        String status = mapper.sessionStatus(sessionId);
+        if ("紧急提示".equals(status)) return new com.aihospital.triage.domain.TriageTurn.Claim(null,"BLOCKED");
+        String userId = appendMessage(sessionId,"USER",content);
+        var now = turns.now();
+        turns.insert(UUID.randomUUID().toString(),sessionId,requestId,hash,userId,now,now.plusSeconds(leaseSeconds));
+        mapper.markProcessing(sessionId,content.substring(0,Math.min(24,content.length())),
+                content.substring(0,Math.min(120,content.length())),now);
+        return new com.aihospital.triage.domain.TriageTurn.Claim(readTurn(turns.find(sessionId,requestId)),"CLAIMED");
+    }
+    @Override @Transactional public void completeTurn(com.aihospital.triage.domain.TriageTurn turn, Runnable persistAnswer) {
+        mapper.lockMessageSession(turn.sessionId());
+        var active = readTurn(turns.find(turn.sessionId(),turn.requestId()));
+        if (active == null || !turn.id().equals(active.id()) || !"RUNNING".equals(active.status())
+                || !active.expiresAt().isAfter(turns.now()))
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "本轮处理期限已结束，请刷新会话核对；旧结果未保存");
+        persistAnswer.run();
+        var messages = messages(turn.sessionId());
+        var last = messages.get(messages.size()-1);
+        if (!"ASSISTANT".equals(last.role())) throw new IllegalStateException("Turn completion requires an answer");
+        if (turns.finish(turn.id(),"COMPLETED",last.id(),turns.now(),null) != 1)
+            throw new IllegalStateException("Turn ownership changed");
+    }
+    @Override @Transactional public void failTurn(com.aihospital.triage.domain.TriageTurn turn, String failureCode) {
+        mapper.lockMessageSession(turn.sessionId());
+        if (turns.finish(turn.id(),"FAILED",null,turns.now(),failureCode) == 1)
+            mapper.markRetry(turn.sessionId(),turns.now());
+    }
+    @Override @Transactional public void reconcileTurns(String sessionId) {
+        if (mapper.lockMessageSession(sessionId) != null) reconcileLocked(sessionId);
+    }
+    private void reconcileLocked(String sessionId) {
+        var now = turns.now();
+        for (var row : turns.running(sessionId)) {
+            var active = readTurn(row);
+            if (!active.expiresAt().isAfter(now) && turns.finish(active.id(),"INTERRUPTED",null,now,"TURN_LEASE_EXPIRED") == 1)
+                mapper.markRetry(sessionId,now);
+        }
+        // Upgrade requires stopping pre-ledger instances. Keep legacy messages intact;
+        // an untracked processing marker cannot authorize replay of the old operation.
+        if (turns.latest(sessionId) == null && "处理中".equals(mapper.sessionStatus(sessionId)))
+            mapper.markRetry(sessionId,now);
+    }
+    @Override public com.aihospital.triage.domain.TriageTurn turn(String sessionId,String requestId) {
+        return readTurn(turns.find(sessionId,requestId));
+    }
+    @Override public com.aihospital.triage.domain.TriageTurn latestTurn(String sessionId) { return readTurn(turns.latest(sessionId)); }
+    private static com.aihospital.triage.domain.TriageTurn readTurn(java.util.Map<String,Object> row) {
+        if (row == null || row.isEmpty()) return null;
+        return new com.aihospital.triage.domain.TriageTurn(string(row,"id"),string(row,"session_id"),string(row,"request_id"),
+                string(row,"status"),string(row,"user_message_id"),string(row,"assistant_message_id"),dateTime(row,"started_at"),
+                dateTime(row,"expires_at"),value(row,"finished_at") == null ? null : dateTime(row,"finished_at"),string(row,"failure_code"));
     }
 
     @Override public List<Session> sessions(String patient) {

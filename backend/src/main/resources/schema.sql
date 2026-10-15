@@ -115,6 +115,23 @@ CREATE TABLE IF NOT EXISTS sim_appointment (
   UNIQUE (patient_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS triage_turn (
+  id VARCHAR(64) PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL,
+  request_id VARCHAR(80) NOT NULL,
+  content_hash VARCHAR(64) NOT NULL,
+  status VARCHAR(24) NOT NULL,
+  user_message_id VARCHAR(64) NOT NULL,
+  assistant_message_id VARCHAR(64),
+  started_at TIMESTAMP NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  finished_at TIMESTAMP,
+  failure_code VARCHAR(64),
+  UNIQUE (session_id, request_id),
+  FOREIGN KEY (session_id) REFERENCES triage_session(id),
+  FOREIGN KEY (user_message_id) REFERENCES triage_message(id)
+);
+
 CREATE TABLE IF NOT EXISTS sim_booking_request (
   patient_id VARCHAR(128) NOT NULL,
   idempotency_key VARCHAR(64) NOT NULL,

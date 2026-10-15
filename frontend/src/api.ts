@@ -14,6 +14,9 @@ export function clearSession() {
   for(const key of ['ai-hospital-role','ai-hospital-name','ai-hospital-demo-role','ai-hospital-login']) {
     try { localStorage.removeItem(key) } catch {}
   }
+  try {
+    for(let i=sessionStorage.length-1;i>=0;i--){const key=sessionStorage.key(i);if(key?.startsWith('ai-hospital-turn:'))sessionStorage.removeItem(key)}
+  } catch {}
 }
 const requireSameSession=(generation:number)=>{
   if(generation!==authGeneration)throw new Error('登录状态已改变，请重新操作')
