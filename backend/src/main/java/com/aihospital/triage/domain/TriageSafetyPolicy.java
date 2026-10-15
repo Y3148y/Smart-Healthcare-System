@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** High-recall, auditable safety gate which model prose cannot override. */
+/** Deterministic pattern-based safety gate which model prose cannot override; recall is not established. */
 @Component
 public class TriageSafetyPolicy {
     public static final String POLICY_VERSION = "CN-ADULT-ONLINE-TRIAGE-2026.10-P9";
