@@ -160,6 +160,13 @@ CREATE TABLE IF NOT EXISTS knowledge_document (
   updated_at TIMESTAMP NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_catalog_revision (
+  id INT PRIMARY KEY,
+  revision BIGINT NOT NULL,
+  published_revision BIGINT NOT NULL
+);
+INSERT IGNORE INTO knowledge_catalog_revision(id,revision,published_revision) VALUES(1,0,0);
+
 CREATE TABLE IF NOT EXISTS knowledge_document_metadata (
   document_id VARCHAR(64) PRIMARY KEY,
   metadata_json LONGTEXT NOT NULL,

@@ -36,6 +36,7 @@ class EmptyKnowledgeBootstrapTest {
         assertTrue(catalog.documents().isEmpty());
         assertTrue(local.approvedCorpus().isEmpty());
         verify(store).loadOrSeed(List.of());
+        verify(store).supportsRevisionTracking();
         verifyNoMoreInteractions(store);
     }
 }

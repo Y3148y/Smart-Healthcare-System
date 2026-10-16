@@ -22,8 +22,34 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
         this.mapper = mapper; this.json = json;
     }
 
+    @Override public boolean supportsRevisionTracking() { return true; }
+    @Override public long revision() {
+        Long revision = mapper.revision();
+        if (revision == null || revision < 0) throw new IllegalStateException("Knowledge revision is unavailable");
+        return revision;
+    }
+    @Override public long publishedRevision() {
+        Long revision = mapper.publishedRevision();
+        if (revision == null || revision < 0) throw new IllegalStateException("Published knowledge revision is unavailable");
+        return revision;
+    }
+    private long lockRevision() {
+        Long revision = mapper.lockRevision();
+        if (revision == null || revision < 0) throw new IllegalStateException("Knowledge revision is unavailable");
+        return revision;
+    }
+    private void advanceRevision(boolean published) {
+        if (mapper.advanceRevision(published ? 1 : 0) != 1) throw new IllegalStateException("Knowledge revision was not persisted");
+    }
+    @Override @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public Snapshot snapshot() {
+        long revision = lockRevision();
+        return new Snapshot(revision, publishedRevision(), mapper.findAll().stream().map(this::convert).toList());
+    }
+
     @Override @Transactional
     public List<StoredKnowledgeDocument> loadOrSeed(List<StoredKnowledgeDocument> bundledDocuments) {
+        lockRevision();
         if (mapper.count() == 0) {
             for (StoredKnowledgeDocument document : bundledDocuments) insert(document);
         }
@@ -53,6 +79,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
     }
 
     private void insertDocument(StoredKnowledgeDocument document) {
+        lockRevision();
         if (mapper.insert(document.id(), document.title(), document.body(), document.source(),
                 document.status(), document.chunkCount(), document.updatedAt()) != 1)
             throw new IllegalStateException("Knowledge document was not persisted");
@@ -64,16 +91,21 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
                 throw new IllegalStateException("Knowledge metadata cannot be serialized", invalid);
             }
         }
+        advanceRevision("READY".equals(document.status()));
     }
 
     @Override @Transactional
     public StoredKnowledgeDocument approve(String id, int chunkCount, LocalDateTime updatedAt) {
+        lockRevision();
         if (mapper.lockDocument(id) == null) throw new IllegalArgumentException("知识资料不存在");
         StoredKnowledgeDocument candidate = find(id);
         if (candidate == null) throw new IllegalArgumentException("知识资料不存在");
         if (candidate.metadata() != null && !candidate.metadata().mayPublish())
             throw new IllegalArgumentException("Knowledge usage permission must be resolved before approval");
-        if (mapper.approvePending(id, chunkCount, updatedAt) == 1) return find(id);
+        if (mapper.approvePending(id, chunkCount, updatedAt) == 1) {
+            advanceRevision(true);
+            return find(id);
+        }
         StoredKnowledgeDocument existing = find(id);
         if (existing == null) throw new IllegalArgumentException("知识资料不存在");
         if ("READY".equals(existing.status())) return existing;
@@ -82,14 +114,17 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
 
     @Override @Transactional
     public void refreshChunkCount(String id, int chunkCount) {
+        lockRevision();
         if (mapper.refreshChunkCount(id, chunkCount) != 1)
             throw new IllegalArgumentException("知识资料不存在");
+        advanceRevision("READY".equals(find(id).status()));
     }
 
     @Override @Transactional
     public StoredKnowledgeDocument withdraw(String id, LocalDateTime updatedAt) {
+        lockRevision();
         if (mapper.lockDocument(id) == null) throw new IllegalArgumentException("知识资料不存在");
-        mapper.withdrawReady(id, updatedAt);
+        if (mapper.withdrawReady(id, updatedAt) == 1) advanceRevision(true);
         StoredKnowledgeDocument existing = find(id);
         if (existing == null || !"PENDING_REVIEW".equals(existing.status()))
             throw new IllegalStateException("Knowledge withdrawal state changed concurrently");
@@ -98,6 +133,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
 
     @Override @Transactional
     public StoredKnowledgeDocument updatePendingMetadata(String id, KnowledgeMetadata supplied, LocalDateTime updatedAt) {
+        lockRevision();
         if (supplied == null) throw new IllegalArgumentException("Knowledge metadata is required");
         if (mapper.updatePendingSource(id, supplied.sourceLabel(), updatedAt) != 1)
             throw new IllegalArgumentException("Only pending knowledge metadata may be corrected");
@@ -108,6 +144,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
         } catch (JsonProcessingException invalid) {
             throw new IllegalStateException("Knowledge metadata cannot be serialized", invalid);
         }
+        advanceRevision(false);
         return find(id);
     }
 

@@ -11,6 +11,14 @@ import java.util.Map;
 
 @Mapper
 public interface KnowledgeDocumentMapper {
+    @Select("SELECT revision FROM knowledge_catalog_revision WHERE id=1")
+    Long revision();
+    @Select("SELECT published_revision FROM knowledge_catalog_revision WHERE id=1")
+    Long publishedRevision();
+    @Select("SELECT revision FROM knowledge_catalog_revision WHERE id=1 FOR UPDATE")
+    Long lockRevision();
+    @Update("UPDATE knowledge_catalog_revision SET revision=revision+1,published_revision=published_revision+#{published} WHERE id=1")
+    int advanceRevision(@Param("published") int published);
     @Select("SELECT d.*,m.metadata_json FROM knowledge_document d LEFT JOIN knowledge_document_metadata m ON m.document_id=d.id ORDER BY d.updated_at DESC,d.id")
     List<Map<String, Object>> findAll();
 

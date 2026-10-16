@@ -61,10 +61,10 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         loadBundledKnowledge(bundledApproved);
     }
 
-    @Override public List<KnowledgeDocument> documents() {
+    @Override public synchronized List<KnowledgeDocument> documents() {
         return documents.values().stream().sorted(Comparator.comparing(KnowledgeDocument::updatedAt).reversed()).toList();
     }
-    public List<Evidence> approvedCorpus() {
+    public synchronized List<Evidence> approvedCorpus() {
         return chunks.values().stream().flatMap(List::stream)
                 .map(chunk -> new Evidence(chunk.title(), chunk.source(), chunk.text(), 1.0)).toList();
     }
@@ -80,10 +80,10 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         if (storedDocuments.stream().anyMatch(stored -> "READY".equals(stored.status())
                 && stored.metadata() != null && !stored.metadata().mayPublish()))
             throw new IllegalStateException("Published knowledge has unresolved usage permission");
-        documents.clear();
-        sources.clear();
-        metadata.clear();
-        chunks.clear();
+        Map<String, KnowledgeDocument> nextDocuments = new HashMap<>();
+        Map<String, String> nextSources = new HashMap<>();
+        Map<String, KnowledgeMetadata> nextMetadata = new HashMap<>();
+        Map<String, List<Chunk>> nextChunks = new HashMap<>();
         for (StoredKnowledgeDocument stored : storedDocuments) {
             if (stored.id() == null || stored.id().isBlank() || stored.title() == null || stored.title().isBlank()
                     || stored.body() == null || stored.body().isBlank() || stored.source() == null || stored.source().isBlank()
@@ -92,16 +92,21 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
                 throw new IllegalStateException("Persistent knowledge document is incomplete");
             KnowledgeDocument document = new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
                     stored.chunkCount(), stored.status(), stored.updatedAt());
-            documents.put(stored.id(), document);
-            sources.put(stored.id(), stored.source());
-            if (stored.metadata() != null) metadata.put(stored.id(), stored.metadata());
+            if (nextDocuments.put(stored.id(), document) != null)
+                throw new IllegalStateException("Duplicate persistent knowledge identity");
+            nextSources.put(stored.id(), stored.source());
+            if (stored.metadata() != null) nextMetadata.put(stored.id(), stored.metadata());
             if ("READY".equals(stored.status())) {
                 List<Chunk> indexed = chunk(stored.id(), stored.title(), stored.body(), stored.source());
-                documents.put(stored.id(), new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
+                nextDocuments.put(stored.id(), new KnowledgeDocument(stored.id(), stored.title(), stored.body(),
                         indexed.size(), stored.status(), stored.updatedAt()));
-                chunks.put(stored.id(), indexed);
+                nextChunks.put(stored.id(), indexed);
             }
         }
+        documents.clear(); documents.putAll(nextDocuments);
+        sources.clear(); sources.putAll(nextSources);
+        metadata.clear(); metadata.putAll(nextMetadata);
+        chunks.clear(); chunks.putAll(nextChunks);
     }
 
     public synchronized StoredKnowledgeDocument persistedDocument(String id) {
@@ -136,7 +141,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return new DocumentDetail(document, source, segments, "READY".equals(document.status())
                 ? "NOT_CHECKED" : "NOT_APPROVED", 0, "片段预览不等于已进入向量索引；待审核资料不参与患者检索。");
     }
-    @Override public KnowledgeDocument addDocument(String title, String body) {
+    @Override public synchronized KnowledgeDocument addDocument(String title, String body) {
         return add(title, body, "管理员录入/本地上传", false);
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata supplied) {
@@ -260,7 +265,7 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         return stripRoutingNoise ? sanitizeQuery(query) : normalize(query).trim();
     }
 
-    @Override public Retrieval retrieve(String query, int maxResults, double minimumScore) {
+    @Override public synchronized Retrieval retrieve(String query, int maxResults, double minimumScore) {
         String normalized = stripRoutingNoise ? sanitizeQuery(query) : normalize(query);
         if (normalized.isBlank()) return new Retrieval(List.of(), false, "检索问题为空，已拒绝生成无依据回答");
         Set<String> queryTerms = medicalTerms(normalized);

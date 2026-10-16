@@ -52,6 +52,13 @@ jobs:
           -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/ai_hospital
           -Dspring.datasource.username=root
           -Dspring.datasource.password=synthetic-ci-only test
+      - name: Create isolated knowledge revision database
+        run: docker exec -e MYSQL_PWD=synthetic-ci-only ${{ job.services.mysql.id }} mysql -uroot -e 'CREATE DATABASE ai_hospital_revision_test;'
+      - name: Verify cross-instance knowledge snapshots against MySQL
+        working-directory: backend
+        env:
+          KNOWLEDGE_TEST_PASSWORD: synthetic-ci-only
+        run: mvn --batch-mode -Dtest=KnowledgeRevisionCoherenceTest -Dai.test.knowledge-db-url=jdbc:mysql://127.0.0.1:3306/ai_hospital_revision_test test
       - name: Verify synthetic indexing against Qdrant
         working-directory: backend
         run: >-

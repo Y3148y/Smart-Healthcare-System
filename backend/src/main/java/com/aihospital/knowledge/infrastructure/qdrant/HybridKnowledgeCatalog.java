@@ -39,6 +39,35 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.rerank.enabled:true}") private boolean rerankEnabled = true;
     private volatile String lastMode = "NOT_QUERIED";
     private final LexicalSearch lexicalSearch;
+    private long cachedRevision = -1;
+    private long cachedPublishedRevision = -1;
+    private boolean revisionTracking;
+
+    /** Called under this catalog's monitor; never hold a DB transaction during remote retrieval. */
+    private synchronized void refreshFromStore() {
+        if (!revisionTracking) return;
+        long current = documentStore.revision();
+        if (current < 0 || current < cachedRevision) throw new IllegalStateException("Knowledge revision moved backwards");
+        if (current != cachedRevision) {
+            var snapshot = documentStore.snapshot();
+            if (snapshot.revision() < current) throw new IllegalStateException("Knowledge snapshot is stale");
+            local.restorePersistedDocuments(snapshot.documents());
+            cachedRevision = snapshot.revision();
+            cachedPublishedRevision = snapshot.publishedRevision();
+        }
+    }
+    private record ApprovedSnapshot(List<Evidence> corpus,
+            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins, long revision) {}
+    private synchronized ApprovedSnapshot approvedSnapshot() {
+        refreshFromStore();
+        return new ApprovedSnapshot(local.approvedCorpus(), chunkOrigins(), cachedPublishedRevision);
+    }
+    private String snapshotFailure(ApprovedSnapshot snapshot) {
+        if (!revisionTracking) return null;
+        try {
+            return documentStore.publishedRevision() == snapshot.revision() ? null : "KNOWLEDGE_SNAPSHOT_CHANGED";
+        } catch (RuntimeException unavailable) { return "KNOWLEDGE_STORE_UNAVAILABLE"; }
+    }
     private final java.util.Deque<RetrievalEvent> events = new java.util.ArrayDeque<>();
     public record RetrievalEvent(String id, java.time.Instant time, String mode, String semanticStatus,
                                  String rerankStatus, int candidates, int selected, long elapsedMs, String lexicalStatus) {}
@@ -49,7 +78,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 report.retrieval().evidence().size(), report.elapsedMs(), report.lexicalStatus()));
         while (events.size() > 100) events.removeLast();
     }
-    @Override public DocumentDetail documentDetails(String id) {
+    @Override public synchronized DocumentDetail documentDetails(String id) {
+        refreshFromStore();
         var detail = local.documentDetails(id);
         boolean approved = "READY".equals(detail.document().status());
         int count = approved ? semantic.indexedCount(detail.segments()) : 0;
@@ -59,8 +89,10 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 "索引计数是本进程已向 Qdrant 校验或成功写入的片段数，不是持续健康检查；数据库保存资料和审批状态，检索缓存由记录重建。");
     }
     @Override public Map<String, String> syncIndex() {
-        boolean success = indexApprovedCorpus(local.approvedCorpus());
-        return Map.of("status", semantic.status(), "success", String.valueOf(success));
+        var snapshot = approvedSnapshot();
+        boolean success = indexApprovedCorpus(snapshot.corpus(), snapshot.origins());
+        String failure = snapshotFailure(snapshot);
+        return Map.of("status", failure == null ? semantic.status() : failure, "success", String.valueOf(success && failure == null));
     }
 
     private boolean indexApprovedCorpus(List<Evidence> corpus) {
@@ -114,26 +146,32 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 int currentChunkCount = local.persistedDocument(stored.id()).chunkCount();
                 if (currentChunkCount != stored.chunkCount()) documentStore.refreshChunkCount(stored.id(), currentChunkCount);
             }
+            revisionTracking = documentStore.supportsRevisionTracking();
+            refreshFromStore();
         }
         if (requireSemantic && !semantic.configured()) throw new IllegalStateException("rag-live requires embedding configuration");
         if (requireRerank && (!rerankEnabled || reranker == null || !reranker.configured()))
             throw new IllegalStateException("rag-live requires rerank configuration");
     }
-    @Override public List<KnowledgeDocument> documents() { return local.documents(); }
-    @Override public List<com.aihospital.knowledge.domain.KnowledgeChunk> documentChunks(String id) {
+    @Override public synchronized List<KnowledgeDocument> documents() { refreshFromStore(); return local.documents(); }
+    @Override public synchronized List<com.aihospital.knowledge.domain.KnowledgeChunk> documentChunks(String id) {
+        refreshFromStore();
         return local.documentChunks(id);
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body) {
+        refreshFromStore();
         KnowledgeDocument document = local.addDocument(title, body);
         return persistNewDocument(document);
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body,
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
+        refreshFromStore();
         if (metadata != null) metadata.validateBody(body);
         return persistNewDocument(local.addDocument(title, body, metadata));
     }
     @Override public synchronized KnowledgeDocument addDocument(String title, String body,
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata, String idempotencyKey) {
+        refreshFromStore();
         if (metadata == null) throw new IllegalArgumentException("Structured knowledge metadata is required");
         if (!KnowledgeImportIdentity.validKey(idempotencyKey, title, body))
             throw new IllegalArgumentException("知识导入请求键无效");
@@ -147,6 +185,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         KnowledgeDocument created = local.addDocument(title, body, metadata);
         try {
             documentStore.insertImported(local.persistedDocument(created.id()), idempotencyKey, requestHash);
+            refreshFromStore();
             return created;
         } catch (RuntimeException failure) {
             // A concurrent process may have won the unique-key insert. Read only after
@@ -169,14 +208,17 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         return local.documents().stream().filter(document -> document.id().equals(receipt.document().id()))
                 .findFirst().orElseThrow(() -> new IllegalStateException("Idempotent knowledge import record is inconsistent"));
     }
-    @Override public com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {
+    @Override public synchronized com.aihospital.knowledge.domain.KnowledgeMetadata documentMetadata(String id) {
+        refreshFromStore();
         return local.documentMetadata(id);
     }
     @Override public synchronized KnowledgeDocument updatePendingMetadata(String id,
             com.aihospital.knowledge.domain.KnowledgeMetadata metadata) {
+        refreshFromStore();
         if (!"PENDING_REVIEW".equals(local.documentDetails(id).document().status()))
             throw new IllegalArgumentException("Only pending knowledge metadata may be corrected");
         if (documentStore != null) documentStore.updatePendingMetadata(id, metadata, java.time.LocalDateTime.now());
+        if (revisionTracking) { refreshFromStore(); return local.documentDetails(id).document(); }
         return local.updatePendingMetadata(id, metadata);
     }
     private KnowledgeDocument persistNewDocument(KnowledgeDocument document) {
@@ -184,20 +226,25 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             try { documentStore.insert(local.persistedDocument(document.id())); }
             catch (RuntimeException failure) { local.removeAfterPersistenceFailure(document.id()); throw failure; }
         }
+        refreshFromStore();
         return document;
     }
     @Override public synchronized KnowledgeDocument approveDocument(String id) {
+        refreshFromStore();
         if (documentStore != null) {
             var pending = local.documentDetails(id);
             documentStore.approve(id, pending.segments().size(), java.time.LocalDateTime.now());
         }
-        var approved = local.approveDocument(id);
+        if (revisionTracking) refreshFromStore();
+        var approved = revisionTracking ? local.documentDetails(id).document() : local.approveDocument(id);
         indexApprovedCorpus(local.approvedCorpus());
         return approved;
     }
     @Override public synchronized KnowledgeDocument withdrawDocument(String id) {
+        refreshFromStore();
         local.documentDetails(id); // Validate before durable mutation; do not change cache on store failure.
         if (documentStore != null) documentStore.withdraw(id, java.time.LocalDateTime.now());
+        if (revisionTracking) { refreshFromStore(); return local.documentDetails(id).document(); }
         return local.withdrawDocument(id);
     }
     @Override public String retrievalMode() { return lastMode; }
@@ -231,11 +278,24 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             return new Report(new Retrieval(List.of(), false, "检索问题为空或过长"), "INVALID_QUERY", semantic.status(), "SKIPPED", List.of(), 0);
         long start = System.nanoTime();
         int limit = Math.max(1, Math.min(maxResults, 8)), depth = Math.max(limit, Math.min(100, candidateLimit));
-        var corpus = local.approvedCorpus();
+        ApprovedSnapshot snapshot;
+        try { snapshot = approvedSnapshot(); }
+        catch (RuntimeException unavailable) {
+            var failure = new Report(new Retrieval(List.of(), false, "知识状态暂不可核验，未采用旧缓存"),
+                    "KNOWLEDGE_STORE_UNAVAILABLE", semantic.status(), "SKIPPED", List.of(),
+                    (System.nanoTime() - start) / 1_000_000, "NOT_QUERIED");
+            lastMode = failure.mode();
+            recordEvent(failure);
+            com.aihospital.shared.diagnostics.TurnTraceContext.record(
+                    new com.aihospital.shared.diagnostics.TurnTraceContext.Execution("RETRIEVAL", failure.mode(),
+                            "Knowledge state unavailable", failure.elapsedMs(), false, rerankEnabled, false, 0));
+            return failure;
+        }
+        var corpus = snapshot.corpus();
         Set<String> explicitlyNegatedTitles = NegatedTitleTopics.excludedTitles(query, corpus);
         var lexicalReport = lexicalSearch.search(query, corpus, depth, minimumScore);
         List<Evidence> lexical = lexicalReport.evidence();
-        var origins = chunkOrigins();
+        var origins = snapshot.origins();
         boolean indexed = indexApprovedCorpus(corpus, origins);
         var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
                 : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
@@ -283,19 +343,24 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                         .limit(limit).toList();
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
                 : unreranked;
+        String snapshotFailure = snapshotFailure(snapshot);
+        if (snapshotFailure != null) selected = List.of();
         selected = selected.stream().filter(e -> !explicitlyNegatedTitles.contains(e.title()))
                 .map(e -> withSectionContext(e, origins)).toList();
         String mode = blocked ? "DEPENDENCY_BLOCKED" : denseOk ? "HYBRID_QDRANT"
                 : lexicalReport.status().startsWith("ELASTICSEARCH") ? "ELASTICSEARCH_BM25" : "LOCAL_BM25";
         mode += "OK".equals(reranked.status()) ? "_RERANKED" : "EMPTY".equals(reranked.status()) ? "_NO_CANDIDATES" : "_UNRERANKED";
+        if (snapshotFailure != null) mode = snapshotFailure;
         lastMode = mode;
         Set<String> kept = new HashSet<>(); selected.forEach(e -> kept.add(Bm25Retriever.key(e)));
         Map<String, BailianReranker.Ranked> rerankRecords = new HashMap<>();
         reranked.ranking().forEach(r -> rerankRecords.put(Bm25Retriever.key(r.evidence()), r));
+        final String finalSnapshotFailure = snapshotFailure;
         List<FusionRecord> records = ranked.stream().map(c -> new FusionRecord(c.evidence.title(), c.evidence.source(),
                 c.evidence.excerpt(), c.lexicalRank, c.lexicalScore, c.semanticRank, c.semanticScore, c.fused,
                 rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).evidence().score() : null,
-                kept.contains(Bm25Retriever.key(c.evidence)), blocked ? "required_dependency_unavailable"
+                kept.contains(Bm25Retriever.key(c.evidence)), finalSnapshotFailure != null ? finalSnapshotFailure
+                : blocked ? "required_dependency_unavailable"
                 : explicitlyNegatedTitles.contains(c.evidence.title()) ? "explicitly_negated_title_topic"
                 : rerankRecords.containsKey(Bm25Retriever.key(c.evidence)) ? rerankRecords.get(Bm25Retriever.key(c.evidence)).reason()
                 : requireDenseConfirmation && c.semanticRank == 0 ? "unconfirmed_lexical_only_without_rerank"

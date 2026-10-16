@@ -6,6 +6,8 @@ export interface RetrievalReport { retrieval: { evidence: Evidence[]; grounded: 
 export interface RetrievalEvent { id: string; time: string; mode: string; lexicalStatus?: string; semanticStatus: string; rerankStatus: string; candidates: number; selected: number; elapsedMs: number }
 export type KnowledgeRuntime = Record<string, string>
 export const stateLabels: Record<string, string> = {
+  KNOWLEDGE_STORE_UNAVAILABLE: '知识状态无法核验，未采用旧缓存',
+  KNOWLEDGE_SNAPSHOT_CHANGED: '审批状态已变化，本轮旧候选未采用',
   MEMORY_BM25_READY: '内存 BM25 成功', ELASTICSEARCH_READY: 'ES BM25 成功', ELASTICSEARCH_EMPTY_CORPUS: 'ES：无批准语料',
   ELASTICSEARCH_UNAVAILABLE: 'ES 不可用', ELASTICSEARCH_INTERRUPTED: 'ES 请求中断',
   ELASTICSEARCH_INVALID_RESPONSE: 'ES 返回身份校验失败', ELASTICSEARCH_PARTIAL_RESULT: 'ES 返回不完整，未采用',
