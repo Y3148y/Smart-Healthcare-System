@@ -41,6 +41,9 @@ jobs:
           java-version: '17'
           cache: maven
           cache-dependency-path: backend/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
       - name: Test backend without external model credentials
         working-directory: backend
         run: mvn --batch-mode test
@@ -67,6 +70,10 @@ jobs:
       - name: Verify Elasticsearch lexical indexing and native CJK analysis
         working-directory: backend
         run: mvn --batch-mode -Dtest=ElasticsearchLiveIntegrationTest -Dai.test.elasticsearch-url=http://127.0.0.1:9201 test
+      - name: Verify guarded deletion of unique synthetic Elasticsearch snapshots
+        env:
+          ES_SNAPSHOT_TEST_URL: http://127.0.0.1:9201
+        run: node scripts/test-es-snapshot-live.mjs --apply
       - name: Inspect public corpus with the application chunker
         run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
       - name: Check chunk-boundary regression examples
@@ -97,6 +104,8 @@ jobs:
           docker compose -f docker-compose.yml -f compose.app.yml up -d --wait --wait-timeout 120
           curl --fail --silent http://127.0.0.1:5188/api/health/ready
           node scripts/test-container-smoke.cjs --apply --resume "$session"
+      - name: Verify synthetic profile, knowledge, booking, stage stream and human-review journeys through Nginx
+        run: node scripts/test-container-journey.cjs --apply
       - name: Remove the synthetic CI stack
         if: always()
         run: docker compose -f docker-compose.yml -f compose.app.yml down -v
@@ -124,6 +133,7 @@ jobs:
           node scripts/check-public-content.cjs
           node --test scripts/local-test-target.test.cjs
           node --test scripts/container-contract.test.cjs
+          node --test scripts/container-journey.test.cjs
           node --test scripts/es-snapshot-maintenance.test.mjs
       - name: Frontend test and build
         working-directory: frontend

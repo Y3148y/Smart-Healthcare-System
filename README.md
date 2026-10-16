@@ -175,9 +175,11 @@ docker compose -f docker-compose.yml -f compose.app.yml up -d --build --wait
 
 后端以非root用户运行，`/api/health/live` 检查进程，`/api/health/ready` 检查数据库连接；不探测LLM、Qdrant或ES。Nginx提供静态页面和API代理，关闭阶段SSE缓冲，正文仍非逐token流。Compose配置 `unless-stopped`，人工停止后不会自动恢复；健康状态不会自动重启容器，不宣称已做OOM恢复或Kubernetes探针。启动依赖顺序见 [Docker官方说明](https://docs.docker.com/compose/how-tos/startup-order/)。
 
-本机已用独立MySQL及随机回环端口验证demo启动、页面/API代理、演示登录和合成会话重启回读，未调用外部LLM；未完成完整容器业务或真实模型验收。c799309镜像实测后端145608418字节、前端21047403字节，不保证后续构建或其他架构相同。Docker Hub认证端点曾超时，后端使用 `--build-arg MAVEN_IMAGE=docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17` 的既有同版本镜像验证，未改默认官方镜像地址或全局代理。前端锁文件现已升级Vite 6.4.4及source-map-js 1.2.2，2026-10-15官方npm审计零告警；不代表后端、基础镜像或整个应用已经完成安全审核。
+本机已用独立MySQL及随机回环端口验证demo启动、页面/API代理、演示登录和合成会话重启回读；2026-10-16补过Nginx的主要合成HTTP业务链路，见下方探针说明。未调用外部LLM，真实模型、完整浏览器写入体验及OOM恢复仍未验收。c799309镜像实测后端145608418字节、前端21047403字节，不保证后续构建或其他架构相同。Docker Hub认证端点曾超时，后端使用 `--build-arg MAVEN_IMAGE=docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17` 的既有同版本镜像验证，未改默认官方镜像地址或全局代理。前端锁文件现已升级Vite 6.4.4及source-map-js 1.2.2，2026-10-15官方npm审计零告警；不代表后端、基础镜像或整个应用已经完成安全审核。
 
 容器冒烟脚本 `scripts/test-container-smoke.cjs --apply` 必须设置 `CONTAINER_TEST_BASE_URL` 为显式本机HTTP origin、`CONTAINER_TEST_PASSWORD` 为演示登录密码；它会创建一个空的合成会话。重启测试实例后用 `--resume <sessionId>` 验证持久化回读，不自动重放聊天或预约。请只对隔离实例运行。切回同终端的宿主机启动时移除 `AI_DEMO_LOCAL_CONTAINER`，不得把Docker例外当成宿主机绑定许可。
+
+`scripts/test-container-journey.cjs --apply` 提供更完整的合成HTTP回归：本人资料版本冲突、知识待审/审批/撤回与ES检索、目录停用、预约幂等单次扣号、急症预约阻断、阶段SSE最终结果与历史一致、患者隔离、人工导诊受理/关闭及默认摘要拒绝。它必须设置同样的测试地址/密码，并在启动脚本的环境确认 `AI_MODE=demo`、`AI_AGENT_MODE=OFF`；环境确认不是服务端证明，操作者必须使用自己启动的隔离无模型凭据实例。探针在写入前还检查embedding未配置、rerank关闭，人工摘要需保持默认拒绝；会留下合成资料/预约/会话，不提供写入回滚或真实模型/向量质量验收。CI仅在一次性容器栈执行，失败直接终止，不自动重试业务写入。
 
 ## 知识库与评估
 

@@ -25,6 +25,7 @@ import java.util.*;
 public class ElasticsearchLexicalSearch implements LexicalSearch {
     private static final String SCHEMA = "cjk-bm25-v1";
     private final ObjectMapper json;
+    private final java.util.function.BooleanSupplier containerRuntime;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
     @Value("${ai.elasticsearch.url:http://127.0.0.1:9201}") private String url = "http://127.0.0.1:9201";
     @Value("${ai.elasticsearch.api-key:}") private String apiKey = "";
@@ -32,16 +33,25 @@ public class ElasticsearchLexicalSearch implements LexicalSearch {
     @Value("${ai.elasticsearch.min-score:0}") private double minimum = 0;
     @Value("${ai.elasticsearch.title-boost:2}") private double titleBoost = 2;
     @Value("${ai.elasticsearch.timeout-seconds:5}") private int timeoutSeconds = 5;
+    @Value("${ai.demo-local-container:false}") private boolean localContainerDemo;
     private volatile String installedSnapshot;
 
-    public ElasticsearchLexicalSearch(ObjectMapper json) { this.json = json; }
+    @org.springframework.beans.factory.annotation.Autowired
+    public ElasticsearchLexicalSearch(ObjectMapper json) {
+        this(json, () -> java.nio.file.Files.isRegularFile(java.nio.file.Path.of("/.dockerenv")));
+    }
+    ElasticsearchLexicalSearch(ObjectMapper json, java.util.function.BooleanSupplier containerRuntime) {
+        this.json = json; this.containerRuntime = containerRuntime;
+    }
 
     @PostConstruct public void validate() {
         URI endpoint = URI.create(url);
         boolean loopback = endpoint.getHost() != null && Set.of("localhost", "127.0.0.1", "::1", "[::1]").contains(endpoint.getHost());
+        boolean localComposeService = localContainerDemo && containerRuntime.getAsBoolean()
+                && "elasticsearch".equals(endpoint.getHost()) && endpoint.getPort() == 9200 && apiKey.isBlank();
         if (endpoint.getHost() == null || endpoint.getUserInfo() != null || endpoint.getQuery() != null
                 || endpoint.getFragment() != null || !Set.of("", "/").contains(endpoint.getPath())
-                || !("https".equals(endpoint.getScheme()) || "http".equals(endpoint.getScheme()) && loopback)
+                || !("https".equals(endpoint.getScheme()) || "http".equals(endpoint.getScheme()) && (loopback || localComposeService))
                 || !prefix.matches("[a-z][a-z0-9-]{0,100}") || !Double.isFinite(minimum) || minimum < 0
                 || !Double.isFinite(titleBoost) || titleBoost <= 0 || titleBoost > 10
                 || timeoutSeconds < 1 || timeoutSeconds > 30
