@@ -68,7 +68,24 @@ BM25 和 embedding/Qdrant 使用同一批准片段集合：
 
 ES 8.17.6 使用原生 [CJK分析器](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/analysis-cjk-analyzer.html)，不是医学词典。例如“急性心肌梗死”实测为“急性/性心/心肌/肌梗/梗死”，不保留完整术语；医学词典、同义词和分析器消融仍待评估。标题boost默认2不是经验效果承诺。
 
-首次查询某批准语料快照时，以稳定片段内容身份生成文档ID，语料排序后的ID及分析策略版本生成SHA-256索引后缀。按100片段分批bulk写入，逐项检查状态并使用 `refresh=wait_for`，全部成功才在本进程标为可查询。进程重启可复用同名索引并幂等写入；存在索引须通过schema/快照元数据检查，不覆盖其他索引。审批新增、正文变化和撤回导致下一次查询选择新的快照；这是请求触发同步，不是后台增量任务或原子alias发布。旧快照暂不自动删除，运维须保留在途读取窗口后按明确索引名清理，不能直接通配删除。批准缓存通过数据库版本读穿刷新，无推送通知；升级/直接SQL修改边界见架构文档。
+首次查询某批准语料快照时，以稳定片段内容身份生成文档ID，语料排序后的ID及分析策略版本生成SHA-256索引后缀。按100片段分批bulk写入，逐项检查状态并使用 `refresh=wait_for`，全部成功才在本进程标为可查询。进程重启可复用同名索引并幂等写入；存在索引须通过schema/快照元数据检查，不覆盖其他索引。审批新增、正文变化和撤回导致下一次查询选择新的快照；这是请求触发同步，不是后台增量任务或原子alias发布。旧快照不自动删除，显式维护工具见下节。批准缓存通过数据库版本读穿刷新，无推送通知；升级/直接SQL修改边界见架构文档。
+
+### 旧ES快照维护
+
+`scripts/es-snapshot-maintenance.mjs` 默认只读，必须显式指定本机ES地址和至少一个保留索引完整名称。工具读取索引元数据，不读取医学正文、查询或患者数据；检查名称的64位哈希后缀、schema/snapshot绑定、UUID、创建时间和无alias状态。只有年龄至少24小时且非保留的索引才可列为候选。该年龄不是“无在途请求”的证明，也不自动推断哪个版本仍在使用。
+
+```powershell
+# 先按ES Get index API盘点实际索引名称，确认当前版本、回滚版本和其他部署共用情况。
+# $currentIndex / $obsoleteIndex 必须是核实后的完整名称，不允许星号。
+node scripts/es-snapshot-maintenance.mjs --url http://127.0.0.1:9201 --keep $currentIndex
+
+# 停止所有共用该前缀的应用实例及其他索引维护程序，等待在途读取退出；备份所需索引。
+# 保留多个版本时重复 --keep。先不加 --apply，核对同一份删除选择。
+node scripts/es-snapshot-maintenance.mjs --url http://127.0.0.1:9201 --keep $currentIndex --delete $obsoleteIndex
+node scripts/es-snapshot-maintenance.mjs --url http://127.0.0.1:9201 --keep $currentIndex --delete $obsoleteIndex --apps-stopped --apply
+```
+
+执行前重新核对所有保留/待删索引UUID及创建时间；只对逐个完整名称发送DELETE，不更改集群通配删除保护。`--apps-stopped` 是操作者确认，不是自动检测或分布式租约：其他管理员并发替换索引仍有竞态，不能在线自动回收。失败不重试、不继续下一项，已完成的删除不回滚，响应不确定时先盘点再决定。删除会丢失该索引的片段副本；可由仍获准的数据库正文重建，已撤回资料不应为恢复旧索引而重新审批。API Key仅从 `AI_ELASTICSEARCH_API_KEY` 读取，不输出供应商正文。工具仅支持loopback，远端集群需另经运维流程。接口依据：[Get index](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/indices-get-index.html)、[Delete index](https://www.elastic.co/guide/en/elasticsearch/reference/8.17/indices-delete-index.html)。
 
 查询通过 `multi_match` 搜索标题和正文；ES专用 `AI_ELASTICSEARCH_MIN_SCORE` 默认0，不套用内存BM25的0.28。ES结果再次校验文档ID、当前快照原文及来源；部分结果、超时和异常响应不采用。故障返回明确 `ELASTICSEARCH_*` 状态，不自动切到内存；Qdrant和已有语义/重排依赖策略继续独立生效，不能把词法故障当“资料不存在”。后台检索详情、事件及轮次trace保存词法状态，ES没有本地TF解释时不伪造解释项。
 

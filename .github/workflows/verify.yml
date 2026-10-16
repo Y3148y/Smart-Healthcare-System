@@ -124,6 +124,7 @@ jobs:
           node scripts/check-public-content.cjs
           node --test scripts/local-test-target.test.cjs
           node --test scripts/container-contract.test.cjs
+          node --test scripts/es-snapshot-maintenance.test.mjs
       - name: Frontend test and build
         working-directory: frontend
         run: |
