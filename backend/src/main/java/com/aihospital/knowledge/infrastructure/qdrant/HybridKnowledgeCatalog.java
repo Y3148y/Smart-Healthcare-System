@@ -37,6 +37,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     @Value("${ai.retrieval.require-semantic:false}") private boolean requireSemantic;
     @Value("${ai.retrieval.require-rerank:false}") private boolean requireRerank;
     @Value("${ai.rerank.enabled:true}") private boolean rerankEnabled = true;
+    @Value("${ai.retrieval.unreranked-document-diversity:false}") private boolean documentDiversity;
     private volatile String lastMode = "NOT_QUERIED";
     private final LexicalSearch lexicalSearch;
     private long cachedRevision = -1;
@@ -249,12 +250,14 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     }
     @Override public String retrievalMode() { return lastMode; }
     @Override public Map<String, String> runtimeDetails() {
-        return Map.of("mode", lastMode, "embeddingConfigured", String.valueOf(semantic.configured()),
+        var details = new LinkedHashMap<>(Map.of("mode", lastMode, "embeddingConfigured", String.valueOf(semantic.configured()),
                 "rerankEnabled", String.valueOf(rerankEnabled),
                 "semanticStatus", semantic.status(), "rerankConfigured", String.valueOf(reranker != null && reranker.configured()),
                 "requireSemantic", String.valueOf(requireSemantic), "requireRerank", String.valueOf(requireRerank),
                 "embeddingModel", semantic.modelName(), "rerankModel", reranker == null ? "" : reranker.modelName(),
-                "note", "mode is the last completed retrieval; it is not a live health probe");
+                "note", "mode is the last completed retrieval; it is not a live health probe"));
+        details.put("unrerankedDocumentDiversity", String.valueOf(documentDiversity));
+        return Map.copyOf(details);
     }
     public record FusionRecord(String title, String source, String excerpt, int lexicalRank, Double lexicalScore,
                                int semanticRank, Double semanticScore, double fusedScore, Double rerankScore, boolean kept, String reason,
@@ -337,8 +340,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
             dense.stream().filter(e -> !explicitlyNegatedTitles.contains(e.title()))
                     .limit((limit + 1) / 2).forEach(e -> reserved.add(Bm25Retriever.key(e)));
         }
-        List<Evidence> unreranked = !reserved.isEmpty()
-                ? selectUnreranked(eligibleRanked, reserved, denseConfirmed, limit, requireDenseConfirmation)
+        List<Evidence> unreranked = !rerankEnabled && (documentDiversity || !reserved.isEmpty())
+                ? selectUnreranked(eligibleRanked, reserved, denseConfirmed, origins, limit, requireDenseConfirmation, documentDiversity)
                 : pool.stream().filter(e -> !requireDenseConfirmation || denseConfirmed.contains(Bm25Retriever.key(e)))
                         .limit(limit).toList();
         List<Evidence> selected = blocked ? List.of() : "OK".equals(reranked.status()) ? reranked.evidence()
@@ -387,19 +390,37 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
                 paths.size() == 1 ? paths.get(0) : List.of());
     }
     private static List<Evidence> selectUnreranked(List<Candidate> ranked, Set<String> reserved,
-            Set<String> denseConfirmed, int limit, boolean requireDenseConfirmation) {
+            Set<String> denseConfirmed, Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins,
+            int limit, boolean requireDenseConfirmation, boolean documentDiversity) {
         Map<String, Evidence> selected = new LinkedHashMap<>();
+        Set<String> documents = new HashSet<>();
         ranked.stream().filter(c -> reserved.contains(Bm25Retriever.key(c.evidence)))
                 .sorted(Comparator.comparingInt(c -> c.semanticRank))
                 .forEach(c -> selected.put(Bm25Retriever.key(c.evidence),
                         new Evidence(c.evidence.title(), c.evidence.source(), c.evidence.excerpt(), c.fused)));
-        for (Candidate c : ranked) {
-            if (selected.size() >= limit) break;
-            String key = Bm25Retriever.key(c.evidence);
-            if (requireDenseConfirmation && !denseConfirmed.contains(key)) continue;
-            selected.putIfAbsent(key, new Evidence(c.evidence.title(), c.evidence.source(), c.evidence.excerpt(), c.fused));
+        selected.keySet().forEach(key -> documents.add(documentGroup(key, origins)));
+        // Preserve dense reservations, then avoid allowing one long document to occupy
+        // every remaining slot. A second pass retains multiple sections if there are
+        // fewer eligible documents than slots. Diversity is not evidence of relevance.
+        for (boolean diverse : documentDiversity ? new boolean[]{true, false} : new boolean[]{false}) {
+            for (Candidate c : ranked) {
+                if (selected.size() >= limit) break;
+                String key = Bm25Retriever.key(c.evidence);
+                if (requireDenseConfirmation && !denseConfirmed.contains(key)) continue;
+                String document = documentGroup(key, origins);
+                if (diverse && documents.contains(document)) continue;
+                if (selected.putIfAbsent(key, new Evidence(c.evidence.title(), c.evidence.source(), c.evidence.excerpt(), c.fused)) == null)
+                    documents.add(document);
+            }
         }
         return List.copyOf(selected.values());
+    }
+    private static String documentGroup(String key,
+            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins) {
+        var ids = origins.getOrDefault(key, List.of()).stream()
+                .map(com.aihospital.knowledge.domain.KnowledgeChunk::documentId).filter(Objects::nonNull).distinct().toList();
+        // Never infer document identity from a title, vector payload or ambiguous origin.
+        return ids.size() == 1 && !ids.get(0).isBlank() ? "document:" + ids.get(0) : "chunk:" + key;
     }
     private static final class Candidate {
         final Evidence evidence;

@@ -45,6 +45,8 @@ ai:
     semantic-min-score: ${AI_SEMANTIC_MIN_SCORE:0.45}
     candidate-limit: ${AI_RETRIEVAL_CANDIDATE_LIMIT:20}
     rrf-k: ${AI_RETRIEVAL_RRF_K:60}
+    # Experimental document-diverse fill; default off until chunk-level relevance review.
+    unreranked-document-diversity: ${AI_UNRERANKED_DOCUMENT_DIVERSITY:false}
     require-semantic: ${AI_RETRIEVAL_REQUIRE_SEMANTIC:false}
     require-rerank: ${AI_RETRIEVAL_REQUIRE_RERANK:false}
   elasticsearch:
