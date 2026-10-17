@@ -39,7 +39,9 @@ public final class AnswerCallAudit {
         var reviewCall = new CallLog(id + "-review", call.time(), "回答依据核对", actor, answer.modelName(),
                 measured(review.inputTokens()), measured(review.outputTokens()),
                 review.elapsedMs() == null ? 0 : Math.max(0, review.elapsedMs()),
-                "PASSED".equals(review.status()), List.of(), id,TokenUsage.reported(review.inputTokens(),review.outputTokens()));
+                "PASSED".equals(review.status()), List.of(), id,
+                review.failure()!=null&&"ContextAssembler".equals(review.failure().causeType())?TokenUsage.local()
+                        :TokenUsage.reported(review.inputTokens(),review.outputTokens()));
         return List.of(call, reviewCall);
     }
 

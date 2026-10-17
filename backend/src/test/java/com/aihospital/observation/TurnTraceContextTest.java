@@ -6,6 +6,16 @@ import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TurnTraceContextTest {
+    @Test void budgetEstimatesRoundTripSeparatelyFromUsageAndOldRowsRemainUnknown() throws Exception {
+        var json=new com.fasterxml.jackson.databind.ObjectMapper();
+        var budget=new TurnTraceContext.ContextBudget(1000,2000,2,1,"UTF8_BYTES_WITH_FRAMING");
+        var execution=new TurnTraceContext.Execution("CONTEXT","NARRATION","BOUNDED_ESTIMATE",0,
+                null,null,null,1,"WORKFLOW",budget);
+        assertEquals(budget,json.readValue(json.writeValueAsString(execution),TurnTraceContext.Execution.class).contextBudget());
+        var old=json.readValue("{\"kind\":\"TOOL\",\"name\":\"legacy\",\"elapsedMs\":0}",TurnTraceContext.Execution.class);
+        assertNull(old.contextBudget());assertEquals("UNKNOWN",old.initiator());
+        assertThrows(IllegalArgumentException.class,()->new TurnTraceContext.ContextBudget(2001,2000,0,0,"UTF8_BYTES_WITH_FRAMING"));
+    }
     @Test void executionSummaryFollowsExplicitWorkerScopeAndPersistsWithoutCrossTurnLeak() throws Exception {
         var json = new com.fasterxml.jackson.databind.ObjectMapper();
         try (var scope = TurnTraceContext.open("message", "policy")) {

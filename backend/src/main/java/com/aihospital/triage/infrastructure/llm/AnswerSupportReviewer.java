@@ -41,6 +41,10 @@ final class AnswerSupportReviewer {
 
     static SupportReview review(String request, List<Turn> history, List<Reference> references,
                                 Draft draft, Boolean thinking, Caller caller) {
+        return review(request,history,references,draft,thinking,ContextAssembler.DEFAULT_BUDGET,caller);
+    }
+    static SupportReview review(String request,List<Turn> history,List<Reference> references,
+                                Draft draft,Boolean thinking,int inputBudget,Caller caller){
         long started = System.nanoTime();
         Integer input = null, output = null;
         try {
@@ -54,8 +58,10 @@ final class AnswerSupportReviewer {
             }
             String payload = JSON.writeValueAsString(Map.of("currentRequest", request, "patientStatements", patient,
                     "references", references, "draft", draft));
-            var response = caller.call(List.of(new SystemMessage(INSTRUCTIONS + MedicalAnswerInstructions.task(request)),
-                    new UserMessage("<review_data>" + payload + "</review_data>")));
+            var messages=List.<ChatMessage>of(new SystemMessage(INSTRUCTIONS+MedicalAnswerInstructions.task(request)),
+                    new UserMessage("<review_data>"+payload+"</review_data>"));
+            new ContextAssembler(inputBudget).check(messages);
+            var response=caller.call(messages);
             if (response == null) throw new InvalidReview("REVIEW_EMPTY_RESPONSE");
             if (response.tokenUsage() != null) {
                 input = response.tokenUsage().inputTokenCount(); output = response.tokenUsage().outputTokenCount();
@@ -69,7 +75,9 @@ final class AnswerSupportReviewer {
                     elapsed(started), null, thinking, input, output);
         } catch (Exception error) {
             if (error instanceof InterruptedException) Thread.currentThread().interrupt();
-            Failure failure = error instanceof InvalidReview known
+            Failure failure = error instanceof ContextAssembler.BudgetExceeded budget
+                    ? new Failure("REVIEW_"+budget.code,"ContextAssembler",null)
+                    : error instanceof InvalidReview known
                     ? new Failure(known.code, "ReviewValidator", null)
                     : error instanceof com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
                     ? new Failure("REVIEW_UNKNOWN_FIELD", "ReviewValidator", null)

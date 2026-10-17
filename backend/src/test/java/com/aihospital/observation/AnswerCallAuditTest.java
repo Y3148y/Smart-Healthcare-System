@@ -9,6 +9,13 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AnswerCallAuditTest {
+    @Test void budgetBlockedReviewHasNoProviderRequestUsage() {
+        var review=new AnswerEvidence.SupportReview("UNAVAILABLE",List.of(),1L,
+                new AnswerEvidence.Failure("REVIEW_CONTEXT_INPUT_BUDGET_EXCEEDED","ContextAssembler",null),false,null,null);
+        var rows=AnswerCallAudit.records("guide","synthetic",answer("VALIDATION_BLOCKED",review,null),2,List.of());
+        assertEquals("NOT_APPLICABLE",rows.get(1).usage().source());
+        assertFalse(rows.get(1).success());
+    }
     private static final String TRACE = "f1b09121-3c90-4fe8-88df-8fbf8f8807d0";
     private NarrationModel.Answer answer(String status, AnswerEvidence.SupportReview review, AnswerEvidence.Failure failure) {
         return new NarrationModel.Answer("synthetic answer", status, "test-model", new AnswerEvidence.Diagnostics(

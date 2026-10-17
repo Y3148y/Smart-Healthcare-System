@@ -1,0 +1,12 @@
+const {test}=require('node:test'),assert=require('node:assert/strict')
+const fs=require('node:fs'),path=require('node:path')
+
+test('context details label estimates separately from provider usage and preserve retrieval filters',()=>{
+  const source=fs.readFileSync(path.resolve(__dirname,'../src/features/triage/components/AnswerExecution.vue'),'utf8')
+  assert.match(source,/UTF-8 字节与消息开销估算，非实际用量/)
+  assert.match(source,/e\.kind==='CONTEXT'&&e\.contextBudget/)
+  assert.match(source,/e\.kind==='RETRIEVAL'/)
+  assert.match(source,/e\.kind==='TOOL'/)
+  assert.match(source,/historyMessagesRemoved/)
+  assert.match(source,/referencesRemoved/)
+})

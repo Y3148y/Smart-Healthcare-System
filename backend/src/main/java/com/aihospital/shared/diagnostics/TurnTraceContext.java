@@ -14,10 +14,22 @@ public final class TurnTraceContext implements AutoCloseable {
     private boolean closed;
     private java.util.List<Execution> executions = new java.util.concurrent.CopyOnWriteArrayList<>();
     /** Technical summaries only; no tool arguments, patient text or provider error bodies. */
+    public record ContextBudget(int estimatedInputTokens,int inputTokenBudget,int historyMessagesRemoved,
+                                int referencesRemoved,String estimator){
+        public ContextBudget{
+            if(estimatedInputTokens<0||inputTokenBudget<512||estimatedInputTokens>inputTokenBudget
+                    ||historyMessagesRemoved<0||referencesRemoved<0||!"UTF8_BYTES_WITH_FRAMING".equals(estimator))
+                throw new IllegalArgumentException("Invalid context budget metadata");
+        }
+    }
     public record Execution(String kind, String name, String status, long elapsedMs,
                             Boolean rrfUsed, Boolean rerankEnabled, Boolean rerankUsed,
-                            Integer selectedCount,String initiator) {
+                            Integer selectedCount,String initiator,ContextBudget contextBudget) {
         public Execution {initiator=InvocationContext.checked(initiator);}
+        public Execution(String kind,String name,String status,long elapsedMs,Boolean rrfUsed,Boolean rerankEnabled,
+                         Boolean rerankUsed,Integer selectedCount,String initiator){
+            this(kind,name,status,elapsedMs,rrfUsed,rerankEnabled,rerankUsed,selectedCount,initiator,null);
+        }
         public Execution(String kind,String name,String status,long elapsedMs,Boolean rrfUsed,Boolean rerankEnabled,
                          Boolean rerankUsed,Integer selectedCount){
             this(kind,name,status,elapsedMs,rrfUsed,rerankEnabled,rerankUsed,selectedCount,InvocationContext.current());
