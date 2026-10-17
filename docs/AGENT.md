@@ -44,6 +44,14 @@
 
 ## 配置、失败与验证
 
+### 离线意图与工具评分
+
+`node tools/rag-eval/agent-quality-cli.mjs <run.json> <reviewed-labels.json>` 不联网、不调用模型，仅输出技术计数。运行文件 `schemaVersion:1` 包含 `dataset`（同版本、id、DEVELOPMENT/HOLDOUT、cases）、`configuration`（model、promptVersion、policyVersion）与 `results`。每个数据项保存id和input.messages（id/role/content，最多5轮/4000字符）；结果保存id、唯一traceId、inputSha256、COMPLETED/UNAVAILABLE/INVALID、intents、tools（name/success）、elapsedMs、可空inputTokens/outputTokens和tokenUsageSource。工具名仍限现有三个只读工具。指纹采用工具导出的 `agentFingerprint` 对排序键后的JSON作SHA-256，绑定输入、完整数据集和完整运行。
+
+标签文件同版本，包含datasetSha256、runSha256、reviewer（id及AUTHOR_ENGINEERING/INDEPENDENT_ENGINEERING）与cases（id、期望intents、期望tools）。每项必须由评审者填写，不自动从模型答案生成；“独立”是评审者声明，程序不能认证其身份。原始输入与标签只留本机忽略目录，不提交患者内容。修改输入、Prompt版本、输出或配置后，旧标签不能复用。
+
+输出意图/工具集合完全一致率、micro Precision/Recall/F1、缺运行/未标注/失败数、评审样本完成率、全部运行p50/p95和供应商声明用量覆盖数。重复查询同工具计多次执行，但工具选择集合只计一次；选择正确与执行成功分开。失败不变成“空集合正确”，也不悄悄消失，已有标签却缺运行的项目仍进入完成率分母；缺失用量不作0。空分母为null。此工具尚不评价症状事件的语义归属、临床正确或真实账单；目前测试是合成工程夹具，没有多场景实测质量成绩。
+
 回答生成由 `ContextAssembler` 整条组装系统约束、引用资料和最近五轮对话（对话累计≤4000字符）。证据按完整引用JSON≤4000字符选择，保留原引用ID和哈希，不能截掉条件句；总预算不足时先移除最早完整对话轮，再移除末位完整证据。本轮问题和系统约束不可裁；无法容纳时明确 `CONTEXT_BLOCKED`，不是检索未命中或供应商故障。不得把所有证据裁掉后冒称无资料。
 
 `AI_CONTEXT_INPUT_TOKEN_BUDGET` 默认65536，允许512–262144。此处以UTF-8字节加消息开销作保守估算，**不是模型分词器、供应商实际Token或账单**，也不保证适配所有模型的上下文上限。回答核对请求在发送前独立检查同一预算，超限不请求供应商；阶段明细可查看估算和整条移除数量。此预算当前覆盖回答生成/核对及旧叙述入口，不代表抽取、规划和全轮成本预算均已统一。
