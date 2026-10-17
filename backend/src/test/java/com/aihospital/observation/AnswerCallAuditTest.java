@@ -41,17 +41,25 @@ class AnswerCallAuditTest {
         var review = new AnswerEvidence.SupportReview("UNAVAILABLE", List.of(), null, null, false, null, null);
         var rows = AnswerCallAudit.records("guide", "synthetic", answer("FALLBACK", review, null), 20, List.of());
         assertEquals(0, rows.get(1).inputTokens()); assertEquals(0, rows.get(1).outputTokens());
+        assertNull(rows.get(1).usage().inputTokens());assertNull(rows.get(1).usage().outputTokens());
+        assertEquals("NOT_REPORTED",rows.get(1).usage().source());
+        assertEquals("PROVIDER_REPORTED",rows.get(0).usage().source());
         assertEquals(123, rows.get(0).inputTokens());
     }
     @Test void deterministicSafetyAndDemoKeepNoProviderUsage() {
         for (String status : List.of("SAFETY_RULE", "DEMO", "DEMO_UNGROUNDED")) {
             var row = AnswerCallAudit.records("guide", "synthetic", new NarrationModel.Answer("test", status, ""), 1, null).get(0);
             assertTrue(row.success()); assertEquals(0, row.inputTokens()); assertEquals(0, row.outputTokens());
+            assertEquals("NOT_APPLICABLE",row.usage().source());
         }
     }
     @Test void toolFailureCannotBeHiddenByLiveModelSuccess() {
         var tool = new ToolTrace("medical_knowledge_retrieve", "synthetic", "", "", 1, false, "synthetic failure");
         var rows = AnswerCallAudit.records("guide", "synthetic", answer("LIVE", null, null), 20, List.of(tool));
         assertFalse(rows.get(0).success());
+    }
+    @Test void legacyAnswerWithoutDiagnosticsDoesNotPretendToHaveKnownUsage(){
+        var row=AnswerCallAudit.records("guide","synthetic",new NarrationModel.Answer("test","LIVE","synthetic"),1,List.of()).get(0);
+        assertEquals("NOT_REPORTED",row.usage().source());assertNull(row.usage().inputTokens());
     }
 }

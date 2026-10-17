@@ -81,7 +81,8 @@ public class HospitalToolExecutor {
                         null, null, null, null));
         calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), execution.trace().tool(),
                 "工具调用", "LOCAL_TOOL", 0, 0, execution.trace().elapsedMs(), execution.trace().success(),
-                List.of(execution.trace())));
+                List.of(execution.trace()),com.aihospital.shared.diagnostics.TurnTraceContext.currentId(),
+                com.aihospital.shared.model.Models.TokenUsage.local()));
     }
 
     private String required(Map<String, String> arguments, String key) {

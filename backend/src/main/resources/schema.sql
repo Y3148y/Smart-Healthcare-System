@@ -195,6 +195,12 @@ CREATE TABLE IF NOT EXISTS agent_call_trace (
   FOREIGN KEY (call_id) REFERENCES agent_call_log(id)
 );
 
+CREATE TABLE IF NOT EXISTS agent_call_usage (
+  call_id VARCHAR(64) PRIMARY KEY,
+  usage_json TEXT NOT NULL,
+  FOREIGN KEY (call_id) REFERENCES agent_call_log(id)
+);
+
 CREATE TABLE IF NOT EXISTS pending_booking_action (
   id VARCHAR(64) PRIMARY KEY,
   patient VARCHAR(128) NOT NULL,

@@ -162,7 +162,9 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
     private void audit(String purpose, String status, Integer input, Integer output, long elapsed, boolean success) {
         calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), purpose, "患者", status,
                 input == null ? 0 : Math.max(0, input), output == null ? 0 : Math.max(0, output),
-                Math.max(0, elapsed), success, List.of()));
+                Math.max(0, elapsed), success, List.of(),TurnTraceContext.currentId(),
+                "Agent执行".equals(purpose)?com.aihospital.shared.model.Models.TokenUsage.local()
+                        :com.aihospital.shared.model.Models.TokenUsage.reported(input,output)));
     }
 
     @Override @PreDestroy public void close() { runner.close(); }

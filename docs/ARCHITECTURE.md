@@ -95,6 +95,8 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 `TurnTraceContext` 为一轮处理分配 trace ID，消息来源、工具、生成、核对与终态日志通过 `agent_call_trace` 关联。上下文在 `finally` 释放，旧记录缺字段保留未知，不补造。生成与核对分别记录供应商返回用量；缺失用量显示未知，总耗时不能与子阶段耗时相加。这是本应用的逐轮关联，尚非分布式追踪，进程崩溃时仍可能缺日志。
 
+`agent_call_usage` 与调用及trace同事务保存用量来源：PROVIDER_REPORTED保留供应商返回值（包括真实0，某侧缺失仍为null）；NOT_REPORTED表示未取得用量，不计算成0；NOT_APPLICABLE用于没有模型请求的本地操作；LEGACY_RECORDED保留旧正数及其未知来源，旧0仍未知。保留旧整数列供旧写手兼容，不回填历史用量，也不把Token数换算成供应商账单。管理员技术投影逐条显示来源，不暴露患者或工具入参；损坏/非法来源元数据显式报错而非伪造零。
+
 普通管理员通过 `TechnicalCallView` 查看脱敏技术投影；人工队列不直接返回患者正文。摘要还需 `HUMAN_REVIEW_AUTHORIZED_SUBJECTS` 显式授权，读取与拒绝访问落库，读取审计失败时不返回正文。没有批量导出或自动清理策略。
 
 演示 JWT 可通过 `AI_JWT_SECRET` 配置稳定密钥；未配置时进程启动随机生成，重启令牌失效。关闭演示登录不会自动接入医院 SSO。

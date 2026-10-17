@@ -3,6 +3,7 @@ package com.aihospital.observation.infrastructure.mybatis;
 import com.aihospital.observation.domain.CallLogStore;
 import com.aihospital.shared.model.Models.CallLog;
 import com.aihospital.shared.model.Models.ToolTrace;
+import com.aihospital.shared.model.Models.TokenUsage;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,7 +28,7 @@ public class MybatisCallLogStore implements CallLogStore {
                 string(row,"purpose"), string(row,"actor"), string(row,"model"), integer(row,"input_tokens"),
                 integer(row,"output_tokens"), ((Number)row.get("elapsed_ms")).longValue(),
                 Boolean.TRUE.equals(row.get("success")) || Integer.valueOf(1).equals(row.get("success")),
-                tools(string(row,"tools_json")), string(row,"trace_id"))).toList();
+                tools(string(row,"tools_json")), string(row,"trace_id"),usage(row.get("usage_json")))).toList();
     }
 
     @Override @org.springframework.transaction.annotation.Transactional public void record(CallLog call) {
@@ -35,7 +36,15 @@ public class MybatisCallLogStore implements CallLogStore {
             mapper.insert(call.id(), call.time(), call.purpose(), call.user(), call.model(), call.inputTokens(),
                     call.outputTokens(), call.elapsedMs(), call.success(), json.writeValueAsString(call.tools()));
             if (call.traceId() != null) mapper.insertTrace(call.id(), call.traceId());
+            mapper.insertUsage(call.id(),json.writeValueAsString(call.usage()));
         } catch (JsonProcessingException ex) { throw new IllegalStateException("无法保存 Agent 审计日志", ex); }
+    }
+
+    private TokenUsage usage(Object value) {
+        if(value==null)return null; // Old writers/records retain their explicitly unknown origin.
+        if(!(value instanceof String text)||text.length()>4096)throw new IllegalStateException("Invalid usage metadata");
+        try{return json.readValue(text,TokenUsage.class);}
+        catch(JsonProcessingException invalid){throw new IllegalStateException("Invalid usage metadata");}
     }
 
     private List<ToolTrace> tools(String value) {

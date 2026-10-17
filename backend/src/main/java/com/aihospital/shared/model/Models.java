@@ -42,8 +42,30 @@ public final class Models {
     public record Appointment(String id, String registrationNo, String patient, Doctor doctor, String status, String triageSessionId, LocalDateTime createdAt) {}
     public record KnowledgeDocument(String id, String title, String body, int chunks, String status, LocalDateTime updatedAt) {}
     public record Tool(String code, String name, String description, boolean enabled, int order) {}
+    public record TokenUsage(Integer inputTokens,Integer outputTokens,String source) {
+        public TokenUsage {
+            if(source==null||!java.util.Set.of("PROVIDER_REPORTED","NOT_REPORTED","NOT_APPLICABLE","LEGACY_RECORDED").contains(source)
+                    ||inputTokens!=null&&inputTokens<0||outputTokens!=null&&outputTokens<0)
+                throw new IllegalArgumentException("Invalid token usage");
+            if("NOT_REPORTED".equals(source)&&(inputTokens!=null||outputTokens!=null)
+                    ||"NOT_APPLICABLE".equals(source)&&(!Integer.valueOf(0).equals(inputTokens)||!Integer.valueOf(0).equals(outputTokens))
+                    ||"PROVIDER_REPORTED".equals(source)&&inputTokens==null&&outputTokens==null)
+                throw new IllegalArgumentException("Inconsistent token usage source");
+        }
+        public static TokenUsage reported(Integer input,Integer output) {
+            input=input==null||input<0?null:input;output=output==null||output<0?null:output;
+            return new TokenUsage(input,output,input==null&&output==null?"NOT_REPORTED":"PROVIDER_REPORTED");
+        }
+        public static TokenUsage local(){return new TokenUsage(0,0,"NOT_APPLICABLE");}
+        public static TokenUsage legacy(int input,int output){return new TokenUsage(input>0?input:null,output>0?output:null,"LEGACY_RECORDED");}
+    }
     public record CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
-                          long elapsedMs, boolean success, List<ToolTrace> tools, String traceId) {
+                          long elapsedMs, boolean success, List<ToolTrace> tools, String traceId,TokenUsage usage) {
+        public CallLog {usage=usage==null?TokenUsage.legacy(inputTokens,outputTokens):usage;}
+        public CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
+                       long elapsedMs, boolean success, List<ToolTrace> tools, String traceId) {
+            this(id,time,purpose,user,model,inputTokens,outputTokens,elapsedMs,success,tools,traceId,null);
+        }
         public CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
                        long elapsedMs, boolean success, List<ToolTrace> tools) {
             this(id, time, purpose, user, model, inputTokens, outputTokens, elapsedMs, success, tools,
