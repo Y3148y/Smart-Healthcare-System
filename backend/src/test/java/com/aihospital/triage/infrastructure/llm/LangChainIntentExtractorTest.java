@@ -12,6 +12,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LangChainIntentExtractorTest {
+    @Test void contextBudgetBlocksBeforeProviderAndDoesNotTruncateSources(){
+        var calls=new AtomicInteger();
+        var extractor=extractor(AgentWorkflowSettings.Mode.SHADOW,"openai-compatible",messages->{calls.incrementAndGet();return null;});
+        org.springframework.test.util.ReflectionTestUtils.setField(extractor,"inputTokenBudget",512);
+        var result=extractor.extract(input);
+        assertEquals(IntentExtractor.Status.UNAVAILABLE,result.status());
+        assertEquals("INTENT_CONTEXT_INPUT_BUDGET_EXCEEDED",result.failureCode());
+        assertNull(result.inputTokens());assertNull(result.extraction());assertEquals(0,calls.get());
+    }
+    @Test void contextEstimateIsSeparateFromActualProviderUsage(){
+        try(var trace=com.aihospital.shared.diagnostics.TurnTraceContext.open("synthetic","policy")){
+            var result=extractor(AgentWorkflowSettings.Mode.SHADOW,"openai-compatible",messages->
+                    Response.from(AiMessage.from(VALID),new TokenUsage(10,5),FinishReason.STOP)).extract(input);
+            var event=com.aihospital.shared.diagnostics.TurnTraceContext.metadata().executions().get(0);
+            assertEquals("INTENT_EXTRACTION",event.name());assertNotNull(event.contextBudget());
+            assertTrue(event.contextBudget().estimatedInputTokens()>10);assertEquals(10,result.inputTokens());
+        }
+    }
     private final IntentInput input = new IntentInput(List.of(
             new IntentInput.SourceMessage("a1", "ASSISTANT", "持续多久？"),
             new IntentInput.SourceMessage("u2", "USER", "两天")));

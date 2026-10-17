@@ -19,6 +19,8 @@ public final class LangChainIntentExtractor implements IntentExtractor {
     private final IntentValidator validator;
     private final String mode, key, base, model;
     private final Sender sender;
+    @Value("${ai.context.estimated-input-token-budget:65536}")
+    private int inputTokenBudget=ContextAssembler.DEFAULT_BUDGET;
 
     @Autowired
     public LangChainIntentExtractor(AgentWorkflowSettings settings, IntentValidator validator,
@@ -54,6 +56,12 @@ public final class LangChainIntentExtractor implements IntentExtractor {
                     Schema:
                     """ + validator.schemaText()),
                     UserMessage.from(new ObjectMapper().writeValueAsString(input)));
+            new ContextAssembler(inputTokenBudget).check(messages);
+            var budget=new com.aihospital.shared.diagnostics.TurnTraceContext.ContextBudget(
+                    ContextAssembler.estimate(messages),inputTokenBudget,0,0,"UTF8_BYTES_WITH_FRAMING");
+            com.aihospital.shared.diagnostics.TurnTraceContext.record(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
+                    "CONTEXT","INTENT_EXTRACTION","BOUNDED_ESTIMATE",0,null,null,null,null,
+                    com.aihospital.shared.diagnostics.InvocationContext.current(),budget));
             var response = sender.send(messages);
             if (response == null || response.finishReason() != FinishReason.STOP || response.content() == null)
                 return result(Status.INVALID_OUTPUT, null, "INTENT_INCOMPLETE", response, started);
@@ -64,6 +72,8 @@ public final class LangChainIntentExtractor implements IntentExtractor {
             }
         } catch (Exception unavailable) {
             if (unavailable instanceof InterruptedException) Thread.currentThread().interrupt();
+            if(unavailable instanceof ContextAssembler.BudgetExceeded exceeded)
+                return result(Status.UNAVAILABLE,null,"INTENT_"+exceeded.code,null,started);
             // Provider/parser errors may contain private payloads; never expose or log their messages.
             return result(Status.UNAVAILABLE, null, "INTENT_" + ModelFailureDiagnostics.classify(unavailable).code(),
                     null, started);

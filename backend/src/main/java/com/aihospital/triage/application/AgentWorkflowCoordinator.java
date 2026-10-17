@@ -71,7 +71,11 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
             var input = IntentInput.recent(conversation.messages());
             var extracted = extractor.extract(input);
             audit("意图抽取", extracted.status().name() + "/" + extracted.failureCode(), extracted.inputTokens(),
-                    extracted.outputTokens(), extracted.elapsedMs(), extracted.status() == IntentExtractor.Status.ACCEPTED);
+                    extracted.outputTokens(), extracted.elapsedMs(), extracted.status() == IntentExtractor.Status.ACCEPTED,
+                    extracted.status()==IntentExtractor.Status.NOT_CONFIGURED
+                            ||extracted.failureCode()!=null&&extracted.failureCode().startsWith("INTENT_CONTEXT_")
+                            ?com.aihospital.shared.model.Models.TokenUsage.local()
+                            :com.aihospital.shared.model.Models.TokenUsage.reported(extracted.inputTokens(),extracted.outputTokens()));
             if (extracted.status() != IntentExtractor.Status.ACCEPTED) return null;
             durableFacts.stage(patient,conversation,input,extracted.extraction());
             // Historical observations persist, but only this authorized source window feeds tools/model.
@@ -165,11 +169,16 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
     }
 
     private void audit(String purpose, String status, Integer input, Integer output, long elapsed, boolean success) {
+        audit(purpose,status,input,output,elapsed,success,
+                "Agent执行".equals(purpose)?com.aihospital.shared.model.Models.TokenUsage.local()
+                        :com.aihospital.shared.model.Models.TokenUsage.reported(input,output));
+    }
+    private void audit(String purpose,String status,Integer input,Integer output,long elapsed,boolean success,
+                       com.aihospital.shared.model.Models.TokenUsage usage){
         calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), purpose, "患者", status,
                 input == null ? 0 : Math.max(0, input), output == null ? 0 : Math.max(0, output),
                 Math.max(0, elapsed), success, List.of(),TurnTraceContext.currentId(),
-                "Agent执行".equals(purpose)?com.aihospital.shared.model.Models.TokenUsage.local()
-                        :com.aihospital.shared.model.Models.TokenUsage.reported(input,output)));
+                usage));
     }
 
     @Override @PreDestroy public void close() { runner.close(); }
