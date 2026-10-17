@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {eventQuality,summarizeEvents} from './event-quality.mjs';
 
 // Offline only: labels are supplied by a reviewer, never inferred from model self-ratings.
 const INTENTS=new Set(['GENERAL_HEALTH','SYMPTOM_CONSULT','FIND_DEPARTMENT','FIND_DOCTOR','BOOKING_REQUEST','HUMAN_HELP']);
@@ -54,7 +55,7 @@ export function agentQuality(report,labels){
     if(!sources.has(id))fail();
     unique(review.intents,INTENTS);unique(review.tools,TOOLS);
   }
-  const intents=[],tools=[],latencies=[],cases=[];let unavailable=0,missingRuns=0,reviewedMissing=0,unreviewed=0,failedTools=0,toolExecutions=0;
+  const intents=[],tools=[],eventRows=[],latencies=[],cases=[];let unavailable=0,missingRuns=0,reviewedMissing=0,unreviewed=0,failedTools=0,toolExecutions=0;
   let knownInput=0,knownOutput=0,inputSum=0,outputSum=0;
   const traces=new Set();
   for(const [id,source] of sources){
@@ -82,18 +83,20 @@ export function agentQuality(report,labels){
       unavailable++;cases.push({id,status:run.status});continue;
     }
     const intent=setScore(proposed,expectedIntent),tool=setScore(selected,expectedTools);
-    intents.push(intent);tools.push(tool);cases.push({id,status:'REVIEWED',intents:intent,tools:tool});
+    const event=review.eventReview?.exhaustive===true?eventQuality(source.input.messages,run.events,review.eventReview):null;
+    if(event)eventRows.push(event);
+    intents.push(intent);tools.push(tool);cases.push({id,status:'REVIEWED',intents:intent,tools:tool,events:event});
   }
   return {schemaVersion:1,datasetId:report.dataset.id,split:report.dataset.split,
     datasetSha256:labels.datasetSha256,runSha256:labels.runSha256,reviewStatus:labels.reviewer.kind,
     totalCases:sources.size,runCases:runs.size,missingRuns,reviewedMissing,unreviewed,reviewedUnavailable:unavailable,
     runStatuses:Object.fromEntries(['COMPLETED','UNAVAILABLE','INVALID'].map(status=>[status,
       report.results.filter(run=>run.status===status).length])),
-    intents:summarize(intents),toolSelection:summarize(tools),
+    intents:summarize(intents),toolSelection:summarize(tools),events:summarizeEvents(eventRows),
     reviewedCompletionRate:ratio(intents.length,intents.length+unavailable+reviewedMissing),
     toolExecution:{attempted:toolExecutions,failed:failedTools},
     latencyMs:{p50:percentile(latencies,.5),p95:percentile(latencies,.95),measured:latencies.length},
     providerUsage:{inputTokens:knownInput?inputSum:null,outputTokens:knownOutput?outputSum:null,
       inputMeasuredCases:knownInput,outputMeasuredCases:knownOutput},cases,
-    interpretation:'Offline exact-set engineering labels; failed/unreviewed cases stay separate. Not clinical accuracy, semantic fact attribution, or a billing receipt.'};
+    interpretation:'Offline exact-set/source-anchored engineering labels; failed/unreviewed cases stay separate. Not clinical accuracy, semantic equivalence, or a billing receipt.'};
 }

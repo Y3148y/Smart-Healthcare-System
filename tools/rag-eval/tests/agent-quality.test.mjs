@@ -64,3 +64,14 @@ test('labelled cases with no run remain visible in completion denominator',()=>{
   const result=agentQuality(run,labels);assert.equal(result.reviewedMissing,1);
   assert.equal(result.reviewedCompletionRate,.5);assert.equal(result.cases[1].status,'MISSING_RUN');
 });
+test('event attribution requires exhaustive source-bound labels and remains optional',()=>{
+  const {run,labels}=fixture();
+  assert.equal(agentQuality(run,labels).events.evaluatedCases,0);
+  const event={symptom:'Synthetic',bodySite:null,onset:null,duration:null,trigger:null,severity:null,
+    subject:'SELF',temporality:'CURRENT',assertion:'AFFIRMED',sourceRefs:[{messageId:'m1',quote:'Synthetic input'}]};
+  run.results[0].events=[event];labels.runSha256=agentFingerprint(run);
+  labels.cases[0].eventReview={exhaustive:true,events:[{...event,assertion:'UNCERTAIN'}]};
+  const result=agentQuality(run,labels);
+  assert.equal(result.events.evaluatedCases,1);assert.equal(result.events.exactEventF1,0);
+  assert.equal(result.events.attribution.subject.value,1);assert.equal(result.events.attribution.assertion.value,0);
+});
