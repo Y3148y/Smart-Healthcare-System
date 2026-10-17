@@ -16,7 +16,13 @@ public final class TurnTraceContext implements AutoCloseable {
     /** Technical summaries only; no tool arguments, patient text or provider error bodies. */
     public record Execution(String kind, String name, String status, long elapsedMs,
                             Boolean rrfUsed, Boolean rerankEnabled, Boolean rerankUsed,
-                            Integer selectedCount) {}
+                            Integer selectedCount,String initiator) {
+        public Execution {initiator=InvocationContext.checked(initiator);}
+        public Execution(String kind,String name,String status,long elapsedMs,Boolean rrfUsed,Boolean rerankEnabled,
+                         Boolean rerankUsed,Integer selectedCount){
+            this(kind,name,status,elapsedMs,rrfUsed,rerankEnabled,rerankUsed,selectedCount,InvocationContext.current());
+        }
+    }
     public record Metadata(String traceId, String userMessageId, String route, String safetyPolicyVersion,
                            long elapsedMs, java.util.List<Execution> executions) {}
     private TurnTraceContext(String userMessageId, String policyVersion) {

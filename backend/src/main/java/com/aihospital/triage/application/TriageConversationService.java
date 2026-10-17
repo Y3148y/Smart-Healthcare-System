@@ -135,7 +135,8 @@ public class TriageConversationService {
                 });
         var turn = claim.turn();
         String userMessageId = turn.userMessageId();
-        try (var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open(userMessageId,
+        try (var invocation = com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.WORKFLOW);
+             var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open(userMessageId,
                 com.aihospital.triage.domain.TriageSafetyPolicy.POLICY_VERSION)) {
             try {
                 Conversation result = processTurn(id, patient, content, session, updates, progress, trace,turn);

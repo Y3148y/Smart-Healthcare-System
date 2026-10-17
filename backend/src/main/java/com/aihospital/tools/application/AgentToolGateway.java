@@ -63,7 +63,8 @@ public final class AgentToolGateway implements AutoCloseable {
             Future<HospitalToolExecutor.Execution> pending;
             try {
                 pending = workers.submit(() -> {
-                    try (var ignored = TurnTraceContext.restore(captured)) {
+                    try (var ignored = TurnTraceContext.restore(captured);
+                         var invocation=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.AGENT)) {
                         return executor.execute(code, Map.of(tool.parameter(), value));
                     }
                 });

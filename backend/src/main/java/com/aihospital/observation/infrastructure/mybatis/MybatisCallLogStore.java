@@ -28,7 +28,7 @@ public class MybatisCallLogStore implements CallLogStore {
                 string(row,"purpose"), string(row,"actor"), string(row,"model"), integer(row,"input_tokens"),
                 integer(row,"output_tokens"), ((Number)row.get("elapsed_ms")).longValue(),
                 Boolean.TRUE.equals(row.get("success")) || Integer.valueOf(1).equals(row.get("success")),
-                tools(string(row,"tools_json")), string(row,"trace_id"),usage(row.get("usage_json")))).toList();
+                tools(string(row,"tools_json")), string(row,"trace_id"),usage(row.get("usage_json")),string(row,"initiator"))).toList();
     }
 
     @Override @org.springframework.transaction.annotation.Transactional public void record(CallLog call) {
@@ -37,6 +37,7 @@ public class MybatisCallLogStore implements CallLogStore {
                     call.outputTokens(), call.elapsedMs(), call.success(), json.writeValueAsString(call.tools()));
             if (call.traceId() != null) mapper.insertTrace(call.id(), call.traceId());
             mapper.insertUsage(call.id(),json.writeValueAsString(call.usage()));
+            mapper.insertContext(call.id(),call.initiator());
         } catch (JsonProcessingException ex) { throw new IllegalStateException("无法保存 Agent 审计日志", ex); }
     }
 

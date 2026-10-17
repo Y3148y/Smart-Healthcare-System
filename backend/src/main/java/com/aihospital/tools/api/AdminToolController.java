@@ -29,6 +29,8 @@ public class AdminToolController {
             @RequestBody(required = false) Map<String, String> input,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN");
-        return executor.execute(code, input);
+        try(var invocation=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.ADMIN)){
+            return executor.execute(code, input);
+        }
     }
 }

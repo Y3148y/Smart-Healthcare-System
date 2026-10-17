@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue'
 import type {ResponseProvenance} from '../types'
+import {invocationOriginLabel} from '../../../invocationOrigin'
 const props=defineProps<{meta:ResponseProvenance}>()
 const events=computed(()=>props.meta.turnTrace?.executions)
 const retrievals=computed(()=>events.value?.filter(e=>e.kind==='RETRIEVAL')||[])
@@ -16,7 +17,7 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
     <p v-if="!events">旧记录未保存详细执行链，RRF 与 rerank 状态未知。</p>
     <template v-else>
       <p>本地工具：{{ tools.length }} 次。工具由后端执行，不等于通过外部 MCP 服务调用。</p>
-      <ul v-if="tools.length"><li v-for="(item,i) in tools" :key="i">{{ item.name }} · {{ item.status==='SUCCEEDED'?'执行成功':'执行失败' }} · {{ item.elapsedMs }}ms</li></ul>
+      <ul v-if="tools.length"><li v-for="(item,i) in tools" :key="i">{{ item.name }} · {{ invocationOriginLabel(item.initiator) }} · {{ item.status==='SUCCEEDED'?'执行成功':'执行失败' }} · {{ item.elapsedMs }}ms</li></ul>
       <p>RAG 检索：{{ retrievals.length ? `执行 ${retrievals.length} 次` : '本轮未记录混合检索执行' }}。检索成功不等于回答采用了资料。</p>
       <article v-for="(item,i) in retrievals" :key="i">
         <b>检索 {{ i+1 }}</b>

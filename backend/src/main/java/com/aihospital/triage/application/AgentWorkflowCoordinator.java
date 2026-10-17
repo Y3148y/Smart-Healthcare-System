@@ -57,6 +57,11 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
     }
 
     public TriageEngine.PreparedEvidence prepare(Conversation conversation, String patient, String accumulated) {
+        try(var invocation=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.AGENT)){
+            return prepareScoped(conversation,patient,accumulated);
+        }
+    }
+    private TriageEngine.PreparedEvidence prepareScoped(Conversation conversation,String patient,String accumulated){
         if (settings.mode() == AgentWorkflowSettings.Mode.OFF) return null;
         String current = conversation.messages().stream().filter(message -> "USER".equals(message.role()))
                 .reduce((left, right) -> right).map(Message::content).orElse("");

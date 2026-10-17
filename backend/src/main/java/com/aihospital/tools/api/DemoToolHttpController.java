@@ -28,6 +28,9 @@ public class DemoToolHttpController {
     @PostMapping("/tools/{code}") public HospitalToolExecutor.Execution invoke(@PathVariable String code,
             @RequestBody(required=false) Map<String,String> input,
             @RequestHeader(value="Authorization",required=false) String auth){
-        guard.require(auth,"ADMIN");return executor.execute(code,input);
+        guard.require(auth,"ADMIN");
+        try(var invocation=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.ADMIN)){
+            return executor.execute(code,input);
+        }
     }
 }

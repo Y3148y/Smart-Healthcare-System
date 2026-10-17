@@ -38,6 +38,11 @@ public class McpProtocolController {
         if (origin != null && !origin.matches("https?://(localhost|127\\.0\\.0\\.1)(:[0-9]{1,5})?"))
             return error(HttpStatus.FORBIDDEN, body, -32000, "Origin is not allowed");
         guard.require(auth, "ADMIN");
+        try(var invocation=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.MCP)){
+            return dispatch(body,version,methodHeader,nameHeader);
+        }
+    }
+    private ResponseEntity<Map<String,Object>> dispatch(JsonNode body,String version,String methodHeader,String nameHeader){
         String method = body.path("method").asText("");
         JsonNode params = body.path("params");
         JsonNode meta = params.path("_meta");

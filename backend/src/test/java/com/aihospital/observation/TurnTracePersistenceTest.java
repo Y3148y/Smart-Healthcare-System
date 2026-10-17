@@ -34,6 +34,8 @@ class TurnTracePersistenceTest {
         assertTrue(rows.stream().allMatch(c -> trace.traceId().equals(c.traceId())));
         assertTrue(rows.stream().anyMatch(c -> "medical_knowledge_retrieve".equals(c.purpose())));
         assertTrue(rows.stream().anyMatch(c -> "会话处理".equals(c.purpose())));
+        assertTrue(rows.stream().allMatch(c->"WORKFLOW".equals(c.initiator())));
+        assertTrue(trace.executions().stream().allMatch(e->"WORKFLOW".equals(e.initiator())));
         var second = conversations.send(id, patient, "仍然鼻塞，继续了解，不预约");
         var secondTrace = second.messages().get(second.messages().size()-1).provenance().turnTrace();
         assertNotEquals(trace.traceId(), secondTrace.traceId());

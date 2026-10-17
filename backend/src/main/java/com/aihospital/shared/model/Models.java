@@ -60,8 +60,14 @@ public final class Models {
         public static TokenUsage legacy(int input,int output){return new TokenUsage(input>0?input:null,output>0?output:null,"LEGACY_RECORDED");}
     }
     public record CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
-                          long elapsedMs, boolean success, List<ToolTrace> tools, String traceId,TokenUsage usage) {
-        public CallLog {usage=usage==null?TokenUsage.legacy(inputTokens,outputTokens):usage;}
+                          long elapsedMs, boolean success, List<ToolTrace> tools, String traceId,TokenUsage usage,String initiator) {
+        public CallLog {usage=usage==null?TokenUsage.legacy(inputTokens,outputTokens):usage;
+            initiator=com.aihospital.shared.diagnostics.InvocationContext.checked(initiator);}
+        public CallLog(String id,LocalDateTime time,String purpose,String user,String model,int inputTokens,int outputTokens,
+                       long elapsedMs,boolean success,List<ToolTrace> tools,String traceId,TokenUsage usage){
+            this(id,time,purpose,user,model,inputTokens,outputTokens,elapsedMs,success,tools,traceId,usage,
+                    com.aihospital.shared.diagnostics.InvocationContext.current());
+        }
         public CallLog(String id, LocalDateTime time, String purpose, String user, String model, int inputTokens, int outputTokens,
                        long elapsedMs, boolean success, List<ToolTrace> tools, String traceId) {
             this(id,time,purpose,user,model,inputTokens,outputTokens,elapsedMs,success,tools,traceId,null);

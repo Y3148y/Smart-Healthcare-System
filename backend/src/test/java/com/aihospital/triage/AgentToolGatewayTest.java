@@ -19,6 +19,19 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class AgentToolGatewayTest {
+    @Test void modelSelectedToolsAreTaggedOnWorkerButDoNotOverwriteWorkflowOrigin(){
+        var executor=mock(HospitalToolExecutor.class);
+        when(executor.execute(anyString(),anyMap())).thenAnswer(call->{
+            assertEquals("AGENT",com.aihospital.shared.diagnostics.InvocationContext.current());
+            return success(Map.of("status","SYNTHETIC"));
+        });
+        try(var workflow=com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.WORKFLOW);
+            var gateway=new AgentToolGateway(executor)){
+            assertEquals(AgentToolGateway.Status.SUCCESS,gateway.execute(run(4),"synthetic","department_search","{\"department\":\"内科\"}").status());
+            assertEquals("WORKFLOW",com.aihospital.shared.diagnostics.InvocationContext.current());
+        }
+        assertEquals("UNKNOWN",com.aihospital.shared.diagnostics.InvocationContext.current());
+    }
     @Test void medicalQueryMustComeFromServerFrozenPatientSources() {
         var executor=mock(HospitalToolExecutor.class);
         when(executor.execute(anyString(),anyMap())).thenReturn(success(Map.of("status","NO_MATCH")));

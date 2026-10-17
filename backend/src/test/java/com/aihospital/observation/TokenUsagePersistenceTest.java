@@ -32,6 +32,7 @@ class TokenUsagePersistenceTest {
         String id=id(),trace=id();mapper.insert(id,LocalDateTime.now(),"意图抽取","synthetic","synthetic",0,0,1,false,"[]");mapper.insertTrace(id,trace);
         var view=TechnicalCallView.from(calls.calls(trace).get(0));
         assertNull(view.inputTokens());assertNull(view.outputTokens());assertEquals("LEGACY_RECORDED",view.tokenUsageSource());
+        assertEquals("UNKNOWN",view.initiator());
     }
     @Test void invalidTraceWriteRollsBackBaseLogAndUsageTogether(){
         String id=id(),trace=id();
