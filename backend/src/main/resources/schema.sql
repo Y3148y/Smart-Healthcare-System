@@ -194,3 +194,17 @@ CREATE TABLE IF NOT EXISTS agent_call_trace (
   trace_id VARCHAR(64) NOT NULL,
   FOREIGN KEY (call_id) REFERENCES agent_call_log(id)
 );
+
+CREATE TABLE IF NOT EXISTS pending_booking_action (
+  id VARCHAR(64) PRIMARY KEY,
+  patient VARCHAR(128) NOT NULL,
+  request_key VARCHAR(64) NOT NULL,
+  session_id VARCHAR(100) NOT NULL,
+  doctor_id VARCHAR(100) NOT NULL,
+  doctor_fingerprint CHAR(64) NOT NULL,
+  state_version BIGINT NOT NULL,
+  assessment_version INT NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  status VARCHAR(16) NOT NULL,
+  UNIQUE (patient, request_key)
+);

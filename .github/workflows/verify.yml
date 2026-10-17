@@ -50,7 +50,7 @@ jobs:
       - name: Verify booking, knowledge and HTTP business journeys against MySQL 8.4
         working-directory: backend
         run: >-
-          ./mvnw --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest,DurableTriageTurnTest,DurableTurnProcessIntegrationTest
+          ./mvnw --batch-mode -Dtest=PendingBookingTest,SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest,DurableTriageTurnTest,DurableTurnProcessIntegrationTest
           -Dai.test.turn-process-restart=true
           -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/ai_hospital
           -Dspring.datasource.username=root
@@ -118,6 +118,7 @@ jobs:
           export ADMIN_TEST_BROWSER="$(command -v google-chrome)"
           test -n "$ADMIN_TEST_BROWSER"
           node scripts/test-knowledge-approval-ui.cjs --apply
+          node scripts/test-booking-confirmation-ui.cjs --apply
       - name: Remove the synthetic CI stack
         if: always()
         run: docker compose -f docker-compose.yml -f compose.app.yml down -v

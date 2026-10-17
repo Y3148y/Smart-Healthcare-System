@@ -27,6 +27,8 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 存储与一致性
 
+`pending_booking_action` 将患者、准备请求键、医生/排班指纹、会话消息数及分诊版本、DB时间期限和状态绑定为服务端动作；按患者+准备键唯一。`PendingBookingService` 使用READ_COMMITTED，同一会话按会话→动作→目录顺序加锁，重新校验后调用原预约事务，动作CONFIRMED与预约回执/扣号同事务提交。已确认动作重放历史回执，不因后续新症状或过期重复扣号；这不是继续授权新的预约。未确认动作遇状态漂移、过期或取消须重新准备。目录指纹不包含动态余号，余号仍在确认时以条件UPDATE裁决；准备动作不会预留号源。新表为增量结构；旧直约API保留兼容，Agent白名单仍不包含准备、确认或取消写接口。
+
 词法检索通过 `LexicalSearch` 端口选择适配器：默认Elasticsearch/Lucene BM25，`memory`为轻量与离线测试实现。ES采用批准语料指纹快照，查询触发批量同步，校验每项写入和返回原文身份，失败不静默切换；Qdrant、RRF与重排保持原编排。默认本机9201，医学词典及质量消融尚未完成。生命周期与旧索引清理边界见 [RAG](RAG.md)。
 
 应用通过 MyBatis 使用 MySQL，数据源统一配置在 `application.yml`。H2 仅用于测试；`schema.sql` 初始化表，`DatabaseIndexInitializer` 用 JDBC 元数据检查并幂等创建 trace 索引。旧 H2 数据不自动迁移。

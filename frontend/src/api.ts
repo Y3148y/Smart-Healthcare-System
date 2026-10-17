@@ -67,7 +67,7 @@ async function authenticatedResponse(path:string, init:RequestInit = {}):Promise
   }
   if (!response.ok) {
     const details=await response.json().catch(()=>({message:''}))
-    throw new Error(details.message||`HTTP ${response.status}${response.status===401?'：登录已失效':''}`)
+    throw Object.assign(new Error(details.message||`HTTP ${response.status}${response.status===401?'：登录已失效':''}`),{status:response.status})
   }
   return response
 }

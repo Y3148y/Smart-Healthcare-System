@@ -53,6 +53,27 @@ public class SimulationBookingService {
             return existing;
         }
 
+        validateEligibility(doctorId, sessionId, patient);
+
+        Doctor doctor = catalog.find(doctorId);
+        if (doctor == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "模拟医生不存在");
+        // The unique claim serializes same-key requests even when they target different doctors.
+        // It rolls back together with the slot update and receipt on any later failure.
+        store.claimRequest(patient, idempotencyKey);
+        int updated = slots.decrementAvailableSlot(doctor.id(), doctor.date());
+        if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "该模拟号源已约满");
+        Integer remaining = slots.remaining(doctor.id(), doctor.date());
+        Doctor snapshot = new Doctor(doctor.id(), doctor.name(), doctor.title(), doctor.department(), doctor.period(),
+                doctor.date(), remaining == null ? 0 : remaining, doctor.total(), doctor.fee());
+        String id = "SIM" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        Appointment appointment = new Appointment(id, id, patient, snapshot, "模拟预约", sessionId, now);
+        store.saveAppointment(appointment, idempotencyKey);
+        return appointment;
+    }
+
+    /** Shared eligibility gate; preparing an action never deducts a slot. */
+    public void validateEligibility(String doctorId, String sessionId, String patient) {
         if (!"walk-in".equals(sessionId)) {
             var session = triage.requireOwner(sessionId, patient);
             var result = triage.latestResult(sessionId, patient);
@@ -66,23 +87,6 @@ public class SimulationBookingService {
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该医生不属于当前分诊版本的推荐号源");
         }
 
-        Doctor doctor = catalog.find(doctorId);
-        if (doctor == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND, "模拟医生不存在");
-        // The unique claim serializes same-key requests even when they target different doctors.
-        // It rolls back together with the slot update and receipt on any later failure.
-        store.claimRequest(patient, idempotencyKey);
-        int updated = slots.decrementAvailableSlot(doctor.id(), doctor.date());
-        if (updated != 1) throw new ResponseStatusException(HttpStatus.CONFLICT, "该模拟号源已约满");
-        Integer remaining = slots.remaining(doctor.id(), doctor.date());
-        Doctor snapshot = new Doctor(doctor.id(), doctor.name(), doctor.title(), doctor.department(), doctor.period(),
-                doctor.date(), remaining == null ? 0 : remaining, doctor.total(), doctor.fee());
-        String id = "SIM" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
-        // The existing MySQL TIMESTAMP column stores whole seconds. Match its persisted precision
-        // so the first response and every idempotent replay return the same receipt.
-        LocalDateTime now = LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
-        Appointment appointment = new Appointment(id, id, patient, snapshot, "模拟预约", sessionId, now);
-        store.saveAppointment(appointment, idempotencyKey);
-        return appointment;
     }
 
     public Appointment replayClaim(String doctorId, String sessionId, String patient, String idempotencyKey) {

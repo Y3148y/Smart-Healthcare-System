@@ -25,6 +25,8 @@ spring:
     multipart:
       max-file-size: 5MB
 ai:
+  booking:
+    action-ttl-seconds: ${AI_BOOKING_ACTION_TTL_SECONDS:300}
   triage:
     turn-lease-seconds: ${AI_TRIAGE_TURN_LEASE_SECONDS:180}
   agent:

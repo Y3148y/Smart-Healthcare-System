@@ -5,7 +5,7 @@ import { patientResources } from './patientResources'
 import TriagePage from './features/triage/TriagePage.vue'
 import HomePage from './features/home/HomePage.vue'
 import BookingPage from './features/booking/BookingPage.vue'
-import { bookingRequestKeys } from './features/booking/bookingRequestKeys'
+import { pendingBookingClient } from './features/booking/pendingBookingClient'
 import VisitsPage from './features/visits/VisitsPage.vue'
 import AdminPage from './features/admin/AdminPage.vue'
 import ProfilePage from './features/profile/ProfilePage.vue'
@@ -19,7 +19,8 @@ const store=(key:string,value:string)=>{try{localStorage.setItem(key,value)}catc
 const loggedIn=ref(Boolean(readStored('ai-hospital-token'))||isDemoEntry), loginName=ref('zhangsan'), password=ref('123456'), role=ref(isDemoEntry?initialRole:(readStored('ai-hospital-role')||initialRole)), displayName=ref(isDemoEntry?(initialRole==='ADMIN'?'系统管理员':loginFromForm.toLowerCase()==='lisi'?'李四':'张三'):(readStored('ai-hospital-name')||(initialRole==='ADMIN'?'系统管理员':'张三')))
 const page=ref(params.get('page')||'home'), adminPage=ref(params.get('adminPage')||'dashboard'), doctors=ref<Doctor[]>([]), selectedDept=ref(params.get('department')||'全部'), visits=ref<any[]>([]), sessions=ref<ChatSession[]>([]), timeline=ref<TimelineEvent[]>([])
 const bookingRunning=ref(false), toast=ref('')
-const bookingKeys=bookingRequestKeys(()=>crypto.randomUUID())
+const pendingBooking=pendingBookingClient(api,()=>crypto.randomUUID(),action=>window.confirm(
+  `确认模拟预约？\n${action.doctor.department} · ${action.doctor.name}\n${action.doctor.date} ${action.doctor.period}\n模拟费用：${action.doctor.fee} 元\n确认后才扣减模拟号源；这不是真实医院挂号。`))
 const adminReady=ref(false)
 const patientReady=ref(false)
 const patientErrors=ref<string[]>([]), patientLoading=ref(false)
@@ -76,12 +77,12 @@ async function book(d:Doctor, sessionId='walk-in'){
   if(bookingRunning.value)return
   bookingRunning.value=true
   try{
-    const a:any=await api('/appointments',{method:'POST',body:JSON.stringify({doctorId:d.id,sessionId,idempotencyKey:bookingKeys.get(d.id,d.date,d.period,sessionId)})})
-    bookingKeys.complete(d.id,d.date,d.period,sessionId)
+    const a:any=await pendingBooking.book(d,sessionId)
+    if(!a)return
     window.location.assign(patientRoute('visits',{booked:a.registrationNo}))
   }catch(e:any){showToast(`预约结果待确认：${e.message}。请先查看我的就诊；本页重试相同号源会复用请求标识。`)}finally{bookingRunning.value=false}
 }
-function logout(){clearSession();patientLoadVersion++;history.replaceState({},'',window.location.pathname);loggedIn.value=false;adminReady.value=false;patientReady.value=false;role.value='PATIENT';page.value='home'}
+function logout(){clearSession();pendingBooking.clear();patientLoadVersion++;history.replaceState({},'',window.location.pathname);loggedIn.value=false;adminReady.value=false;patientReady.value=false;role.value='PATIENT';page.value='home'}
 const filteredDoctors=computed(()=>selectedDept.value==='全部'?doctors.value:doctors.value.filter(d=>d.department===selectedDept.value))
 </script>
 
