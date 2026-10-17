@@ -35,6 +35,29 @@ test('packet binds answer to its trace, patient turn, actual references and 5-tu
   assert.equal(item.dispositionReview.correctness,'UNREVIEWED');
   assert.equal(JSON.stringify(packet).includes('should-not-export'),false);
   assert.equal(JSON.stringify(packet).includes('supportReview'),false,'model reviewer outcome must not anchor human review');
+  assert.equal(item.context[0].role,'USER');assert.equal(item.contextOrigin,'RECONSTRUCTED_CHARACTER_WINDOW');
+});
+
+test('recorded narration removal count reconstructs the actual smaller window',()=>{
+  const source=fixture();source.messages.at(-1).provenance.turnTrace.executions=[{
+    kind:'CONTEXT',name:'NARRATION',contextBudget:{historyMessagesRemoved:8}}];
+  const item=answerReviewPacket(source).cases.at(-1);
+  assert.equal(item.reviewable,true);assert.equal(item.contextOrigin,'RECORDED_REMOVAL_COUNT');
+  assert.equal(item.context.length,3);assert.ok(item.context[0].content.includes('message 5'));
+  source.messages.at(-1).provenance.turnTrace.executions[0].contextBudget.historyMessagesRemoved=1;
+  assert.ok(answerReviewPacket(source).cases.at(-1).exclusionReasons.includes('CONTEXT_WINDOW_METADATA_INVALID'));
+});
+test('oversized current question is not clipped or incorrectly labelled reviewable',()=>{
+  const source=fixture();source.messages.at(-2).content='x'.repeat(4001);
+  const item=answerReviewPacket(source).cases.at(-1);
+  assert.equal(item.reviewable,false);assert.deepEqual(item.context,[]);
+  assert.ok(item.exclusionReasons.includes('CURRENT_CONTEXT_WINDOW_INVALID'));
+});
+test('reconstructed character window never starts with an orphaned assistant question',()=>{
+  const source=fixture();source.messages=[{id:'u5',role:'USER',content:'x'.repeat(3995)},
+    {id:'a5',role:'ASSISTANT',content:'old synthetic question'},...source.messages.slice(-2)];
+  const item=answerReviewPacket(source).cases.at(-1);
+  assert.equal(item.context.length,1);assert.equal(item.context[0].role,'USER');
 });
 
 test('missing or drifting trace/reference evidence stays unreviewable',()=>{
@@ -71,7 +94,7 @@ test('scoring requires exact answer identity and adopted-source binding; partial
 test('confidence calibration requires separate disposition review bound to the same turn',()=>{
   const packet=answerReviewPacket(fixture()),item=packet.cases.at(-1);
   delete item.answerReview;
-  item.dispositionReview={correctness:'CORRECT',traceId:item.traceId};
+  item.dispositionReview={correctness:'CORRECT',traceId:item.traceId,reviewIdentitySha256:item.reviewIdentitySha256};
   const score=scoreAnswerReviewPacket(packet);
   assert.equal(score.confidenceCalibration.evaluated,1);assert.equal(score.answerCorrectness.evaluated,0);
   item.dispositionReview={correctness:'INCORRECT',traceId:'different-trace'};
@@ -79,4 +102,12 @@ test('confidence calibration requires separate disposition review bound to the s
   item.dispositionReview={correctness:'UNREVIEWED',traceId:item.traceId};
   const unknown=scoreAnswerReviewPacket(packet).confidenceCalibration;
   assert.equal(unknown.evaluated,0);assert.equal(unknown.brierScore,null);
+});
+test('changing patient context or sources cannot borrow a review from the same answer text',()=>{
+  for(const mutate of [item=>item.context[0].content='changed source',
+    item=>item.retrieval.retrievedReferences[0].excerpt='changed evidence',
+    item=>item.triageDecisionSnapshot.department='changed department']){
+    const packet=answerReviewPacket(fixture()),item=packet.cases.at(-1);mutate(item);
+    assert.throws(()=>scoreAnswerReviewPacket(packet),/context and source snapshot changed/);
+  }
 });

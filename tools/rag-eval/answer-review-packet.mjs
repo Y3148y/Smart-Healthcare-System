@@ -4,28 +4,48 @@ import {confidenceCalibration} from './quality.mjs';
 const sha256=text=>createHash('sha256').update(text,'utf8').digest('hex');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ROLES=new Set(['USER','ASSISTANT']);
+const reviewIdentity=item=>sha256(JSON.stringify({messageId:item.messageId,traceId:item.traceId,
+  answerSnapshot:item.answerSnapshot,currentUserMessageId:item.currentUserMessageId,
+  context:item.context,contextOrigin:item.contextOrigin,retrieval:item.retrieval,
+  disposition:item.disposition,triageDecisionSnapshot:item.triageDecisionSnapshot,serviceNotice:item.serviceNotice}));
 
-function boundedHistory(messages, assistantIndex) {
-  const window=messages.slice(0,assistantIndex).filter(m=>ROLES.has(m.role)
+function boundedHistory(messages, assistantIndex, turn) {
+  const source=messages.slice(0,assistantIndex).filter(m=>m&&ROLES.has(m.role)
       && typeof m.content==='string' && m.content.trim())
     .map(m=>({role:m.role,content:m.content}));
+  if(!source.length||source.at(-1).role!=='USER'||source.at(-1).content.length>4000)
+    return {messages:[],origin:'UNAVAILABLE',issue:'CURRENT_CONTEXT_WINDOW_INVALID'};
+  const recorded=(turn?.executions??[]).filter(event=>event.kind==='CONTEXT'&&event.name==='NARRATION'&&event.contextBudget);
+  if(recorded.length){
+    const removed=recorded[0].contextBudget.historyMessagesRemoved;
+    if(recorded.length!==1||!Number.isSafeInteger(removed)||removed<0||removed>=source.length)
+      return {messages:[],origin:'UNAVAILABLE',issue:'CONTEXT_WINDOW_METADATA_INVALID'};
+    const selected=source.slice(removed);
+    if(selected[0].role!=='USER'||selected.filter(m=>m.role==='USER').length>5
+        ||selected.reduce((n,m)=>n+m.content.length,0)>4000)
+      return {messages:[],origin:'UNAVAILABLE',issue:'CONTEXT_WINDOW_METADATA_INVALID'};
+    return {messages:selected,origin:'RECORDED_REMOVAL_COUNT',issue:null};
+  }
+  const window=[...source];
   let characters=window.reduce((n,m)=>n+m.content.length,0);
   let userTurns=window.filter(m=>m.role==='USER').length;
   while(window.length>1&&(characters>4000||userTurns>5)) {
     const removed=window.shift();characters-=removed.content.length;
     if(removed.role==='USER')userTurns--;
   }
-  return window;
+  while(window.length&&window[0].role!=='USER')window.shift();
+  return {messages:window,origin:'RECONSTRUCTED_CHARACTER_WINDOW',issue:null};
 }
 
 function answerCase(message,index,messages,assessments) {
   const diagnostics=message.provenance?.answerEvidence;
   const turn=message.provenance?.turnTrace;
-  const history=boundedHistory(messages,index);
+  const history=boundedHistory(messages,index,turn);
   const userMessageId=turn?.userMessageId;
   const precedingUsers=messages.slice(0,index).filter(m=>m.role==='USER');
   const currentUser=precedingUsers.at(-1)?.id===userMessageId;
   const reasons=[];
+  if(history.issue)reasons.push(history.issue);
   if(!diagnostics||!turn) reasons.push('MISSING_TURN_PROVENANCE');
   if(!UUID.test(diagnostics?.traceId??'')||diagnostics?.traceId!==turn?.traceId) reasons.push('TRACE_MISMATCH');
   if(typeof userMessageId!=='string'||!userMessageId||!currentUser) reasons.push('CURRENT_USER_TURN_MISSING');
@@ -52,7 +72,7 @@ function answerCase(message,index,messages,assessments) {
   const decisionConfidence=Number.isFinite(decision?.confidence)?decision.confidence:null;
   const result={messageId:message.id,traceId:diagnostics?.traceId??null,
     answerSnapshot:{text:message.content,contentSha256:typeof message.content==='string'?sha256(message.content):null},
-    currentUserMessageId:userMessageId??null,context:history,
+    currentUserMessageId:userMessageId??null,context:history.messages,contextOrigin:history.origin,
     disposition:safety?{riskLevel:assessment.result.riskLevel??null,grounded:assessment.result.grounded??null,
       stopRoutineFlow:safety.stopRoutineFlow??null,humanReviewRecommended:safety.humanReviewRecommended??null,
       signals:(safety.signals??[]).map(s=>({ruleCode:s.ruleCode,category:s.category,evidence:s.evidence,reason:s.reason}))}:null,
@@ -66,8 +86,11 @@ function answerCase(message,index,messages,assessments) {
       ?{correctness:'UNREVIEWED',traceId:diagnostics?.traceId??null}:null,
     serviceNotice:diagnostics?.serviceNotice??null,
     reviewable:reasons.length===0,exclusionReasons:[...new Set(reasons)],answerReview:null};
+  result.reviewIdentitySha256=reviewIdentity(result);
+  if(result.dispositionReview)result.dispositionReview.reviewIdentitySha256=result.reviewIdentitySha256;
   if(result.reviewable) result.answerReview={correctness:'UNREVIEWED',claimsExhaustive:false,claims:[],
-    answerSha256:result.answerSnapshot.contentSha256,answerMessageId:result.messageId,traceId:result.traceId};
+    answerSha256:result.answerSnapshot.contentSha256,answerMessageId:result.messageId,traceId:result.traceId,
+    reviewIdentitySha256:result.reviewIdentitySha256};
   return result;
 }
 
@@ -100,12 +123,15 @@ export function scoreAnswerReviewPacket(packet) {
     if(typeof item.messageId!=='string'||!item.messageId||seen.has(item.messageId)) throw new Error('Invalid or duplicate answer message identity');
     seen.add(item.messageId);
     if(!item.reviewable){unreviewable++;rows.push({messageId:item.messageId,status:'UNREVIEWABLE'});continue;}
+    if(item.reviewIdentitySha256!==reviewIdentity(item))
+      throw new Error('Review context and source snapshot changed; regenerate the review packet');
     const snapshot=item.answerSnapshot,review=item.answerReview;
     if(!review){unreviewed++;rows.push({messageId:item.messageId,status:'UNREVIEWED'});}
     else {
       if(!snapshot||typeof snapshot.text!=='string'||sha256(snapshot.text)!==snapshot.contentSha256
           ||review.answerSha256!==snapshot.contentSha256||review.answerMessageId!==item.messageId
-          ||review.traceId!==item.traceId) throw new Error('Answer review must match the exact persisted message, text hash and trace');
+          ||review.traceId!==item.traceId||review.reviewIdentitySha256!==item.reviewIdentitySha256)
+        throw new Error('Answer review must match the exact persisted message, text hash and trace, and review identity');
       const adopted=new Set(item.retrieval?.adoptedReferenceIds??[]);
       if(review.claims.some(claim=>claim.support==='SUPPORTED'
           &&(!Array.isArray(claim.referenceIds)||!claim.referenceIds.length||claim.referenceIds.some(id=>!adopted.has(id)))))
@@ -118,6 +144,7 @@ export function scoreAnswerReviewPacket(packet) {
     const decision=item.triageDecisionSnapshot,decisionReview=item.dispositionReview;
     if(decisionReview&&decisionReview.correctness!=='UNREVIEWED') {
       if(!decision||decisionReview.traceId!==item.traceId||decision.traceId!==item.traceId
+          ||decisionReview.reviewIdentitySha256!==item.reviewIdentitySha256
           ||!Number.isFinite(decision.confidence)||decision.confidence<0||decision.confidence>100
           ||!['CORRECT','INCORRECT'].includes(decisionReview.correctness))
         throw new Error('Disposition review must match a valid confidence snapshot and turn trace');
