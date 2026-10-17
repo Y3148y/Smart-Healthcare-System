@@ -46,11 +46,11 @@ jobs:
           node-version: '20'
       - name: Test backend without external model credentials
         working-directory: backend
-        run: mvn --batch-mode test
+        run: ./mvnw --batch-mode test
       - name: Verify booking, knowledge and HTTP business journeys against MySQL 8.4
         working-directory: backend
         run: >-
-          mvn --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest,DurableTriageTurnTest,DurableTurnProcessIntegrationTest
+          ./mvnw --batch-mode -Dtest=SimulationBookingTests,AdminKnowledgeWorkflowTest,RuntimeJourneyTest,DurableTriageTurnTest,DurableTurnProcessIntegrationTest
           -Dai.test.turn-process-restart=true
           -Dspring.datasource.url=jdbc:mysql://127.0.0.1:3306/ai_hospital
           -Dspring.datasource.username=root
@@ -61,15 +61,15 @@ jobs:
         working-directory: backend
         env:
           KNOWLEDGE_TEST_PASSWORD: synthetic-ci-only
-        run: mvn --batch-mode -Dtest=KnowledgeRevisionCoherenceTest -Dai.test.knowledge-db-url=jdbc:mysql://127.0.0.1:3306/ai_hospital_revision_test test
+        run: ./mvnw --batch-mode -Dtest=KnowledgeRevisionCoherenceTest -Dai.test.knowledge-db-url=jdbc:mysql://127.0.0.1:3306/ai_hospital_revision_test test
       - name: Verify synthetic indexing against Qdrant
         working-directory: backend
         run: >-
-          mvn --batch-mode -Dtest=QdrantLiveIntegrationTest
+          ./mvnw --batch-mode -Dtest=QdrantLiveIntegrationTest
           -Dai.test.qdrant-url=http://127.0.0.1:6333 test
       - name: Verify Elasticsearch lexical indexing and native CJK analysis
         working-directory: backend
-        run: mvn --batch-mode -Dtest=ElasticsearchLiveIntegrationTest -Dai.test.elasticsearch-url=http://127.0.0.1:9201 test
+        run: ./mvnw --batch-mode -Dtest=ElasticsearchLiveIntegrationTest -Dai.test.elasticsearch-url=http://127.0.0.1:9201 test
       - name: Verify guarded deletion of unique synthetic Elasticsearch snapshots
         env:
           ES_SNAPSHOT_TEST_URL: http://127.0.0.1:9201
@@ -135,6 +135,7 @@ jobs:
           node --test scripts/container-contract.test.cjs
           node --test scripts/container-journey.test.cjs
           node --test scripts/es-snapshot-maintenance.test.mjs
+          node --test scripts/audit-maven-runtime.test.mjs
       - name: Frontend test and build
         working-directory: frontend
         run: |

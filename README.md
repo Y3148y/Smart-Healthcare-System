@@ -48,7 +48,7 @@ SSE 只推送处理阶段，正文检查后整段返回，并非逐 token 输出
 | 层 | 技术 |
 | --- | --- |
 | 模型接入 | LangChain4j 0.35.0、OpenAI-compatible API；特定请求参数使用有界 HTTP 适配器 |
-| 后端 | Java 17、Spring Boot 3.3.5、MyBatis |
+| 后端 | Java 17、Spring Boot 3.5.16、MyBatis |
 | 存储与检索 | MySQL、Elasticsearch BM25、Qdrant；内存 BM25 用于轻量模式与测试 |
 | 前端 | Vue 3、TypeScript、Vite |
 | 验证 | JUnit 5、Node.js Test Runner、独立 RAG 评估 CLI |
@@ -111,7 +111,7 @@ docker compose up -d mysql qdrant elasticsearch
 
 ```powershell
 cd backend
-mvn spring-boot:run
+.\mvnw.cmd spring-boot:run
 ```
 
 默认后端为 `http://127.0.0.1:8081`。本机有多个 JDK 时先设置 `JAVA_HOME` 为 JDK 17；IDEA 运行配置选择 JDK 17，并保存数据库和模型环境变量一次，之后直接点击运行，不需要重复添加模式、端口或 profile 参数。
@@ -203,6 +203,12 @@ npm run evaluate:public
 
 ## 开发与测试
 
+Maven Wrapper 固定 Maven 3.9.16，并校验发行包 SHA-256；首次运行需要访问 Maven Central。Windows 使用 `backend/mvnw.cmd`，Linux/macOS 使用 `backend/mvnw`，均要求 Java 17。CI 使用同一 Wrapper；容器构建的 Maven 镜像版本单独由 Dockerfile 管理。
+
+可选运行依赖公告核对（仅发送依赖名称与版本到 OSV，不发送会话或医学正文）：在 `backend` 执行 `.\mvnw.cmd org.apache.maven.plugins:maven-dependency-plugin:3.8.1:list -DincludeScope=runtime -DoutputFile=../reports/security/runtime.txt`，然后在仓库根执行 `node scripts/audit-maven-runtime.mjs reports/security/runtime.txt reports/security/new-audit.json --online`。输出文件必须是新的本机报告；命中公告退出1，查询失败退出2，不把服务失败当作零告警。报告不提交公开仓库。
+
+2026-10-16 的运行依赖版本核对仍命中 Spring MVC 6.2.19 的两条公告：`GHSA-pc63-qcmh-9cmg`（XSLT 视图）、`GHSA-j9f9-w8pj-32f8`（SSE 视图片段）。当前应用不使用这些视图路径，`ServerRenderingBoundaryTest` 锁定当前使用边界，但不消除公告或代替安全复核。此检查不覆盖构建插件、测试依赖、容器基础镜像或操作系统，也不代表安全认证。
+
 患者问答支持可选 `requestId`：同一会话中，同键同内容的已完成请求返回当前会话而不再生成，换内容返回409。轮次与消息保存在MySQL，处理期限默认180秒，过期记录在读取/新请求时对账，旧任务不能写回。浏览器断连后按轮次身份回读；这是结果恢复，没有SSE事件补发。旧客户端不传requestId时不能保证重试幂等。协议与升级边界见 [存储与一致性](docs/ARCHITECTURE.md#存储与一致性)。
 
 CI 的 MySQL 业务步骤还启用 `DurableTurnProcessIntegrationTest`：登记轮次后强制停止一个子JVM，由第二个JVM读取同一数据库并恢复。测试通过修改合成轮次的存储期限加速到期，不调用外部模型，不操作本机8081；本机需显式设置 `-Dai.test.turn-process-restart=true` 并使用隔离的本机MySQL测试库。
@@ -211,7 +217,7 @@ CI 的 MySQL 业务步骤还启用 `DurableTurnProcessIntegrationTest`：登记�
 
 ```powershell
 cd backend
-mvn test
+.\mvnw.cmd test
 cd ../frontend
 npm test
 npm run build

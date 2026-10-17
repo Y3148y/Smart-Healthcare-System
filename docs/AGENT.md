@@ -58,6 +58,6 @@
 
 意图抽取失败通过现有异常分类器记录固定错误码，区分 `INTENT_MODEL_TIMEOUT`、`INTENT_MODEL_AUTH_FAILED`、`INTENT_MODEL_RATE_LIMITED` 和网络等错误；不记录供应商正文、异常消息或密钥，不自动重试。429只代表限流响应，不能单凭此码判断额度耗尽。抽取失败不进入工具规划，后续工作流生成的回答仍须独立通过引用与支持核对；工具成功或审计关联成功不代表答案通过。
 
-测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; mvn test`，前端 `npm test` 与 `npm run build`。
+测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; .\mvnw.cmd test`（Linux/macOS：`./mvnw test`），前端 `npm test` 与 `npm run build`。
 
 本地HTTP协议测试只证明适配器消息传输。2026-10-11 在百炼配置下的一次合成普通咨询已观察到模型选工具、工具结果消费、`Agent执行/COMPLETED` 和独立回答核对 `PASSED`；这是单样本集成验证，不证明稳定性、临床准确性或性能收益。跨轮持久化事实、完整意图路由、确认动作与多场景真实模型验收仍待完成。
