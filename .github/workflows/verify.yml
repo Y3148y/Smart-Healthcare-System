@@ -106,6 +106,18 @@ jobs:
           node scripts/test-container-smoke.cjs --apply --resume "$session"
       - name: Verify synthetic profile, knowledge, booking, stage stream and human-review journeys through Nginx
         run: node scripts/test-container-journey.cjs --apply
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify knowledge approval and withdrawal through a real browser
+        env:
+          ADMIN_TEST_BASE_URL: http://127.0.0.1:5188
+          NODE_PATH: ${{ runner.temp }}/browser-probe/node_modules
+        run: |
+          npm install --prefix "$RUNNER_TEMP/browser-probe" playwright@1.56.1 --ignore-scripts --no-save --registry=https://registry.npmjs.org
+          export ADMIN_TEST_BROWSER="$(command -v google-chrome)"
+          test -n "$ADMIN_TEST_BROWSER"
+          node scripts/test-knowledge-approval-ui.cjs --apply
       - name: Remove the synthetic CI stack
         if: always()
         run: docker compose -f docker-compose.yml -f compose.app.yml down -v

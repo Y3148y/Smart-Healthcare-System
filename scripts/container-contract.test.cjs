@@ -26,6 +26,9 @@ test('Nginx preserves streaming stages and separates SPA fallback from API proxy
   assert.match(config,/proxy_read_timeout 240s;/)
   assert.match(config,/try_files \$uri \$uri\/ \/index\.html;/)
   assert.match(config,/client_max_body_size 5m;/)
+  assert.equal((config.match(/proxy_set_header Host \$http_host;/g)||[]).length,2,
+    'Preserve the incoming port for same-origin checks on both API and MCP routes')
+  assert.doesNotMatch(config,/proxy_set_header Host \$host;/)
 })
 
 test('container liveness does not call model providers and application restart policy is explicit', () => {

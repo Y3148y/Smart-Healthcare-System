@@ -28,7 +28,8 @@ async function journey(config, onStage = () => {}) {
   const tokens = {}
   const request = async (role, method, path, body, expected = 200, streaming = false) => {
     const response = await fetch(config.base + '/api' + path, {method, redirect: 'error',
-      headers: {'Content-Type': 'application/json', ...(tokens[role] ? {Authorization: `Bearer ${tokens[role]}`} : {})},
+      headers: {'Content-Type': 'application/json', Origin: config.base,
+        ...(tokens[role] ? {Authorization: `Bearer ${tokens[role]}`} : {})},
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(45000)})
     assert.equal(response.status, expected, `${method} ${path}: unexpected HTTP status`)
     if (streaming) {
