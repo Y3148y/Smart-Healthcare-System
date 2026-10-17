@@ -330,6 +330,8 @@ public class OptionalNarrationModel implements NarrationModel {
             if (response == null || response.isBlank()) return new Answer(fallback, "FALLBACK", model);
             String validated = validate(response);
             return validated == null ? new Answer(fallback, "VALIDATION_BLOCKED", model) : new Answer(validated, "LIVE", model);
+        } catch (ContextAssembler.BudgetExceeded exceeded) {
+            return legacyContextBlocked(exceeded);
         } catch (Exception ex) {
             log.warn("LLM narration unavailable; using symptom-specific fallback ({})", ex.getClass().getSimpleName());
             return new Answer(fallback, "FALLBACK", model);
@@ -351,10 +353,13 @@ public class OptionalNarrationModel implements NarrationModel {
                     + "不要承诺只要回答就诊日期便会自动生成或完成预约；预约必须以系统实际号源和患者页面操作为准。"
                     + "如存在危险信号，只提示立即急诊。可参考方向：" + candidateDepartments
                     + "。只能使用知识依据支持的内容，证据不足就明确说明。";
-            String response = client(true).generate(buildMessages(instructions, symptom, evidence, history)).content().text();
+            var messages=buildMessages(instructions,symptom,evidence,history);
+            String response = client(true).generate(messages).content().text();
             if (response == null || response.isBlank()) return new Answer(fallback, "FALLBACK", model);
             String validated = validate(response);
             return validated == null ? new Answer(fallback, "VALIDATION_BLOCKED", model) : new Answer(validated, "LIVE", model);
+        } catch (ContextAssembler.BudgetExceeded exceeded) {
+            return legacyContextBlocked(exceeded);
         } catch (Exception ex) {
             log.warn("LLM conversation unavailable; using guided fallback ({})", ex.getClass().getSimpleName());
             return new Answer(fallback, "FALLBACK", model);
@@ -370,15 +375,25 @@ public class OptionalNarrationModel implements NarrationModel {
                     + "如信息不足，只问一个真正影响安全判断的问题；不要重复已问过的问题。"
                     + "如用户描述当前胸痛、严重呼吸困难、意识障碍或其他危急症状，应只提示立即急诊。"
                     + "若没有足够依据支持具体医学事实，就明确说无法确认，并建议线下咨询。回答保持简短，不要声称检索到资料。";
-            String response = client(true).generate(buildMessages(instructions, symptom, "本次无检索命中，不可作为医学依据", history)).content().text();
+            var messages=buildMessages(instructions,symptom,"本次无检索命中，不可作为医学依据",history);
+            String response = client(true).generate(messages).content().text();
             if (response == null || response.isBlank()) return new Answer(fallback, "FALLBACK_UNGROUNDED", model);
             String validated = validate(response);
             return validated == null ? new Answer(fallback, "VALIDATION_BLOCKED", model)
                     : new Answer(validated, "LIVE_UNGROUNDED", model);
+        } catch (ContextAssembler.BudgetExceeded exceeded) {
+            return legacyContextBlocked(exceeded);
         } catch (Exception ex) {
             log.warn("General conversation model unavailable; using conservative fallback ({})", ex.getClass().getSimpleName());
             return new Answer(fallback, "FALLBACK_UNGROUNDED", model);
         }
+    }
+
+    private Answer legacyContextBlocked(ContextAssembler.BudgetExceeded exceeded){
+        return diagnosed(new Answer("本次问题或资料超出处理范围，请简化问题或申请人工导诊。","VALIDATION_BLOCKED",model),
+                com.aihospital.shared.diagnostics.TurnTraceContext.currentOrNewId(),"UNKNOWN","CONTEXT_BLOCKED",
+                List.of(),List.of(),List.of(),new AnswerEvidence.Failure(exceeded.code,"ContextAssembler",null),
+                System.nanoTime(),new AnswerEvidence.Generation("PROMPT_PREPARATION",null,null,null,null));
     }
 
     private String removeMedicationDirections(String response) {

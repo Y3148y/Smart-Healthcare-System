@@ -72,6 +72,22 @@ class ContextAssemblerTest {
         assertThrows(ContextAssembler.BudgetExceeded.class,()->new ContextAssembler(511));
         assertThrows(ContextAssembler.BudgetExceeded.class,()->new ContextAssembler(262145));
     }
+    @Test void legacyAdaptersReportBudgetFailureBeforeClientConstruction(){
+        var model=new OptionalNarrationModel();
+        ReflectionTestUtils.setField(model,"mode","openai-compatible");
+        ReflectionTestUtils.setField(model,"apiKey","synthetic-test-key");
+        ReflectionTestUtils.setField(model,"model","synthetic");
+        ReflectionTestUtils.setField(model,"inputTokenBudget",512);
+        // Intentionally no provider URL: a premature client build would hide the budget failure.
+        for(var answer:List.of(model.explain("current","","","evidence","fallback",List.of()),
+                model.guide("current","","evidence","fallback",List.of()),
+                model.guideGeneral("current","fallback",List.of()))){
+            assertEquals("VALIDATION_BLOCKED",answer.status());
+            assertEquals("CONTEXT_BLOCKED",answer.diagnostics().validationStatus());
+            assertEquals("ContextAssembler",answer.diagnostics().failure().causeType());
+            assertEquals("PROMPT_PREPARATION",answer.diagnostics().generation().phase());
+        }
+    }
     @Test void recentWindowKeepsQuestionsAndNeverExceedsFiveUserTurns(){
         var history=new java.util.ArrayList<Turn>();
         for(int i=0;i<7;i++){
