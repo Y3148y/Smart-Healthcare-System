@@ -7,6 +7,7 @@ const events=computed(()=>props.meta.turnTrace?.executions)
 const retrievals=computed(()=>events.value?.filter(e=>e.kind==='RETRIEVAL')||[])
 const tools=computed(()=>events.value?.filter(e=>e.kind==='TOOL')||[])
 const contexts=computed(()=>events.value?.filter(e=>e.kind==='CONTEXT'&&e.contextBudget)||[])
+const contextLabel=(name:string)=>({NARRATION:'回答生成',INTENT_EXTRACTION:'意图抽取',AGENT_PLANNING:'工具规划'} as Record<string,string>)[name]||'未标记阶段'
 const flag=(value:boolean|null|undefined)=>value==null?'未记录':value?'是':'否'
 const generation=computed(()=>props.meta.answerEvidence?.generation)
 const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留在请求准备阶段',MODEL_CALL:'进入模型调用阶段，但未记录成功返回',OUTPUT_VALIDATION:'模型已返回，进入输出校验'}[generation.value?.phase||'']||'未记录'))
@@ -15,7 +16,7 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
   <section class="execution" aria-label="本轮调用详情">
     <p>LLM 生成请求：{{ phaseLabel }}。{{ generation?.inputTokens!=null?`输入 ${generation.inputTokens} Token；`:'' }}{{ generation?.outputTokens!=null?`输出 ${generation.outputTokens} Token。`:'' }}</p>
     <p v-if="meta.answerEvidence?.supportReview">回答依据核对：{{ meta.answerEvidence.supportReview.status }}（模型核对，不是医学审核）。</p>
-    <p v-for="(item,i) in contexts" :key="`context-${i}`">上下文预算：保守估计 {{ item.contextBudget?.estimatedInputTokens }} / {{ item.contextBudget?.inputTokenBudget }}（UTF-8 字节与消息开销估算，非实际用量）；整条移除历史 {{ item.contextBudget?.historyMessagesRemoved }} 条、证据 {{ item.contextBudget?.referencesRemoved }} 份。</p>
+    <p v-for="(item,i) in contexts" :key="`context-${i}`">{{ contextLabel(item.name) }} · 上下文预算：保守估计 {{ item.contextBudget?.estimatedInputTokens }} / {{ item.contextBudget?.inputTokenBudget }}（UTF-8 字节与消息开销估算，非实际用量）；整条移除历史 {{ item.contextBudget?.historyMessagesRemoved }} 条、证据 {{ item.contextBudget?.referencesRemoved }} 份。</p>
     <p v-if="!events">旧记录未保存详细执行链，RRF 与 rerank 状态未知。</p>
     <template v-else>
       <p>本地工具：{{ tools.length }} 次。工具由后端执行，不等于通过外部 MCP 服务调用。</p>

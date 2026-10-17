@@ -15,6 +15,8 @@ import java.util.*;
 public final class LangChainAgentModel implements AgentModel {
     private final String mode, key, base, model;
     private final boolean thinking;
+    @Value("${ai.context.estimated-input-token-budget:65536}")
+    private int inputTokenBudget=ContextAssembler.DEFAULT_BUDGET;
     private final ConfiguredChatTransport transport = new ConfiguredChatTransport();
     public LangChainAgentModel(@Value("${ai.mode:demo}") String mode, @Value("${ai.api-key:}") String key,
             @Value("${ai.base-url:}") String base, @Value("${ai.model:}") String model,
@@ -62,6 +64,13 @@ public final class LangChainAgentModel implements AgentModel {
                         case DEPARTMENT -> "Read the configured hospital department availability";
                         case SCHEDULE -> "Read simulated schedules for an allowed department; does not reserve";
                     }, "parameters", boundedSchema(tool, tool == AgentTool.MEDICAL_KNOWLEDGE ? queries : departments)))).toList();
+            int estimated=new ContextAssembler(inputTokenBudget).checkPayload(
+                    Map.of("messages",ConfiguredChatTransport.wireMessages(messages),"tools",tools),messages.size());
+            var contextBudget=new com.aihospital.shared.diagnostics.TurnTraceContext.ContextBudget(
+                    estimated,inputTokenBudget,0,0,"UTF8_BYTES_WITH_FRAMING");
+            com.aihospital.shared.diagnostics.TurnTraceContext.record(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
+                    "CONTEXT","AGENT_PLANNING","BOUNDED_ESTIMATE",0,null,null,null,null,
+                    com.aihospital.shared.diagnostics.InvocationContext.current(),contextBudget));
             var response = transport.generate(base, key, model, thinking, finishing ? 64 : 2048,
                     timeoutSeconds, messages, false, null, tools, finishing);
             var usage = response.tokenUsage();
@@ -76,6 +85,8 @@ public final class LangChainAgentModel implements AgentModel {
                             ? "STOP_NON_DONE" : "FINISH_" + response.finishReason().name() : null);
         } catch (Exception failure) {
             if (failure instanceof InterruptedException) Thread.currentThread().interrupt();
+            if(failure instanceof ContextAssembler.BudgetExceeded exceeded)
+                return new Step(Status.UNAVAILABLE,List.of(),null,null,elapsed(start),exceeded.code);
             return new Step(Status.UNAVAILABLE, List.of(), null, null, elapsed(start),
                     ModelFailureDiagnostics.classify(failure).code());
         }

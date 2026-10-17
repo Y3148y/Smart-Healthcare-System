@@ -9,4 +9,6 @@ test('context details label estimates separately from provider usage and preserv
   assert.match(source,/e\.kind==='TOOL'/)
   assert.match(source,/historyMessagesRemoved/)
   assert.match(source,/referencesRemoved/)
+  assert.match(source,/contextLabel\(item.name\)/)
+  for(const stage of ['NARRATION','INTENT_EXTRACTION','AGENT_PLANNING'])assert.ok(source.includes(stage))
 })

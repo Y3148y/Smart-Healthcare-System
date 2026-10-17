@@ -67,6 +67,13 @@ final class ContextAssembler {
     void check(List<ChatMessage> messages){
         if(estimate(messages)>budget)throw new BudgetExceeded("CONTEXT_INPUT_BUDGET_EXCEEDED");
     }
+    int checkPayload(Object payload,int messageCount){
+        String encoded=encode(payload);
+        if(encoded.length()>30000)throw new BudgetExceeded("CONTEXT_PLANNING_CHARACTER_LIMIT");
+        long estimated=512L+64L*messageCount+encoded.getBytes(StandardCharsets.UTF_8).length;
+        if(messageCount<0||estimated>budget)throw new BudgetExceeded("CONTEXT_INPUT_BUDGET_EXCEEDED");
+        return (int)estimated;
+    }
     static int estimate(List<ChatMessage> messages){
         long total=512; // Explicit conservative framing allowance; not a model-specific tokenizer.
         for(var message:messages){

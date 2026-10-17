@@ -16,6 +16,26 @@ import java.util.concurrent.*;
 /** Bounded compatible HTTP transport with LangChain4j messages; no streaming or reasoning retention. */
 final class ConfiguredChatTransport {
     private static final ObjectMapper JSON = new ObjectMapper();
+    /** Shared wire representation includes tool arguments and results in the input budget. */
+    static List<Map<String,Object>> wireMessages(List<ChatMessage> messages){
+        var turns = new ArrayList<Map<String,Object>>();
+        for (ChatMessage message : messages) {
+            if (message instanceof SystemMessage system) turns.add(Map.of("role","system","content",system.text()));
+            else if (message instanceof UserMessage user) turns.add(Map.of("role","user","content",user.singleText()));
+            else if (message instanceof AiMessage assistant) {
+                var turn = new LinkedHashMap<String,Object>(); turn.put("role", "assistant");
+                turn.put("content", assistant.text());
+                if (assistant.hasToolExecutionRequests()) turn.put("tool_calls", assistant.toolExecutionRequests().stream()
+                        .map(call -> Map.of("id", call.id(), "type", "function", "function",
+                                Map.of("name", call.name(), "arguments", call.arguments()))).toList());
+                turns.add(turn);
+            } else if (message instanceof ToolExecutionResultMessage tool) {
+                turns.add(Map.of("role", "tool", "tool_call_id", tool.id(), "content", tool.text()));
+            }
+            else throw new IllegalArgumentException("Unsupported message type");
+        }
+        return turns;
+    }
     private final HttpClient http = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
 
     Response<AiMessage> generate(String base, String key, String model, boolean thinking, int maxTokens,
@@ -49,22 +69,7 @@ final class ConfiguredChatTransport {
         if (!Set.of("http", "https").contains(endpoint.getScheme()) || endpoint.getHost() == null
                 || endpoint.getUserInfo() != null || endpoint.getQuery() != null || endpoint.getFragment() != null)
             throw new IllegalArgumentException("Invalid model endpoint");
-        var turns = new ArrayList<Map<String,Object>>();
-        for (ChatMessage message : messages) {
-            if (message instanceof SystemMessage system) turns.add(Map.of("role","system","content",system.text()));
-            else if (message instanceof UserMessage user) turns.add(Map.of("role","user","content",user.singleText()));
-            else if (message instanceof AiMessage assistant) {
-                var turn = new LinkedHashMap<String,Object>(); turn.put("role", "assistant");
-                turn.put("content", assistant.text());
-                if (assistant.hasToolExecutionRequests()) turn.put("tool_calls", assistant.toolExecutionRequests().stream()
-                        .map(call -> Map.of("id", call.id(), "type", "function", "function",
-                                Map.of("name", call.name(), "arguments", call.arguments()))).toList());
-                turns.add(turn);
-            } else if (message instanceof ToolExecutionResultMessage tool) {
-                turns.add(Map.of("role", "tool", "tool_call_id", tool.id(), "content", tool.text()));
-            }
-            else throw new IllegalArgumentException("Unsupported message type");
-        }
+        var turns=wireMessages(messages);
         var body = new LinkedHashMap<String,Object>();
         body.put("model", model); body.put("messages", turns); body.put("temperature", .1);
         body.put("max_tokens", maxTokens); body.put("stream", false);

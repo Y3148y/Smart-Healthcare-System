@@ -18,6 +18,16 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class AgentWorkflowCoordinatorTest {
+    @Test void localPlanningBudgetFailureIsNotRecordedAsAProviderRequest(){
+        try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
+            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenReturn(
+                    new AgentModel.Step(AgentModel.Status.UNAVAILABLE,List.of(),null,null,1,"CONTEXT_INPUT_BUDGET_EXCEEDED"));
+            assertNull(coordinator.prepare(conversation,"patient","合成测试问题"));
+            verifyNoInteractions(executor);
+            verify(logs).record(argThat(log->log.purpose().equals("Agent工具规划")
+                    &&log.usage().source().equals("NOT_APPLICABLE")&&!log.success()));
+        }
+    }
     @Test void extractionBudgetFailureIsLocalAndCannotReachPlannerOrTools(){
         try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
             when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.UNAVAILABLE,null,
