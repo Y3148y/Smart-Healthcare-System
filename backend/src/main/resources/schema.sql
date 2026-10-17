@@ -208,3 +208,16 @@ CREATE TABLE IF NOT EXISTS pending_booking_action (
   status VARCHAR(16) NOT NULL,
   UNIQUE (patient, request_key)
 );
+
+CREATE TABLE IF NOT EXISTS triage_fact_snapshot (
+  turn_id VARCHAR(64) PRIMARY KEY,
+  session_id VARCHAR(64) NOT NULL,
+  state_version BIGINT NOT NULL,
+  schema_version INT NOT NULL,
+  source_window_hash CHAR(64) NOT NULL,
+  facts_hash CHAR(64) NOT NULL,
+  facts_json LONGTEXT NOT NULL,
+  UNIQUE (session_id,state_version),
+  FOREIGN KEY (turn_id) REFERENCES triage_turn(id),
+  FOREIGN KEY (session_id) REFERENCES triage_session(id)
+);

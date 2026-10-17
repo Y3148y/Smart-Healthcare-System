@@ -25,6 +25,7 @@ class AgentWorkflowCoordinatorTest {
     private final TriageStore store=mock(TriageStore.class);
     private final CallLogStore logs=mock(CallLogStore.class);
     private final TriageSafetyPolicy safety=mock(TriageSafetyPolicy.class);
+    private final SessionFactStore durableFacts=mock(SessionFactStore.class);
     private final HospitalToolExecutor executor=mock(HospitalToolExecutor.class);
     private final LocalDateTime now=LocalDateTime.now();
     private final Conversation conversation=new Conversation(new Session("session","title","preview","处理中",now,now),
@@ -37,7 +38,7 @@ class AgentWorkflowCoordinatorTest {
         when(store.messages("session")).thenReturn(conversation.messages());
         when(knowledge.documents()).thenReturn(List.of(new KnowledgeDocument("doc","title","body",1,"READY",now)));
         when(catalog.departments()).thenReturn(List.of());
-        return new AgentWorkflowCoordinator(new AgentWorkflowSettings(mode,8,2048),extractor,model,gateway,catalog,knowledge,store,logs,safety);
+        return new AgentWorkflowCoordinator(new AgentWorkflowSettings(mode,8,2048),extractor,model,gateway,catalog,knowledge,store,logs,safety,durableFacts);
     }
     @Test void offAndShadowDoNotPlanOrExecuteTools() {
         try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.OFF,gateway)) {
@@ -85,6 +86,28 @@ class AgentWorkflowCoordinatorTest {
         }
     }
 
+    @Test void persistenceFailureFallsBackWithoutPlanningOrTools() {
+        try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
+            when(durableFacts.stage(anyString(),any(),any(),any())).thenThrow(new IllegalStateException("Synthetic state conflict"));
+            assertNull(coordinator.prepare(conversation,"patient","合成测试问题"));
+            verifyNoInteractions(model,executor);
+        }
+    }
+    @Test void historicalObservationCannotExpandAuthorizedModelOrToolWindow() {
+        try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
+            var historical=new IntentExtraction.SymptomEvent("SyntheticHistoricalOnly",null,null,null,null,null,
+                    IntentExtraction.Subject.SELF,IntentExtraction.Temporality.CURRENT,IntentExtraction.Assertion.AFFIRMED,
+                    List.of(new IntentExtraction.SourceRef("old-message","SyntheticHistoricalOnly")));
+            when(durableFacts.stage(anyString(),any(),any(),any())).thenReturn(new SessionFacts(99,List.of(historical),List.of()));
+            when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenAnswer(call->{
+                IntentInput source=call.getArgument(0);Set<String> queries=call.getArgument(4);
+                assertEquals(1,source.messages().size());assertEquals(Set.of("合成测试问题"),queries);
+                return new AgentModel.Step(AgentModel.Status.DONE,List.of(),1,1,1);
+            });
+            assertNull(coordinator.prepare(conversation,"patient","合成测试问题"));
+            verify(model).decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt());verifyNoInteractions(executor);
+        }
+    }
     @Test void conflictingFactCannotBecomeAnAffirmativeSymptomQuery() {
         try (var gateway = new AgentToolGateway(executor);
              var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {

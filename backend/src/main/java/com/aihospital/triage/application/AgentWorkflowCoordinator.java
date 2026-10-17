@@ -40,10 +40,11 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
     private final TriageStore store;
     private final CallLogStore calls;
     private final TriageSafetyPolicy safety;
+    private final SessionFactStore durableFacts;
     private final SessionFactReducer factReducer = new SessionFactReducer();
     public AgentWorkflowCoordinator(AgentWorkflowSettings settings, IntentExtractor extractor, AgentModel model,
             AgentToolGateway gateway, CatalogManagementService catalogue, KnowledgeCatalog knowledge,
-            TriageStore store, CallLogStore calls, TriageSafetyPolicy safety) {
+            TriageStore store, CallLogStore calls, TriageSafetyPolicy safety, SessionFactStore durableFacts) {
         this.settings = settings;
         this.extractor = extractor;
         this.runner = new AgentRunner(model, gateway, settings.maxSteps(), settings.planningTimeoutSeconds());
@@ -52,6 +53,7 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         this.store = store;
         this.calls = calls;
         this.safety = safety;
+        this.durableFacts = durableFacts;
     }
 
     public TriageEngine.PreparedEvidence prepare(Conversation conversation, String patient, String accumulated) {
@@ -66,7 +68,8 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
             audit("意图抽取", extracted.status().name() + "/" + extracted.failureCode(), extracted.inputTokens(),
                     extracted.outputTokens(), extracted.elapsedMs(), extracted.status() == IntentExtractor.Status.ACCEPTED);
             if (extracted.status() != IntentExtractor.Status.ACCEPTED) return null;
-            // Window-only rebuild; durable cross-turn facts require the separate database migration.
+            durableFacts.stage(patient,conversation,input,extracted.extraction());
+            // Historical observations persist, but only this authorized source window feeds tools/model.
             SessionFacts facts = factReducer.merge(SessionFacts.empty(), extracted.extraction(), input,
                     conversation.messages().size());
             if (settings.mode() != AgentWorkflowSettings.Mode.ENABLED) return null;
