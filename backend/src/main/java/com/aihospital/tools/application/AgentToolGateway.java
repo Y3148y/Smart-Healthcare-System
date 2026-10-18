@@ -48,8 +48,8 @@ public final class AgentToolGateway implements AutoCloseable {
                 return result(callId, Status.BLOCKED);
             if (tool != AgentTool.MEDICAL_KNOWLEDGE && !run.scope().allowedDepartments().contains(value))
                 return result(callId, Status.BLOCKED);
-            if (tool == AgentTool.MEDICAL_KNOWLEDGE && !run.scope().allowedQueries().isEmpty()
-                    && !run.scope().allowedQueries().contains(value)) return result(callId, Status.BLOCKED);
+            if (tool == AgentTool.MEDICAL_KNOWLEDGE && !run.scope().allowedQueries().contains(value))
+                return result(callId, Status.BLOCKED);
         } catch (Exception invalid) { return result(callId, Status.BLOCKED); }
         synchronized (run) {
             if (run.expired()) return result(callId, Status.BUDGET_EXHAUSTED);

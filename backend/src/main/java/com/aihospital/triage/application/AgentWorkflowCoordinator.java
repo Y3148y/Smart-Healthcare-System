@@ -96,7 +96,16 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         String version = corpusVersion();
         Set<String> departments = enabledDepartments();
         var queries = new HashSet<>(facts.retrievalSymptoms());
-        queries.add(current.strip());
+        // A raw user utterance is not automatically a safe retrieval query. If the
+        // extractor found an event, only source-checked affirmative current-self
+        // symptoms may reach the Agent tool allowlist. General educational questions
+        // without extracted symptom events may retain their original wording.
+        if (extracted.extraction().events().isEmpty()
+                && extracted.extraction().intents().contains(IntentExtraction.Intent.GENERAL_HEALTH)
+                && current != null && !current.isBlank()) {
+            queries.add(CurrentRequestIntent.medicalRetrievalQuery(current.strip()));
+        }
+        if (queries.isEmpty()) return null;
         // Identity scope is server-only and never included in the planner prompt.
         var scope = new AgentToolRun(new AgentToolRun.Scope(patient, conversation.session().id(),
                 TurnTraceContext.currentOrNewId(), conversation.messages().size(), version,

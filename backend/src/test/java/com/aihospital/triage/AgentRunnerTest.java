@@ -19,7 +19,7 @@ class AgentRunnerTest {
     private final IntentExtraction intent = new IntentExtraction(1, List.of(IntentExtraction.Intent.GENERAL_HEALTH), List.of(), List.of(), List.of());
     private AgentToolRun scope(Duration duration) {
         return new AgentToolRun(new AgentToolRun.Scope("patient", "session", "trace", 1, "corpus",
-                Set.of(AgentTool.MEDICAL_KNOWLEDGE), Set.of()), 4, duration, duration);
+                Set.of(AgentTool.MEDICAL_KNOWLEDGE), Set.of(), Set.of("测试问题")), 4, duration, duration);
     }
     private AgentModel.Step tools(String id) {
         return new AgentModel.Step(AgentModel.Status.TOOLS,

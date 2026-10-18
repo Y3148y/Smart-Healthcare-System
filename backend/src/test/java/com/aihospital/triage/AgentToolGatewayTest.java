@@ -48,12 +48,23 @@ class AgentToolGatewayTest {
             assertEquals("头痛",run.snapshots().get(0).arguments().get("query"));
         }
     }
+    @Test void emptyMedicalQueryAllowlistDeniesEveryModelQuery() {
+        var executor = mock(HospitalToolExecutor.class);
+        var empty = new AgentToolRun(new AgentToolRun.Scope("p", "s", "t", 1, "v",
+                Set.of(AgentTool.MEDICAL_KNOWLEDGE), Set.of(), Set.of()),
+                1, Duration.ofSeconds(3), Duration.ofSeconds(1));
+        try (var gateway = new AgentToolGateway(executor)) {
+            assertEquals(AgentToolGateway.Status.BLOCKED, gateway.execute(empty, "c1",
+                    "medical_knowledge_retrieve", "{\"query\":\"未经授权的查询\"}").status());
+            verifyNoInteractions(executor);
+        }
+    }
     private AgentToolRun run(int maximum) {
         return new AgentToolRun(scope(1), maximum, Duration.ofSeconds(3), Duration.ofSeconds(1));
     }
     private AgentToolRun.Scope scope(long version) {
         return new AgentToolRun.Scope("patient", "session", "trace", version, "corpus-v1",
-                Set.of(AgentTool.values()), Set.of("内科"));
+                Set.of(AgentTool.values()), Set.of("内科"), Set.of("测试问题"));
     }
     private HospitalToolExecutor.Execution success(Object value) {
         return new HospitalToolExecutor.Execution(value, new ToolTrace("department_search", "科室查询", "redacted",
