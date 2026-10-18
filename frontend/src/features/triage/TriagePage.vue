@@ -4,6 +4,7 @@ import { api, streamResult } from '../../api'
 import AssessmentCard from './components/AssessmentCard.vue'
 import AnswerSources from './components/AnswerSources.vue'
 import AnswerExecution from './components/AnswerExecution.vue'
+import ConversationObservations from './components/ConversationObservations.vue'
 import { recoverConversation } from './recoverConversation'
 import {turnIdentity,clearTurnIdentity} from './turnIdentity'
 import { responseDuration } from './responseDuration'
@@ -168,6 +169,7 @@ async function requestHumanReview(sessionId:string,reason:string){
       <small v-if="triageRunning" class="response-duration">已用时 {{ elapsedSeconds.toFixed(1) }} 秒</small>
     </div>
     <div class="chat-boundary">仅供挂号参考，不构成诊断；如有急症请立即线下就医。</div>
+    <ConversationObservations v-if="activeConversation" :key="`${activeConversation.session.id}:${activeConversation.messages.length}`" :session-id="activeConversation.session.id" />
     <div v-if="processing && !triageRunning" class="triage-stage-note" role="status">本轮问题已保存，后台仍在处理，请勿重复提交。<button type="button" class="text-btn" @click="openConversation(activeConversation!.session.id)">刷新处理结果</button></div>
     <div v-if="activeConversation?.session.status==='建议尽快就医'" class="triage-stage-note">本次结果建议尽快到线下医疗机构评估，因此不提供模拟号源预约。若症状加重或出现胸痛、呼吸困难、意识改变等情况，请立即前往急诊或拨打 120。</div>
     <div v-if="activeConversation?.humanReview" class="human-review-status">人工导诊申请已提交 · {{ activeConversation.humanReview.status==='PENDING'?'等待处理':activeConversation.humanReview.status }}</div>

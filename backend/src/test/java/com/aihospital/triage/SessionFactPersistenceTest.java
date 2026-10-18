@@ -19,7 +19,31 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Synthetic observations only; does not test medical event classification. */
 @SpringBootTest
+@org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 class SessionFactPersistenceTest {
+    @Autowired org.springframework.test.web.servlet.MockMvc http;
+    @Test void patientObservationEndpointShowsCompletedOwnerDataOnly() throws Exception {
+        String patient=id(),session=create(patient);var conversation=begin(patient,session,"SyntheticOwnerObservation");
+        stage(patient,conversation,"SyntheticOwnerObservation",IntentExtraction.Assertion.AFFIRMED);
+        var jwt=new com.aihospital.shared.security.JwtService();
+        String url="/api/triage/sessions/"+session+"/observations";
+        String owner="Bearer "+jwt.issue(patient,"PATIENT");
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization",owner))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.status").value("NO_COMPLETED_SNAPSHOT"));
+        complete(conversation);
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization",owner))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.sessionId").value(session))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.observations[0].symptom").value("SyntheticOwnerObservation"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.clinicalReview").value("NOT_REVIEWED"));
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).param("patient",patient).header("Authorization","Bearer "+jwt.issue(id(),"PATIENT")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isNotFound());
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization","Bearer "+jwt.issue("admin","ADMIN")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isForbidden());
+        http.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isUnauthorized());
+    }
     @Autowired SessionFactStore facts;
     @Autowired SessionFactMapper mapper;
     @Autowired TriageStore store;
