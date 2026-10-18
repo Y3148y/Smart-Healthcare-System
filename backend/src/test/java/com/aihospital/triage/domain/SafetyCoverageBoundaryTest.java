@@ -14,6 +14,15 @@ class SafetyCoverageBoundaryTest {
         assertTrue(observed.signals().isEmpty(), "Coverage changed: update the limitation record, not the rule to preserve this gap");
     }
 
+    @Test void colloquialPressureWithoutListedPainPhraseIsCurrentlyUnrecognised() {
+        var observed = policy.assess("胸口像压着一块石头，还冒冷汗");
+        assertTrue(observed.signals().isEmpty(), "Coverage changed: update the limitation record, not the rule to preserve this gap");
+    }
+
+    @Test void explicitNegatedChestTermIsCurrentlySuppressed() {
+        assertTrue(policy.assess("我没有胸痛").signals().isEmpty());
+    }
+
     @Test void genericChestRuleCurrentlyDoesNotSeparateThirdPerson() {
         assertTrue(policy.assess("我朋友胸痛").signals().stream()
                 .anyMatch(signal -> "ER-CIRCULATION-001".equals(signal.ruleCode())));

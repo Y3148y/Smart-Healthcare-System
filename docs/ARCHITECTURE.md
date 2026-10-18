@@ -83,11 +83,13 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 | 输入类型与示例 | 当前确定性规则行为 | 边界 |
 | --- | --- | --- |
 | 比喻：“胸口像被大象踩了一脚，还冒冷汗” | 未产生信号 | 未覆盖该非标准表达，不能据此排除急症 |
+| 俗称/压迫感：“胸口像压着一块石头，还冒冷汗” | 未产生信号 | 未列入胸痛模式词表，不能据此排除急症 |
+| 明确否定：“我没有胸痛” | 当前被紧邻否定保护抑制 | 仅记录该样例的当前行为，不代表覆盖所有否定结构 |
 | 第三人：“我朋友胸痛” | 命中胸痛规则 | 通用规则尚未隔离主体；过敏派生规则的局部主体保护不能代表全局事件归属 |
 | 假设问句：“如果出现胸痛怎么办” | 命中胸痛规则 | 关键词安全检查先于模型意图，不区分这类假设咨询 |
 | “去年胸痛”对比“去年发生过这些症状，胸痛” | 前者被历史前缀抑制，后者命中胸痛规则 | 有界前缀不是跨句事件记忆，不能保证时间归属正确 |
 
-逐规则肯定/否定回归见 `Step1NegationGuardTest`，过敏无皮疹组合及局部历史/主体测试见 `AllergyAirwayCombinationTest`，模板分支与词表/出处缺口见 `SafetyRuleTemplateExpansionTest`、`SafetyRuleCatalogTest`。这批只增加边界记录，没有增加临床映射、修改严重程度或使用模型覆盖规则；POLICY_VERSION不变。独立医学审核和总体漏检/误报率仍未知。
+逐规则肯定/否定回归见 `Step1NegationGuardTest`，本表样例观察见 `SafetyCoverageBoundaryTest`，过敏无皮疹组合及局部历史/主体测试见 `AllergyAirwayCombinationTest`，模板分支与词表/出处缺口见 `SafetyRuleTemplateExpansionTest`、`SafetyRuleCatalogTest`。这批只增加边界记录，没有增加临床映射、修改严重程度或使用模型覆盖规则；POLICY_VERSION不变。独立医学审核和总体漏检/误报率仍未知。
 
 ### 受控只读 Agent（可选普通咨询分支）
 
