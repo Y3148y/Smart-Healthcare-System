@@ -25,12 +25,12 @@
 | `npm run import:local -- <packet.json>` | 否 | 仅校验一个资料包，不访问后台。 |
 | `npm run import:local -- <packet.json> --apply` | 本机后台 | 创建一条 `PENDING_REVIEW` 资料；管理员令牌只从 `KNOWLEDGE_ADMIN_TOKEN` 环境变量读取，不审批、不覆盖。 |
 | `npm run approve:test` | 否 | 校验公开11篇及来源绑定，不改原件/后台。 |
-| `npm run approve:test -- --apply` | 本机测试后台 | 显式导入、标记本机测试准入、审批并检查每篇切分片段；需 `KNOWLEDGE_TEST_APPROVAL=YES`。 |
+| `node approve-test-corpus.mjs --apply` | 本机测试后台 | 显式导入、标记本机测试准入、审批并检查每篇切分片段；需 `KNOWLEDGE_TEST_APPROVAL=YES`。 |
 | `npm run audit:corpus` | 否 | 检查应用资源目录是否仍有旧 Markdown 资料。 |
 
 导入器只访问配置的本机 API 地址，并拒绝 HTTP 重定向。标题与正文生成稳定幂等键：相同请求重试返回原记录，相同键携带不同元数据返回 409；数据库唯一键约束并发请求。导入器不会抓取来源网页，也不会猜补缺失元数据。
 
-仅作开发测试时，维护者允许把这11篇示例资料导入**隔离的本机测试数据库**并通过现有管理员审批接口。先在该测试后台取得管理员令牌，显式设 `KNOWLEDGE_ADMIN_TOKEN`、`KNOWLEDGE_IMPORT_BASE_URL`（例如临时测试后端 `http://127.0.0.1:8082/api/`）和 `KNOWLEDGE_TEST_APPROVAL=YES`，再执行 `npm run approve:test -- --apply`。脚本先按原始 `pending` 元数据导入，再将数据库中的使用许可声明改为 `permitted`，其依据仅写“维护者授权本机测试，未完成临床/翻译/适用范围审核”，最后调用既有审批接口并核对片段非空；不会改动或重新哈希 `knowledge/corpus/` 原件。要复验撤回，请在管理员页面逐篇撤回；不要把测试库、令牌或审批回执上传仓库。
+仅作开发测试时，维护者允许把这11篇示例资料导入**隔离的本机测试数据库**并通过现有管理员审批接口。先在该测试后台取得管理员令牌，显式设 `KNOWLEDGE_ADMIN_TOKEN`、`KNOWLEDGE_IMPORT_BASE_URL`（例如临时测试后端 `http://127.0.0.1:8082/api/`）和 `KNOWLEDGE_TEST_APPROVAL=YES`，再从本目录执行 `node approve-test-corpus.mjs --apply`。直接调用 Node 可避免部分 Windows PowerShell `npm` 包装器未转发 `--apply` 参数而意外只做 dry-run。脚本先按原始 `pending` 元数据导入，再将数据库中的使用许可声明改为 `permitted`，其依据仅写“维护者授权本机测试，未完成临床/翻译/适用范围审核”，最后调用既有审批接口并核对片段非空；不会改动或重新哈希 `knowledge/corpus/` 原件。要复验撤回，请在管理员页面逐篇撤回；不要把测试库、令牌或审批回执上传仓库。
 
 此命令只能连回环地址，但**不能识别该地址是否意外指向共享/真实患者环境**；操作者必须先确认使用独立数据库和Qdrant集合。它不是临床审核、法律许可判定或医院发布路径。现有审批状态 `READY` 只表示该测试库可检索，不能用于面向真实患者的医学服务。旧库已有同文不同元数据导入或非本脚本的批准时命令拒绝/冲突，不会覆盖。
 
