@@ -7,7 +7,7 @@ const events=computed(()=>props.meta.turnTrace?.executions)
 const retrievals=computed(()=>events.value?.filter(e=>e.kind==='RETRIEVAL')||[])
 const tools=computed(()=>events.value?.filter(e=>e.kind==='TOOL')||[])
 const contexts=computed(()=>events.value?.filter(e=>e.kind==='CONTEXT'&&e.contextBudget)||[])
-const contextLabel=(name:string)=>({NARRATION:'回答生成',INTENT_EXTRACTION:'意图抽取',AGENT_PLANNING:'工具规划',ANSWER_REVIEW:'回答核对',LEGACY_NARRATION:'兼容回答',LEGACY_GUIDANCE:'兼容引导',LEGACY_GENERAL:'兼容一般问答'} as Record<string,string>)[name]||'未标记阶段'
+const contextLabel=(name:string)=>({STRUCTURED_ROUTING:'多科室方向提议',NARRATION:'回答生成',INTENT_EXTRACTION:'意图抽取',AGENT_PLANNING:'工具规划',ANSWER_REVIEW:'回答核对',LEGACY_NARRATION:'兼容回答',LEGACY_GUIDANCE:'兼容引导',LEGACY_GENERAL:'兼容一般问答'} as Record<string,string>)[name]||'未标记阶段'
 const flag=(value:boolean|null|undefined)=>value==null?'未记录':value?'是':'否'
 const generation=computed(()=>props.meta.answerEvidence?.generation)
 const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留在请求准备阶段',MODEL_CALL:'进入模型调用阶段，但未记录成功返回',OUTPUT_VALIDATION:'模型已返回，进入输出校验'}[generation.value?.phase||'']||'未记录'))

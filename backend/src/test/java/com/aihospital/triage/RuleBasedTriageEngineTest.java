@@ -23,6 +23,28 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RuleBasedTriageEngineTest {
+    @Test void structuredDecisionAuditDistinguishesMeasuredLocalAndUnknownUsage(){
+        var proposals=java.util.List.of(
+                new StructuredDecisionModel.Proposal("REJECTED",java.util.Optional.empty(),17,7,"DECISION_OUTPUT_INVALID",true),
+                new StructuredDecisionModel.Proposal("ERROR",java.util.Optional.empty(),null,null,"DECISION_CONTEXT_TURN_INPUT_BUDGET_EXCEEDED",false),
+                new StructuredDecisionModel.Proposal("REJECTED",java.util.Optional.empty()));
+        var sources=java.util.List.of("PROVIDER_REPORTED","NOT_APPLICABLE","NOT_REPORTED");
+        for(int i=0;i<proposals.size();i++){
+            var proposal=proposals.get(i);var directory=new DemoDoctorDirectory();var knowledge=new InMemoryKnowledgeCatalog();var calls=new InMemoryCallLogStore();
+            var narration=mock(NarrationModel.class,org.mockito.Mockito.CALLS_REAL_METHODS);
+            when(narration.explainWithServices(anyString(),anyString(),anyString(),anyString(),anyString(),anyList(),org.mockito.ArgumentMatchers.any()))
+                    .thenAnswer(invocation->new NarrationModel.Answer(invocation.getArgument(4),"DEMO",""));
+            var structured=new StructuredDecisionModel("openai-compatible","synthetic","http://127.0.0.1:9","fixture",3){
+                @Override public Proposal propose(String text,java.util.List<com.aihospital.shared.model.Models.DepartmentCandidate> candidates,java.util.List<NarrationModel.Turn> history){return proposal;}
+            };
+            var service=new RuleBasedTriageEngine(safety,directory,knowledge,narration,calls,
+                    new HospitalToolExecutor(new InMemoryToolRegistry(),directory,knowledge,safety,calls),structured);
+            service.triage("fixture","头晕三天，同时腹痛并反酸","合成测试",java.util.List.of());
+            var logged=calls.calls().stream().filter(call->"结构化分诊决策".equals(call.purpose())).findFirst().orElseThrow();
+            assertEquals(sources.get(i),logged.usage().source());
+            if(i==0)assertEquals(17,logged.usage().inputTokens());
+        }
+    }
     private final TriageSafetyPolicy safety = new TriageSafetyPolicy();
 
     private static StructuredDecisionModel notConfigured() {

@@ -188,8 +188,12 @@ public class RuleBasedTriageEngine implements TriageEngine {
             long decisionStarted = System.nanoTime();
             StructuredDecisionModel.Proposal proposal = structuredDecisions.propose(text, candidates, history);
             calls.record(new CallLog(UUID.randomUUID().toString(), LocalDateTime.now(), "结构化分诊决策", user,
-                    proposal.status() + "/" + structuredDecisions.modelName(), 0, 0, elapsedMillis(decisionStarted),
-                    StructuredDecisionModel.Proposal.ACCEPTED.equals(proposal.status()), List.of()));
+                    proposal.status()+"/"+(proposal.failureCode()==null?structuredDecisions.modelName():proposal.failureCode()),
+                    proposal.inputTokens()==null?0:Math.max(0,proposal.inputTokens()),
+                    proposal.outputTokens()==null?0:Math.max(0,proposal.outputTokens()),elapsedMillis(decisionStarted),
+                    StructuredDecisionModel.Proposal.ACCEPTED.equals(proposal.status()),List.of(),
+                    com.aihospital.shared.diagnostics.TurnTraceContext.currentId(),
+                    Boolean.FALSE.equals(proposal.providerRequestAttempted())?TokenUsage.local():TokenUsage.reported(proposal.inputTokens(),proposal.outputTokens())));
             if (proposal.decision().isPresent()) {
                 StructuredDecisionModel.Decision decision = proposal.decision().get();
                 String chosen = decision.department();
