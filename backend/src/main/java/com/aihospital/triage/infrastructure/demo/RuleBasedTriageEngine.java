@@ -45,7 +45,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
         this.calls = calls;
         this.toolExecutor = toolExecutor;
         this.structuredDecisions = structuredDecisions;
-        this.guidanceAnswers = new GuidanceAnswerService(toolExecutor, narration, calls);
+        this.guidanceAnswers = new GuidanceAnswerService(toolExecutor, narration, calls, knowledge);
     }
 
     @Override public SafetyAssessment assessSafety(String symptoms) { return safety.assess(symptoms); }
@@ -263,9 +263,20 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         evidence, !grounded ? "目前资料不足以支持具体分诊，暂不生成预约建议；可以继续咨询或申请人工导诊。" : fallback, history,
                         new NarrationModel.ServiceContext(services, bookable), false,
                         retrievalStatus(retrieval, retrievalExecution.trace().success()));
+        if (!emergency) {
+            var checked = com.aihospital.triage.application.AnswerEvidenceFreshness.check(knowledge, evidence, answer);
+            answer = checked.answer();
+            if (checked.blocked()) {
+                evidence = List.of(); grounded = false; bookable = false;
+                candidates = candidates.stream().map(candidate -> new DepartmentCandidate(
+                        candidate.department(), candidate.reason(), null)).toList();
+            }
+        }
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, bookable ? doctor : null, answer.text(),
                 safetyTip, evidence, List.copyOf(trace), candidates, answer.status(), answer.modelName(), LocalDateTime.now(),
-                safetyAssessment, grounded, grounded ? retrieval.message() : "知识相关度不足，已拒绝无依据生成并建议人工复核", answer.diagnostics());
+                safetyAssessment, grounded, grounded ? retrieval.message() : answer.diagnostics() != null
+                        && answer.diagnostics().failure() != null && answer.diagnostics().failure().code().startsWith("ANSWER_SOURCE_")
+                        ? answer.diagnostics().failure().code() : "知识相关度不足，已拒绝无依据生成并建议人工复核", answer.diagnostics());
         long totalElapsed = elapsedMillis(callStarted);
         AnswerCallAudit.records("分诊工作流", user, answer, totalElapsed, trace).forEach(calls::record);
         return result;

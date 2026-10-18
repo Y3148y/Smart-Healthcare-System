@@ -63,6 +63,16 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         refreshFromStore();
         return new ApprovedSnapshot(local.approvedCorpus(), chunkOrigins(), cachedPublishedRevision);
     }
+    @Override public EvidenceState evidenceState(List<Evidence> evidence) {
+        try {
+            var snapshot = approvedSnapshot();
+            var current = snapshot.corpus().stream().map(item -> withSectionContext(item, snapshot.origins())).toList();
+            if (snapshotFailure(snapshot) != null) return EvidenceState.UNAVAILABLE;
+            return evidence.stream().allMatch(item -> current.stream().anyMatch(candidate -> KnowledgeCatalog.sameSource(item, candidate)))
+                    ? EvidenceState.CURRENT : EvidenceState.CHANGED;
+        } catch (RuntimeException unavailable) { return EvidenceState.UNAVAILABLE; }
+    }
+
     private String snapshotFailure(ApprovedSnapshot snapshot) {
         if (!revisionTracking) return null;
         try {

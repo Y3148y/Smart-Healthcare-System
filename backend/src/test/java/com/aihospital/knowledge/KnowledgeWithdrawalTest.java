@@ -20,8 +20,12 @@ class KnowledgeWithdrawalTest {
         assertTrue(catalog.retrieve("Unique withdrawal fixture", 8, 0.01).evidence().stream()
                 .anyMatch(e -> e.title().equals(added.title())));
         var chunks = catalog.documentChunks(added.id());
+        var references = chunks.stream().map(chunk -> new com.aihospital.shared.model.Models.Evidence(
+                added.title(), chunk.source(), chunk.text(), .123, chunk.sectionPath())).toList();
+        assertEquals(KnowledgeCatalog.EvidenceState.CURRENT, catalog.evidenceState(references));
         var withdrawn = catalog.withdrawDocument(added.id());
         assertEquals("PENDING_REVIEW", withdrawn.status());
+        assertEquals(KnowledgeCatalog.EvidenceState.CHANGED, catalog.evidenceState(references));
         assertEquals(added.body(), withdrawn.body());
         assertEquals("PENDING_REVIEW", store.find(added.id()).status());
         assertTrue(catalog.retrieve("Unique withdrawal fixture", 8, 0.01).evidence().stream()

@@ -64,6 +64,12 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
     @Override public synchronized List<KnowledgeDocument> documents() {
         return documents.values().stream().sorted(Comparator.comparing(KnowledgeDocument::updatedAt).reversed()).toList();
     }
+    @Override public synchronized EvidenceState evidenceState(List<Evidence> evidence) {
+        var corpus = approvedCorpus();
+        return evidence.stream().allMatch(item -> corpus.stream().anyMatch(current -> KnowledgeCatalog.sameSource(item, current)))
+                ? EvidenceState.CURRENT : EvidenceState.CHANGED;
+    }
+
     public synchronized List<Evidence> approvedCorpus() {
         return chunks.values().stream().flatMap(List::stream)
                 .map(chunk -> new Evidence(chunk.title(), chunk.source(), chunk.text(), 1.0)).toList();

@@ -6,6 +6,13 @@ import java.util.List;
 import java.util.Map;
 
 public interface KnowledgeCatalog {
+    enum EvidenceState { CURRENT, CHANGED, UNAVAILABLE, UNTRACKED }
+    /** Exact approved-source membership, not a clinical support judgement or save-time lock. */
+    default EvidenceState evidenceState(List<Evidence> evidence) { return EvidenceState.UNTRACKED; }
+    static boolean sameSource(Evidence a, Evidence b) {
+        return java.util.Objects.equals(a.title(), b.title()) && java.util.Objects.equals(a.source(), b.source())
+                && java.util.Objects.equals(a.excerpt(), b.excerpt()) && a.sectionPath().equals(b.sectionPath());
+    }
     record Retrieval(List<Evidence> evidence, boolean grounded, String message) {}
     record DocumentDetail(KnowledgeDocument document, String source, List<Evidence> segments,
                           String indexStatus, int indexedChunks, String indexNote) {}

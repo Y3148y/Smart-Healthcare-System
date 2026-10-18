@@ -18,11 +18,17 @@ public final class GuidanceAnswerService {
     private final HospitalToolExecutor tools;
     private final NarrationModel narration;
     private final CallLogStore calls;
+    private final com.aihospital.knowledge.domain.KnowledgeCatalog knowledge;
 
     public GuidanceAnswerService(HospitalToolExecutor tools, NarrationModel narration, CallLogStore calls) {
+        this(tools, narration, calls, null);
+    }
+    public GuidanceAnswerService(HospitalToolExecutor tools, NarrationModel narration, CallLogStore calls,
+            com.aihospital.knowledge.domain.KnowledgeCatalog knowledge) {
         this.tools = tools;
         this.narration = narration;
         this.calls = calls;
+        this.knowledge = knowledge;
     }
 
     public TriageEngine.Guidance answer(String text, String query, String departments,
@@ -40,9 +46,11 @@ public final class GuidanceAnswerService {
         var answer = narration.answerWithEvidence(text, "", departments, evidence, fallbackText, history,
                 new NarrationModel.ServiceContext(List.of(), false), true,
                 retrievalStatus(retrieval, execution.trace().success()));
+        var checked = AnswerEvidenceFreshness.check(knowledge, evidence, answer);
+        answer = checked.answer();
         long elapsed = (System.nanoTime() - started) / 1_000_000;
         AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed, List.of(execution.trace())).forEach(calls::record);
-        return new TriageEngine.Guidance(answer.text(), answer.status(), evidence.size(), 1,
+        return new TriageEngine.Guidance(answer.text(), answer.status(), checked.blocked() ? 0 : evidence.size(), 1,
                 execution.trace().success() ? 0 : 1, answer.diagnostics());
     }
 
