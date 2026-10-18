@@ -159,6 +159,14 @@ jobs:
           npm run build
       - name: Verify fragmented SSE transport without live services
         run: node scripts/test-progress-client.cjs
+      - name: Verify observation and trace components in Chromium without backend services
+        env:
+          NODE_PATH: ${{ runner.temp }}/component-browser-probe/node_modules
+        run: |
+          npm install --prefix "$RUNNER_TEMP/component-browser-probe" playwright@1.56.1 --ignore-scripts --no-save --registry=https://registry.npmjs.org
+          export ADMIN_TEST_BROWSER="$(command -v google-chrome)"
+          test -n "$ADMIN_TEST_BROWSER"
+          node scripts/test-observation-trace-ui.cjs
       - name: Knowledge source validation tests
         working-directory: tools/knowledge-sync
         run: |
