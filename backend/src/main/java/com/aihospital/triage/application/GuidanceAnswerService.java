@@ -70,8 +70,11 @@ public final class GuidanceAnswerService {
                 Math.max(0, (System.nanoTime() - started) / 1_000_000),
                 new com.aihospital.triage.domain.AnswerEvidence.Generation("NOT_RUN", null, null, null, null), null,
                 new com.aihospital.triage.domain.AnswerEvidence.ServiceNotice(messages, false));
-        var answer = new NarrationModel.Answer("目前没有可用于医学咨询的症状或健康问题，本轮未检索医学资料，也未生成科室推荐。"
-                + "请补充主要不适、持续时间和变化；如已查询科室或模拟号源，相关信息会单独显示。", "SERVICE_ONLY", "", diagnostics);
+        String response = services.isEmpty()
+                ? "本轮尚未取得科室或号源查询结果，暂不能确认可预约服务。请说明希望查询的科室或医生；"
+                    + "如果希望按症状分诊，可以描述主要不适。"
+                : "本轮科室或模拟号源查询结果已列在下方，可根据查询结果继续选择就诊服务。";
+        var answer = new NarrationModel.Answer(response, "SERVICE_ONLY", "", diagnostics);
         long elapsed = Math.max(0, (System.nanoTime() - started) / 1_000_000);
         AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed, List.of()).forEach(calls::record);
         return new TriageEngine.Guidance(answer.text(), answer.status(), 0, 0, 0, diagnostics);
