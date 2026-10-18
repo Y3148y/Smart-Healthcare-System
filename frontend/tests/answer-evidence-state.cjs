@@ -23,6 +23,31 @@ test('safety takeover remains independent', () => assert.equal(context.evidenceM
 test('new operational failure is not presented as a medical fallback', () => assert.match(context.answerMethod({ ...meta, modelStatus: 'FALLBACK', answerEvidence: { failure: { code: 'MODEL_TIMEOUT' } } }), /失败提示，未采用模型生成内容/))
 test('legacy fallback keeps its historical disclosure', () => assert.match(context.answerMethod({ ...meta, modelStatus: 'FALLBACK' }), /保守回答/))
 
+test('withdrawn sources take precedence over zero visible hits and a prior passed review', () => {
+  const state={...meta,modelStatus:'VALIDATION_BLOCKED',knowledgeHits:0,answerEvidence:{
+    retrievalStatus:'ANSWER_SOURCE_CHANGED',validationStatus:'BLOCKED',adoptedReferenceIds:[],supportReview:{status:'PASSED'}}}
+  assert.match(context.evidenceMethod(state), /已发生变化.*已隐藏/)
+  assert.doesNotMatch(context.evidenceMethod(state), /^未找到/)
+  assert.match(context.answerMethod(state), /参考资料有效性未确认/)
+  assert.doesNotMatch(context.answerMethod(state), /生成内容未通过校验/)
+})
+
+test('unavailable or untracked source checks do not imply missing documents or depleted quota', () => {
+  for(const code of ['ANSWER_SOURCE_UNAVAILABLE','ANSWER_SOURCE_UNTRACKED']){
+    const state={...meta,modelStatus:'VALIDATION_BLOCKED',knowledgeHits:0,answerEvidence:{retrievalStatus:'MATCHED',failure:{code}}}
+    assert.match(context.evidenceMethod(state), /无法核实.*不代表没有相关资料/)
+    assert.match(context.answerMethod(state), /不是模型额度耗尽/)
+  }
+  assert.equal(context.evidenceMethod({...meta,knowledgeHits:0}), '未找到可引用的医学知识片段')
+})
+
+test('source metadata cannot override safety or compliance terminal explanations', () => {
+  const state={...meta,answerEvidence:{retrievalStatus:'ANSWER_SOURCE_CHANGED'}}
+  assert.equal(context.evidenceMethod({...state,modelStatus:'SAFETY_RULE'}), '危险提醒优先于知识检索')
+  assert.match(context.answerMethod({...state,modelStatus:'SAFETY_RULE'}), /安全规则/)
+  assert.match(context.answerMethod({...state,modelStatus:'POLICY_REFUSAL'}), /合规拒答/)
+})
+
 test('support rejection distinguishes retrieved evidence from accepted answer', () => {
   assert.match(context.evidenceMethod({ ...meta, answerEvidence: { retrievalStatus: 'MATCHED', supportReview: { status: 'REJECTED' } } }), /检索到 2 条资料.*未采用/)
   assert.match(context.evidenceMethod({ ...meta, answerEvidence: { retrievalStatus: 'MATCHED', supportReview: { status: 'UNAVAILABLE' } } }), /核对暂未完成/)

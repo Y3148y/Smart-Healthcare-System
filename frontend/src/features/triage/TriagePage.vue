@@ -43,6 +43,9 @@ function assessmentsForMessage(messageId:string):Assessment[]{
 function evidenceMethod(meta:ResponseProvenance):string{
   if(meta.modelStatus==='SAFETY_RULE')return '危险提醒优先于知识检索'
   const evidence=meta.answerEvidence
+  const sourceState=evidence?.failure?.code||evidence?.retrievalStatus
+  if(sourceState==='ANSWER_SOURCE_CHANGED')return '参考资料已发生变化，本轮旧片段及引用已隐藏，不代表未检索到资料'
+  if(sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED')return '暂时无法核实参考资料的当前有效性，本轮片段及引用已隐藏，不代表没有相关资料'
   if(evidence?.retrievalStatus==='DEPENDENCY_UNAVAILABLE')return '资料检索暂不可用，不代表没有相关资料'
   if(!meta.knowledgeHits)return '未找到可引用的医学知识片段'
   if(!evidence)return `检索到 ${meta.knowledgeHits} 条资料；旧记录未采集回答实际引用情况`
@@ -58,6 +61,8 @@ function answerMethod(meta:ResponseProvenance):string{
   // supplementing never changes a refusal, so that advice is simply wrong here.
   if(meta.modelStatus==='POLICY_REFUSAL')return '合规拒答：系统不提供诊断或处方。该答复由确定性策略直接给出，不经过模型，也不随您补充的信息而改变；如需就医方向，请改问就医相关问题或申请人工导诊'
   if(meta.modelStatus==='CLARIFICATION')return '系统在等你补充关键信息，暂不给出科室推荐或号源。该追问由确定性策略直接给出，不经过模型'
+  const sourceState=meta.answerEvidence?.failure?.code||meta.answerEvidence?.retrievalStatus
+  if(meta.modelStatus==='VALIDATION_BLOCKED'&&(sourceState==='ANSWER_SOURCE_CHANGED'||sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED'))return '回答因参考资料有效性未确认而暂不展示；这不是模型额度耗尽或模型能力不足的判断'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
   if(meta.modelStatus==='LIVE_UNGROUNDED')return 'AI 模型回答一般问题；本次无可引用知识资料'
   if(meta.modelStatus.startsWith('DEMO'))return '演示规则回答，未调用外部 AI 模型'
