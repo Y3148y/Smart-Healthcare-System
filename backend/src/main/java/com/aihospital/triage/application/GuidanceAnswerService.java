@@ -35,7 +35,8 @@ public final class GuidanceAnswerService {
             List<NarrationModel.Turn> history, Consumer<TriageProgress> progress,
             TriageEngine.PreparedEvidence prepared, Function<List<Evidence>, String> fallback) {
         long started = System.nanoTime();
-        if (query == null || query.isBlank()) {
+        if (query == null || query.isBlank()
+                || prepared != null && prepared.purpose() == TriageEngine.QueryPurpose.SERVICE_ONLY) {
             progress.accept(TriageProgress.SERVICE_RESPONSE);
             return serviceOnly(prepared, started);
         }

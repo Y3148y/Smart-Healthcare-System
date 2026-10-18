@@ -194,14 +194,14 @@ class AgentWorkflowCoordinatorTest {
         try (var gateway = new AgentToolGateway(executor);
              var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
             var mixed = new Conversation(conversation.session(),
-                    List.of(new Message("u1", "USER", "头痛，腹痛是否存在说不清", now, null)), List.of(), null);
+                    List.of(new Message("u1", "USER", "头痛，腹痛是否存在说不清，也想找医生", now, null)), List.of(), null);
             var head = new IntentExtraction.SymptomEvent("头痛", null, null, null, null, null,
                     IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
                     IntentExtraction.Assertion.AFFIRMED, List.of(new IntentExtraction.SourceRef("u1", "头痛")));
             var abdomen = new IntentExtraction.SymptomEvent("腹痛", null, null, null, null, null,
                     IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
                     IntentExtraction.Assertion.UNCERTAIN, List.of(new IntentExtraction.SourceRef("u1", "腹痛")));
-            var proposal = new IntentExtraction(1, List.of(IntentExtraction.Intent.SYMPTOM_CONSULT),
+            var proposal = new IntentExtraction(1, List.of(IntentExtraction.Intent.SYMPTOM_CONSULT, IntentExtraction.Intent.FIND_DOCTOR),
                     List.of(head, abdomen), List.of(),
                     List.of(new IntentExtraction.Conflict(IntentExtraction.Field.ASSERTION, abdomen.sourceRefs())));
             when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
@@ -220,6 +220,7 @@ class AgentWorkflowCoordinatorTest {
             });
             var prepared = coordinator.prepare(mixed, "patient", mixed.messages().get(0).content());
             assertNotNull(prepared);
+            assertEquals(TriageEngine.QueryPurpose.UNDETERMINED, prepared.purpose());
             assertSame(retrieval, prepared.retrieval().orElseThrow());
             verify(executor).execute("medical_knowledge_retrieve", Map.of("query", "头痛"));
             verifyNoMoreInteractions(executor);
@@ -307,12 +308,24 @@ class AgentWorkflowCoordinatorTest {
                 return new AgentModel.Step(AgentModel.Status.DONE, List.of(), 5, 2, 1);
             });
 
-            var prepared = coordinator.prepare(conversation, "patient", "合成测试问题");
+            String request = "帮我查询内科医生今天的号源";
+            var lookupConversation = new Conversation(conversation.session(),
+                    List.of(new Message("u1", "USER", request, now, null)), List.of(), null);
+            var prepared = coordinator.prepare(lookupConversation, "patient", request);
             assertNotNull(prepared);
+            assertEquals(TriageEngine.QueryPurpose.SERVICE_ONLY, prepared.purpose());
             assertTrue(prepared.retrieval().isEmpty());
             assertTrue(prepared.trace().isEmpty());
             assertEquals(2, prepared.services().size());
             assertFalse(prepared.services().toString().contains("private doctor name"));
+            var narration = mock(NarrationModel.class);
+            String lexicalRemainder = CurrentRequestIntent.medicalRetrievalQuery(request);
+            assertFalse(lexicalRemainder.isBlank(), "department names still exist after lexical service-word removal");
+            var response = new GuidanceAnswerService(executor, narration, logs).answer(request, lexicalRemainder,
+                    "", List.of(), stage -> {}, prepared, evidence -> fail("Service intent must not reach medical fallback"));
+            assertEquals("SERVICE_ONLY", response.modelStatus());
+            assertEquals("NOT_APPLICABLE", response.answerEvidence().retrievalStatus());
+            verifyNoInteractions(narration);
             verify(executor, never()).execute(eq("medical_knowledge_retrieve"), anyMap());
         }
     }
@@ -332,6 +345,7 @@ class AgentWorkflowCoordinatorTest {
             var prepared = coordinator.prepare(conversation, "patient", "我想找医生");
 
             assertNotNull(prepared);
+            assertEquals(TriageEngine.QueryPurpose.SERVICE_ONLY, prepared.purpose());
             assertTrue(prepared.retrieval().isEmpty());
             assertTrue(prepared.services().isEmpty());
             verifyNoInteractions(executor);
@@ -340,6 +354,41 @@ class AgentWorkflowCoordinatorTest {
             assertEquals("FIND_DOCTOR", route.name());
             assertFalse(route.status().contains("medical_knowledge_retrieve"));
             assertFalse(route.name().contains("我想找医生"));
+        }
+    }
+
+    @Test void serviceIntentWithNoAuthorizedDirectoryToolDoesNotBecomeAMedicalQuery() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway);
+             var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open("u1", "test-policy")) {
+            var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.FIND_DOCTOR), List.of(), List.of(), List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposed, "test", "", 10, 5, 1));
+            var prepared = coordinator.prepare(conversation, "patient", "查询内科医生");
+            assertNotNull(prepared);
+            assertEquals(TriageEngine.QueryPurpose.SERVICE_ONLY, prepared.purpose());
+            assertTrue(prepared.services().isEmpty());
+            assertTrue(com.aihospital.shared.diagnostics.TurnTraceContext.metadata().executions().stream()
+                    .anyMatch(event -> "INTENT_ROUTE".equals(event.kind()) && "NONE".equals(event.status())));
+            verifyNoInteractions(model, executor);
+        }
+    }
+
+    @Test void failedServicePlanningRetainsValidatedPurposeWithoutAdoptingPartialResults() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+            when(catalog.departments()).thenReturn(List.of(
+                    new com.aihospital.catalog.domain.CatalogRecords.Department("d1", "内科", true)));
+            var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.FIND_DOCTOR), List.of(), List.of(), List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposed, "test", "", 10, 5, 1));
+            when(model.decide(any(), any(), anySet(), anySet(), anySet(), anyList(), anyInt()))
+                    .thenReturn(new AgentModel.Step(AgentModel.Status.UNAVAILABLE, List.of(), null, null, 1));
+            var prepared = coordinator.prepare(conversation, "patient", "查询内科医生");
+            assertNotNull(prepared);
+            assertEquals(TriageEngine.QueryPurpose.SERVICE_ONLY, prepared.purpose());
+            assertTrue(prepared.services().isEmpty());
+            verifyNoInteractions(executor);
         }
     }
 

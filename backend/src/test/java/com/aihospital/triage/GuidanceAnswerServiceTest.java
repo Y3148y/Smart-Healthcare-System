@@ -118,6 +118,13 @@ class GuidanceAnswerServiceTest {
         verifyNoInteractions(tools, narration);
     }
 
+    @Test void servicePurposeCannotDiscardAnActualMedicalRetrieval() {
+        var retrieval = new Retrieval(List.of(), false, "NO_MATCH");
+        var trace = new ToolTrace("medical_knowledge_retrieve", "检索", "redacted", "NO_MATCH", 1, true, "");
+        assertThrows(IllegalArgumentException.class, () -> new TriageEngine.PreparedEvidence(
+                java.util.Optional.of(retrieval), java.util.Optional.of(trace), List.of(), TriageEngine.QueryPurpose.SERVICE_ONLY));
+    }
+
     @Test void aMedicalQueryStillUsesRetrievalWhenAgentDidNotPrepareEvidence() {
         var tools = mock(HospitalToolExecutor.class);
         var narration = mock(NarrationModel.class);

@@ -95,6 +95,12 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         String messageId = input.messages().get(input.messages().size() - 1).messageId();
         String version = corpusVersion();
         Set<String> departments = enabledDepartments();
+        boolean serviceOnly = extracted.extraction().events().isEmpty()
+                && extracted.extraction().conflicts().isEmpty()
+                && !extracted.extraction().intents().isEmpty()
+                && extracted.extraction().intents().stream().allMatch(intent -> Set.of(
+                        IntentExtraction.Intent.FIND_DEPARTMENT, IntentExtraction.Intent.FIND_DOCTOR,
+                        IntentExtraction.Intent.BOOKING_REQUEST).contains(intent));
         var queries = new HashSet<>(facts.retrievalSymptoms());
         // A raw user utterance is not automatically a safe retrieval query. If the
         // extractor found an event, only source-checked affirmative current-self
@@ -109,13 +115,14 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         if (queries.isEmpty()) allowedTools = allowedTools.stream()
                 .filter(tool -> tool != AgentTool.MEDICAL_KNOWLEDGE)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        if (allowedTools.isEmpty()) return null;
         String intentNames = extracted.extraction().intents().stream().map(Enum::name).sorted()
                 .collect(java.util.stream.Collectors.joining(","));
         String authorizedTools = allowedTools.stream().map(AgentTool::code).sorted()
                 .collect(java.util.stream.Collectors.joining(","));
         TurnTraceContext.record(new TurnTraceContext.Execution("INTENT_ROUTE", intentNames,
-                authorizedTools, 0, null, null, null, null, "AGENT"));
+                authorizedTools.isEmpty() ? "NONE" : authorizedTools, 0, null, null, null, null, "AGENT"));
+        if (allowedTools.isEmpty()) return serviceOnly && scopeIsCurrent(conversation, patient, messageId, version, departments)
+                ? TriageEngine.PreparedEvidence.serviceOnly(List.of()) : null;
         // Identity scope is server-only and never included in the planner prompt.
         var scope = new AgentToolRun(new AgentToolRun.Scope(patient, conversation.session().id(),
                 TurnTraceContext.currentOrNewId(), conversation.messages().size(), version,
@@ -126,7 +133,9 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         Set<AgentTool> required = queries.isEmpty() ? Set.of() : Set.of(AgentTool.MEDICAL_KNOWLEDGE);
         var result = runner.run(input, extracted.extraction(), scope, required, fresh);
         auditPlan(result, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
-        if (result.status() != AgentRunner.Status.COMPLETED || !fresh.getAsBoolean()) return null;
+        if (!fresh.getAsBoolean()) return null;
+        if (result.status() != AgentRunner.Status.COMPLETED)
+            return serviceOnly ? TriageEngine.PreparedEvidence.serviceOnly(List.of()) : null;
         // Only actual tool retrieval, never model final text, reaches narration.
         var retrieval = scope.snapshots().stream().filter(snapshot -> snapshot.tool().equals(AgentTool.MEDICAL_KNOWLEDGE.code())
                 && snapshot.data() instanceof KnowledgeCatalog.Retrieval).reduce((left, right) -> right)
@@ -134,6 +143,7 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                         snapshot.trace(), serviceStates(scope.snapshots())));
         if (retrieval.isPresent()) return retrieval.get();
         var services = serviceStates(scope.snapshots());
+        if (serviceOnly) return TriageEngine.PreparedEvidence.serviceOnly(services);
         return queries.isEmpty() || !services.isEmpty() ? new TriageEngine.PreparedEvidence(
                 java.util.Optional.empty(), java.util.Optional.empty(), services) : null;
     }

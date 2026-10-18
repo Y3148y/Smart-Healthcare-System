@@ -26,9 +26,16 @@ public interface TriageEngine {
     default boolean needsClarification(String symptoms,String currentRequest){return needsClarification(symptoms);}
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
+    /** Server-side request classification; absent prefetch alone never implies SERVICE_ONLY. */
+    enum QueryPurpose { UNDETERMINED, SERVICE_ONLY }
     record PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
                             java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,
-                            List<NarrationModel.ServiceState> services) {
+                            List<NarrationModel.ServiceState> services, QueryPurpose purpose) {
+        public PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
+                java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,
+                List<NarrationModel.ServiceState> services) {
+            this(retrieval, trace, services, QueryPurpose.UNDETERMINED);
+        }
         public PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
                 com.aihospital.shared.model.Models.ToolTrace trace) {
             this(java.util.Optional.of(retrieval), java.util.Optional.of(trace), List.of());
@@ -41,8 +48,14 @@ public interface TriageEngine {
             retrieval = retrieval == null ? java.util.Optional.empty() : retrieval;
             trace = trace == null ? java.util.Optional.empty() : trace;
             services = services == null ? List.of() : List.copyOf(services);
+            if (purpose == null) throw new IllegalArgumentException("Prepared query purpose required");
             if (retrieval.isPresent() != trace.isPresent())
                 throw new IllegalArgumentException("Prepared retrieval and trace must be present together");
+            if (purpose == QueryPurpose.SERVICE_ONLY && retrieval.isPresent())
+                throw new IllegalArgumentException("Service-only request cannot carry medical evidence");
+        }
+        public static PreparedEvidence serviceOnly(List<NarrationModel.ServiceState> services) {
+            return new PreparedEvidence(java.util.Optional.empty(), java.util.Optional.empty(), services, QueryPurpose.SERVICE_ONLY);
         }
     }
     default Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history,

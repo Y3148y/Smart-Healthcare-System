@@ -18,7 +18,7 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
 <template>
   <section class="execution" aria-label="本轮调用详情">
     <p v-for="(item,i) in routes" :key="`route-${i}`">后端工作流分流：{{ routeReason(item.status) }}。这是流程选择，不代表诊断或预约许可。</p>
-    <p v-for="(item,i) in intentRoutes" :key="`intent-route-${i}`">Agent 结构化意图：{{ item.name||'未记录' }}；本轮授权工具：{{ item.status||'未记录' }}。这是只读工具白名单选择，不代表诊断或预约许可。</p>
+    <p v-for="(item,i) in intentRoutes" :key="`intent-route-${i}`">Agent 结构化意图：{{ item.name||'未记录' }}；本轮授权工具：{{ item.status==='NONE'?'无':item.status||'未记录' }}。这是只读工具白名单选择，不代表诊断或预约许可。</p>
     <p>LLM 生成请求：{{ phaseLabel }}。{{ generation?.inputTokens!=null?`输入 ${generation.inputTokens} Token；`:'' }}{{ generation?.outputTokens!=null?`输出 ${generation.outputTokens} Token。`:'' }}</p>
     <p v-if="meta.answerEvidence?.supportReview">回答依据核对：{{ meta.answerEvidence.supportReview.status }}（模型核对，不是医学审核）。</p>
     <p v-for="(item,i) in contexts" :key="`context-${i}`">{{ contextLabel(item.name) }} · 上下文预算：保守估计 {{ item.contextBudget?.estimatedInputTokens }} / {{ item.contextBudget?.inputTokenBudget }}（UTF-8 字节与消息开销估算，非实际用量）；整条移除历史 {{ item.contextBudget?.historyMessagesRemoved }} 条、证据 {{ item.contextBudget?.referencesRemoved }} 份。<span v-if="item.contextBudget?.turnInputBudget!=null&&item.contextBudget?.turnInputReserved!=null"> 本轮累计预占估算 {{ item.contextBudget.turnInputReserved }} / {{ item.contextBudget.turnInputBudget }}，剩余 {{ (item.contextBudget.turnInputBudget??0)-(item.contextBudget.turnInputReserved??0) }}；不是实际消耗或账单。</span></p>
