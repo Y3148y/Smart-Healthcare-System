@@ -31,6 +31,8 @@ public final class TriageWorkflow {
             TurnTraceContext trace) {
         updates.accept(TriageProgress.SAFETY_CHECK);
         RouteDecision decision = router.decide(accumulated, currentRequest);
+        TurnTraceContext.record(new TurnTraceContext.Execution("ROUTE", decision.route().name(),
+                decision.reason().name(), 0, null, null, null, null, "WORKFLOW"));
         if (decision.route() == RouteDecision.Route.GUIDANCE) {
             trace.route("GUIDANCE");
             var prepared = agent == null ? null : agent.prepare(conversation, patient, accumulated);

@@ -16,3 +16,12 @@ test('context details label estimates separately from provider usage and preserv
   assert.match(source,/turnInputReserved/);assert.match(source,/turnInputBudget/)
   assert.match(source,/不是实际消耗或账单/)
 })
+
+test('route explanations use recorded backend reasons and do not invent old history',()=>{
+  const source=fs.readFileSync(path.resolve(__dirname,'../src/features/triage/components/AnswerExecution.vue'),'utf8')
+  assert.match(source,/e\.kind==='ROUTE'/)
+  assert.match(source,/v-for="\(item,i\) in routes"/)
+  for(const reason of ['IMMEDIATE_CARE','HUMAN_REVIEW','NEEDS_INFORMATION','READY_FOR_ASSESSMENT'])assert.ok(source.includes(reason))
+  assert.match(source,/原因未识别/)
+  assert.match(source,/不代表诊断或预约许可/)
+})

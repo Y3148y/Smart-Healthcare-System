@@ -7,6 +7,8 @@ const events=computed(()=>props.meta.turnTrace?.executions)
 const retrievals=computed(()=>events.value?.filter(e=>e.kind==='RETRIEVAL')||[])
 const tools=computed(()=>events.value?.filter(e=>e.kind==='TOOL')||[])
 const contexts=computed(()=>events.value?.filter(e=>e.kind==='CONTEXT'&&e.contextBudget)||[])
+const routes=computed(()=>events.value?.filter(e=>e.kind==='ROUTE')||[])
+const routeReason=(status:string)=>({IMMEDIATE_CARE:'优先处理危险信号',HUMAN_REVIEW:'需线下或人工复核',NEEDS_INFORMATION:'进入咨询与信息补充',READY_FOR_ASSESSMENT:'进入分诊评估'} as Record<string,string>)[status]||'原因未识别'
 const contextLabel=(name:string)=>({STRUCTURED_ROUTING:'多科室方向提议',NARRATION:'回答生成',INTENT_EXTRACTION:'意图抽取',AGENT_PLANNING:'工具规划',ANSWER_REVIEW:'回答核对',LEGACY_NARRATION:'兼容回答',LEGACY_GUIDANCE:'兼容引导',LEGACY_GENERAL:'兼容一般问答'} as Record<string,string>)[name]||'未标记阶段'
 const flag=(value:boolean|null|undefined)=>value==null?'未记录':value?'是':'否'
 const generation=computed(()=>props.meta.answerEvidence?.generation)
@@ -14,6 +16,7 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
 </script>
 <template>
   <section class="execution" aria-label="本轮调用详情">
+    <p v-for="(item,i) in routes" :key="`route-${i}`">后端工作流分流：{{ routeReason(item.status) }}。这是流程选择，不代表诊断或预约许可。</p>
     <p>LLM 生成请求：{{ phaseLabel }}。{{ generation?.inputTokens!=null?`输入 ${generation.inputTokens} Token；`:'' }}{{ generation?.outputTokens!=null?`输出 ${generation.outputTokens} Token。`:'' }}</p>
     <p v-if="meta.answerEvidence?.supportReview">回答依据核对：{{ meta.answerEvidence.supportReview.status }}（模型核对，不是医学审核）。</p>
     <p v-for="(item,i) in contexts" :key="`context-${i}`">{{ contextLabel(item.name) }} · 上下文预算：保守估计 {{ item.contextBudget?.estimatedInputTokens }} / {{ item.contextBudget?.inputTokenBudget }}（UTF-8 字节与消息开销估算，非实际用量）；整条移除历史 {{ item.contextBudget?.historyMessagesRemoved }} 条、证据 {{ item.contextBudget?.referencesRemoved }} 份。<span v-if="item.contextBudget?.turnInputBudget!=null&&item.contextBudget?.turnInputReserved!=null"> 本轮累计预占估算 {{ item.contextBudget.turnInputReserved }} / {{ item.contextBudget.turnInputBudget }}，剩余 {{ (item.contextBudget.turnInputBudget??0)-(item.contextBudget.turnInputReserved??0) }}；不是实际消耗或账单。</span></p>
