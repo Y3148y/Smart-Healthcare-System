@@ -95,3 +95,13 @@
 测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest`、`AgentModeRollbackTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; .\mvnw.cmd test`（Linux/macOS：`./mvnw test`），前端 `npm test` 与 `npm run build`。
 
 本地HTTP协议测试只证明适配器消息传输。2026-10-11 在百炼配置下的一次合成普通咨询已观察到模型选工具、工具结果消费、`Agent执行/COMPLETED` 和独立回答核对 `PASSED`；这是单样本集成验证，不证明稳定性、临床准确性或性能收益。患者页面的服务端待确认预约动作已接入，但不是模型生成动作，Agent仍无预约写权限。来源校验后的模型观察可跨轮持久化，并仅在轮次完成后发布；历史观察不会自动进入当前工具/模型窗口。完整事件消歧、历史事实驱动追问、完整意图路由与多场景真实模型验收仍待完成。
+
+## 可核验的五项能力表述
+
+- 基于LangChain4j接入受控只读Agent与后端Workflow：模型在白名单内选工具，工作流控制安全分流、权限和模拟预约；规划与工具次数有上限，不是完整MCP Agent。
+- 实现Schema约束的意图抽取、患者原话来源验证与完成轮次观察快照；区分主体、时间、肯否与未知，但未宣称语义归属准确率或完整事件消歧。
+- 实现ES/Lucene BM25与Qdrant混合检索、RRF融合和可选重排，按获准片段与章节构造引用。禁用重排有独立路径，不用作者主题命中率冒充完整Recall/Precision。
+- 实现分层上下文、完整消息/证据裁剪、输入估算预占、引用检查与第二次模型支持核对；生成后再复查来源成员。模型核对不是临床审核，来源检查不保证与保存原子化。
+- 实现session/turn/trace关联、发起方和用量来源审计，以及绑定版本的离线评分工具。缺失用量和无独立标签保持未知，不宣称未测的延迟收益、忠实度或召回提升。
+
+以上可用于项目讲解，但不替代实现者对代码的理解；不能把框架能力称为自研算法，也不能添加未有独立证据的性能与医学效果数字。
