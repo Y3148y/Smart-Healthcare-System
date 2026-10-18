@@ -30,3 +30,10 @@ test('service-only patient turns say RAG was not applicable, not an unrecorded o
   const source=fs.readFileSync(path.resolve(__dirname,'../src/features/triage/components/AnswerExecution.vue'),'utf8')
   assert.match(source,/retrievalStatus==='NOT_APPLICABLE'\?'未执行（本轮没有医学检索问题）'/)
 })
+
+test('patient execution details expose only controlled Agent intent and the allowed tool list',()=>{
+  const source=fs.readFileSync(path.resolve(__dirname,'../src/features/triage/components/AnswerExecution.vue'),'utf8')
+  assert.match(source,/kind==='INTENT_ROUTE'/)
+  assert.match(source,/Agent 结构化意图：\{\{ item\.name/)
+  assert.match(source,/本轮授权工具：\{\{ item\.status/)
+})

@@ -110,6 +110,12 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                 .filter(tool -> tool != AgentTool.MEDICAL_KNOWLEDGE)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         if (allowedTools.isEmpty()) return null;
+        String intentNames = extracted.extraction().intents().stream().map(Enum::name).sorted()
+                .collect(java.util.stream.Collectors.joining(","));
+        String authorizedTools = allowedTools.stream().map(AgentTool::code).sorted()
+                .collect(java.util.stream.Collectors.joining(","));
+        TurnTraceContext.record(new TurnTraceContext.Execution("INTENT_ROUTE", intentNames,
+                authorizedTools, 0, null, null, null, null, "AGENT"));
         // Identity scope is server-only and never included in the planner prompt.
         var scope = new AgentToolRun(new AgentToolRun.Scope(patient, conversation.session().id(),
                 TurnTraceContext.currentOrNewId(), conversation.messages().size(), version,

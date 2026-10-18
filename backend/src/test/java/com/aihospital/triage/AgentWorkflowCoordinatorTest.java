@@ -283,7 +283,8 @@ class AgentWorkflowCoordinatorTest {
 
     @Test void completedServicePlanningWithoutDirectoryResultsStillPreventsMedicalQueryFallback() {
         try (var gateway = new AgentToolGateway(executor);
-             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway);
+             var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open("u1", "test-policy")) {
             when(catalog.departments()).thenReturn(List.of(
                     new com.aihospital.catalog.domain.CatalogRecords.Department("d1", "内科", true)));
             var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.FIND_DOCTOR), List.of(), List.of(), List.of());
@@ -298,6 +299,11 @@ class AgentWorkflowCoordinatorTest {
             assertTrue(prepared.retrieval().isEmpty());
             assertTrue(prepared.services().isEmpty());
             verifyNoInteractions(executor);
+            var route = com.aihospital.shared.diagnostics.TurnTraceContext.metadata().executions().stream()
+                    .filter(event -> "INTENT_ROUTE".equals(event.kind())).findFirst().orElseThrow();
+            assertEquals("FIND_DOCTOR", route.name());
+            assertFalse(route.status().contains("medical_knowledge_retrieve"));
+            assertFalse(route.name().contains("我想找医生"));
         }
     }
 
