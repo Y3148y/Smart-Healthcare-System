@@ -52,4 +52,28 @@ class GuidanceAnswerServiceTest {
         assertEquals(1, result.toolFailures());
         assertEquals("FALLBACK", result.modelStatus());
     }
+
+    @Test void serviceOnlyAgentSnapshotKeepsDirectoryNoticeAndRunsMedicalRetrievalNormally() {
+        var tools = mock(HospitalToolExecutor.class);
+        var narration = mock(NarrationModel.class);
+        var logs = mock(CallLogStore.class);
+        var retrieval = new Retrieval(List.of(), false, "NO_MATCH");
+        when(tools.execute("medical_knowledge_retrieve", Map.of("query", "query"))).thenReturn(
+                new HospitalToolExecutor.Execution(retrieval,
+                        new ToolTrace("medical_knowledge_retrieve", "检索", "redacted", "NO_MATCH", 1, true, "")));
+        var serviceState = new NarrationModel.ServiceState("内科", "AVAILABLE", "本次查询返回 1 位有模拟号源的医生。");
+        when(narration.answerWithEvidence(anyString(), anyString(), anyString(), anyList(), anyString(), anyList(),
+                eq(new NarrationModel.ServiceContext(List.of(serviceState), false)), eq(true), eq("NO_MATCH")))
+                .thenReturn(new NarrationModel.Answer("checked", "LIVE", "synthetic"));
+
+        var prepared = new TriageEngine.PreparedEvidence(java.util.Optional.empty(), java.util.Optional.empty(),
+                List.of(serviceState));
+        var result = new GuidanceAnswerService(tools, narration, logs).answer("question", "query", "", List.of(),
+                stage -> {}, prepared, evidence -> "fallback");
+
+        assertEquals("checked", result.text());
+        verify(tools).execute("medical_knowledge_retrieve", Map.of("query", "query"));
+        verify(narration).answerWithEvidence(anyString(), anyString(), anyString(), anyList(), anyString(), anyList(),
+                eq(new NarrationModel.ServiceContext(List.of(serviceState), false)), eq(true), eq("NO_MATCH"));
+    }
 }

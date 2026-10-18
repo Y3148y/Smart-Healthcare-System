@@ -26,14 +26,24 @@ public interface TriageEngine {
     default boolean needsClarification(String symptoms,String currentRequest){return needsClarification(symptoms);}
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
-    record PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
-                            com.aihospital.shared.model.Models.ToolTrace trace,
+    record PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
+                            java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,
                             List<NarrationModel.ServiceState> services) {
         public PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
                 com.aihospital.shared.model.Models.ToolTrace trace) {
-            this(retrieval, trace, List.of());
+            this(java.util.Optional.of(retrieval), java.util.Optional.of(trace), List.of());
         }
-        public PreparedEvidence { services = services == null ? List.of() : List.copyOf(services); }
+        public PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
+                com.aihospital.shared.model.Models.ToolTrace trace, List<NarrationModel.ServiceState> services) {
+            this(java.util.Optional.of(retrieval), java.util.Optional.of(trace), services);
+        }
+        public PreparedEvidence {
+            retrieval = retrieval == null ? java.util.Optional.empty() : retrieval;
+            trace = trace == null ? java.util.Optional.empty() : trace;
+            services = services == null ? List.of() : List.copyOf(services);
+            if (retrieval.isPresent() != trace.isPresent())
+                throw new IllegalArgumentException("Prepared retrieval and trace must be present together");
+        }
     }
     default Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history,
             java.util.function.Consumer<TriageProgress> progress, PreparedEvidence prepared) {

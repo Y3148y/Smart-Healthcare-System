@@ -105,23 +105,31 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                 && current != null && !current.isBlank()) {
             queries.add(CurrentRequestIntent.medicalRetrievalQuery(current.strip()));
         }
-        if (queries.isEmpty()) return null;
+        Set<AgentTool> allowedTools = planningTools(current, extracted.extraction(), departments);
+        if (queries.isEmpty()) allowedTools = allowedTools.stream()
+                .filter(tool -> tool != AgentTool.MEDICAL_KNOWLEDGE)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        if (allowedTools.isEmpty()) return null;
         // Identity scope is server-only and never included in the planner prompt.
         var scope = new AgentToolRun(new AgentToolRun.Scope(patient, conversation.session().id(),
                 TurnTraceContext.currentOrNewId(), conversation.messages().size(), version,
-                planningTools(current, extracted.extraction(), departments), departments, queries), settings.maxToolCalls(),
+                allowedTools, departments, queries), settings.maxToolCalls(),
                 Duration.ofSeconds(settings.totalPlanningSeconds()), Duration.ofSeconds(settings.planningTimeoutSeconds()));
         java.util.function.BooleanSupplier fresh = () -> scopeIsCurrent(conversation, patient, messageId, version, departments);
         long started = System.nanoTime();
-        var result = runner.run(input, extracted.extraction(), scope, Set.of(AgentTool.MEDICAL_KNOWLEDGE), fresh);
+        Set<AgentTool> required = queries.isEmpty() ? Set.of() : Set.of(AgentTool.MEDICAL_KNOWLEDGE);
+        var result = runner.run(input, extracted.extraction(), scope, required, fresh);
         auditPlan(result, java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started));
         if (result.status() != AgentRunner.Status.COMPLETED || !fresh.getAsBoolean()) return null;
         // Only actual tool retrieval, never model final text, reaches narration.
-        return scope.snapshots().stream().filter(snapshot -> snapshot.tool().equals(AgentTool.MEDICAL_KNOWLEDGE.code())
+        var retrieval = scope.snapshots().stream().filter(snapshot -> snapshot.tool().equals(AgentTool.MEDICAL_KNOWLEDGE.code())
                 && snapshot.data() instanceof KnowledgeCatalog.Retrieval).reduce((left, right) -> right)
                 .map(snapshot -> new TriageEngine.PreparedEvidence((KnowledgeCatalog.Retrieval) snapshot.data(),
-                        snapshot.trace(), serviceStates(scope.snapshots())))
-                .orElse(null);
+                        snapshot.trace(), serviceStates(scope.snapshots())));
+        if (retrieval.isPresent()) return retrieval.get();
+        var services = serviceStates(scope.snapshots());
+        return services.isEmpty() ? null : new TriageEngine.PreparedEvidence(java.util.Optional.empty(),
+                java.util.Optional.empty(), services);
     }
 
     private List<com.aihospital.triage.domain.NarrationModel.ServiceState> serviceStates(

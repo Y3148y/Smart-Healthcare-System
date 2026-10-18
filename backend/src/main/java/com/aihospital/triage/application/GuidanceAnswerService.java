@@ -36,8 +36,9 @@ public final class GuidanceAnswerService {
             TriageEngine.PreparedEvidence prepared, Function<List<Evidence>, String> fallback) {
         long started = System.nanoTime();
         progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
-        var execution = prepared == null ? tools.execute("medical_knowledge_retrieve", Map.of("query", query))
-                : new HospitalToolExecutor.Execution(prepared.retrieval(), prepared.trace());
+        var preparedRetrieval = prepared == null ? java.util.Optional.<Retrieval>empty() : prepared.retrieval();
+        var execution = preparedRetrieval.isEmpty() ? tools.execute("medical_knowledge_retrieve", Map.of("query", query))
+                : new HospitalToolExecutor.Execution(preparedRetrieval.get(), prepared.trace().orElseThrow());
         Retrieval retrieval = execution.data() instanceof Retrieval found ? found
                 : new Retrieval(List.of(), false, execution.trace().error());
         List<Evidence> evidence = retrieval.evidence();
