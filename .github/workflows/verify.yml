@@ -150,6 +150,7 @@ jobs:
           node --test scripts/container-journey.test.cjs
           node --test scripts/es-snapshot-maintenance.test.mjs
           node --test scripts/audit-maven-runtime.test.mjs
+          node --test scripts/lockfile-source.test.cjs
       - name: Frontend test and build
         working-directory: frontend
         run: |
