@@ -19,4 +19,10 @@ services:
       ES_JAVA_OPTS: -Xms512m -Xmx512m
     ports: ["127.0.0.1:9201:9200"]
     volumes: ["elasticsearch_data:/usr/share/elasticsearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=1s' >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 volumes: { mysql_data: {}, qdrant_data: {}, elasticsearch_data: {} }

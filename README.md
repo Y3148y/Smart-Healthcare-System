@@ -110,7 +110,7 @@ docker compose up -d mysql qdrant elasticsearch
 
 已有 MySQL 时无需再启动 Compose MySQL。应用启动时初始化数据表；旧 H2 数据不会自动迁移。应用运行依赖仅含 MySQL 驱动，H2 保留为自动化测试依赖。
 
-基础 Compose 运行 MySQL、Qdrant 和 Elasticsearch；可按下面步骤用 IDEA/Vite 启动应用，或使用后文的可选全栈容器方案。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。ES 使用 `unless-stopped`，Docker 引擎重启时会恢复此前运行的服务；若操作者显式停止了容器，则需再次运行 `docker compose up -d elasticsearch`。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
+基础 Compose 运行 MySQL、Qdrant 和 Elasticsearch；可按下面步骤用 IDEA/Vite 启动应用，或使用后文的可选全栈容器方案。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。ES 使用 `unless-stopped`，Docker 引擎重启时会恢复此前运行的服务；若操作者显式停止了容器，则需再次运行 `docker compose up -d elasticsearch`。容器健康检查等待 ES 集群进入 yellow/green；全栈 Compose 会等待 ES healthy 后再启动后端。IDEA 启动时可用 `docker compose ps` 确认健康状态。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
 
 ### 2. 启动后端
 

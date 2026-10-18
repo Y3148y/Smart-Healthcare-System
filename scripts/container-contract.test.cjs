@@ -52,6 +52,10 @@ test('local Elasticsearch dependency restarts after an unexpected clean or faile
   assert.ok(elasticsearch, 'the pinned Elasticsearch service must remain declared')
   assert.match(elasticsearch,/restart: unless-stopped/)
   assert.match(elasticsearch,/127\.0\.0\.1:9201:9200/)
+  assert.match(elasticsearch,/healthcheck:/)
+  assert.match(elasticsearch,/_cluster\/health\?wait_for_status=yellow/)
+  const app=read('compose.app.yml')
+  assert.match(app,/elasticsearch:\s*\{condition: service_healthy\}/)
 })
 
 test('container write probe refuses implicit target or missing apply before making requests', () => {
