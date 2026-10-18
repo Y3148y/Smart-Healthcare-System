@@ -46,6 +46,14 @@ test('container liveness does not call model providers and application restart p
   assert.doesNotMatch(compose,/privileged: true|network_mode: host/)
 })
 
+test('local Elasticsearch dependency restarts after an unexpected clean or failed exit', () => {
+  const compose=read('docker-compose.yml')
+  const elasticsearch=compose.split(/\r?\n  [a-z][a-z0-9_-]*:\r?\n/).find(section => section.includes('image: docker.elastic.co/elasticsearch/elasticsearch:8.17.6'))
+  assert.ok(elasticsearch, 'the pinned Elasticsearch service must remain declared')
+  assert.match(elasticsearch,/restart: unless-stopped/)
+  assert.match(elasticsearch,/127\.0\.0\.1:9201:9200/)
+})
+
 test('container write probe refuses implicit target or missing apply before making requests', () => {
   const script=resolve(__dirname,'test-container-smoke.cjs')
   const env={...process.env};delete env.CONTAINER_TEST_BASE_URL
