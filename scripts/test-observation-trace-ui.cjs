@@ -13,7 +13,8 @@ createApp({setup(){const session=ref('one');return()=>h('main',[
  h('button',{onClick:()=>session.value=session.value==='one'?'two':'one'},'Switch synthetic session'),
  h(Observations,{sessionId:session.value}),
  h(Execution,{meta:{modelStatus:'LIVE',knowledgeHits:0,localToolCalls:0,toolFailures:0,turnTrace:{executions:[
- {kind:'ROUTE',name:'GUIDANCE',status:'NEEDS_INFORMATION',elapsedMs:0,initiator:'WORKFLOW'}]}}}),
+ {kind:'ROUTE',name:'GUIDANCE',status:'NEEDS_INFORMATION',elapsedMs:0,initiator:'WORKFLOW'},
+ {kind:'INTENT_ROUTE',name:'FIND_DOCTOR',status:'department_search',elapsedMs:0,initiator:'AGENT'}]}}}),
  h(Runtime)])}}).mount('#app');`
 
 async function main(){
@@ -63,6 +64,8 @@ async function main(){
   const fits=await observations.locator('.observation-body').evaluate(el=>el.clientHeight<=Math.min(224,innerHeight*.32)+2)
   assert.ok(fits)
   await page.getByRole('region',{name:'本轮调用详情'}).getByText('后端工作流分流：',{exact:false}).waitFor()
+  const patientExecution=page.getByRole('region',{name:'本轮调用详情'})
+  await patientExecution.getByText(/Agent 结构化意图：FIND_DOCTOR；本轮授权工具：department_search/).waitFor()
   await page.getByRole('button',{name:'Switch synthetic session'}).click()
   await page.waitForFunction(()=>!document.querySelector('details.observation-records').open)
   assert.equal(observationRequests,1)
@@ -84,7 +87,7 @@ async function main(){
   malformedCalls=false;await page.getByRole('button',{name:'刷新状态与记录',exact:true}).click()
   await page.getByRole('button',{name:'查看本轮链路',exact:true}).waitFor()
   assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[])
-  console.log('PASS: Chromium actual components; lazy owner view, historical labels, text-only quotes, session reset, bounded layout, failure/retry, route disclosure, trace load/failure, malformed-call rejection/recovery; synthetic GET APIs only')
+  console.log('PASS: Chromium actual components; lazy owner view, historical labels, text-only quotes, session reset, bounded layout, failure/retry, workflow and Agent intent/tool-allowlist disclosure, trace load/failure, malformed-call rejection/recovery; synthetic GET APIs only')
  }finally{if(browser)await browser.close();await server.close()}
 }
 main().catch(error=>{console.error('Component browser probe failed:',error.name);process.exitCode=1})
