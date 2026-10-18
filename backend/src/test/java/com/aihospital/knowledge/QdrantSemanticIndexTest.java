@@ -102,7 +102,11 @@ class QdrantSemanticIndexTest {
     void classifiesMalformedEmbeddingResponseAndCollectionDimensionMismatchWithoutRawDetails() throws Exception {
         var responseBody = new AtomicReference<>("{\"data\":[],\"message\":\"private provider detail\"}");
         HttpServer malformed = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        malformed.createContext("/embeddings", exchange -> respond(exchange, 200, responseBody.get()));
+        malformed.createContext("/collections/diagnostic-test", exchange -> respond(exchange, 404, "{}"));
+        malformed.createContext("/embeddings", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 200, responseBody.get());
+        });
         malformed.start();
         try {
             var index = configuredIndex("diagnostic-test", malformed.getAddress().getPort());
@@ -115,12 +119,15 @@ class QdrantSemanticIndexTest {
         } finally { malformed.stop(0); }
 
         HttpServer mismatch = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        mismatch.createContext("/embeddings", exchange -> respond(exchange, 200,
-                "{\"data\":[{\"index\":0,\"embedding\":[1.0,0.0]}]}"));
+        mismatch.createContext("/embeddings", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            respond(exchange, 200, "{\"data\":[{\"index\":0,\"embedding\":[1.0,0.0]}]}");
+        });
         mismatch.createContext("/collections/diagnostic-test", exchange -> respond(exchange, 200,
                 "{\"result\":{\"config\":{\"params\":{\"vectors\":{\"size\":3,\"distance\":\"Cosine\"}}}}}"));
         var upserts = new java.util.concurrent.atomic.AtomicInteger();
         mismatch.createContext("/collections/diagnostic-test/points", exchange -> {
+            exchange.getRequestBody().readAllBytes();
             if ("PUT".equals(exchange.getRequestMethod())) upserts.incrementAndGet();
             respond(exchange, 200, "{\"result\":[]}");
         });
