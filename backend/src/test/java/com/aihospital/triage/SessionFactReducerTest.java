@@ -74,4 +74,34 @@ class SessionFactReducerTest {
         var invalid = new IntentExtraction(2, List.of(), List.of(), List.of(), List.of());
         assertThrows(IllegalArgumentException.class, () -> reducer.merge(state, invalid, input("u", "头痛"), 2));
     }
+
+    @Test void sourceLinkedConflictBlocksItsSymptomWithoutDiscardingUnrelatedObservation() {
+        var head = event("u1", "头痛", Subject.SELF, Temporality.CURRENT, Assertion.AFFIRMED);
+        var abdomen = new SymptomEvent("腹痛", null, null, null, null, null,
+                Subject.SELF, Temporality.CURRENT, Assertion.AFFIRMED, List.of(new SourceRef("u2", "腹痛")));
+        var conflict = new Conflict(Field.ASSERTION, abdomen.sourceRefs());
+        var proposal = new IntentExtraction(1, List.of(Intent.SYMPTOM_CONSULT), List.of(head, abdomen),
+                List.of(), List.of(conflict));
+        var sources = new IntentInput(List.of(new IntentInput.SourceMessage("u1", "USER", "头痛"),
+                new IntentInput.SourceMessage("u2", "USER", "腹痛")));
+        var state = reducer.merge(SessionFacts.empty(), proposal, sources, 1);
+        assertEquals(Set.of("头痛"), state.retrievalSymptoms());
+        assertEquals(List.of(head, abdomen), state.events());
+        assertEquals(List.of(conflict), state.conflicts());
+    }
+
+    @Test void broadOrUnlinkedConflictCannotBeNarrowedByGuessing() {
+        var head = event("u1", "头痛", Subject.SELF, Temporality.CURRENT, Assertion.AFFIRMED);
+        var abdomen = new SymptomEvent("腹痛", null, null, null, null, null,
+                Subject.SELF, Temporality.CURRENT, Assertion.AFFIRMED, List.of(new SourceRef("u1", "腹痛")));
+        for (var conflict : List.of(
+                new Conflict(Field.SUBJECT, List.of(new SourceRef("u1", "头痛和腹痛"))),
+                new Conflict(Field.SUBJECT, List.of(new SourceRef("u2", "说不清楚是谁"))))) {
+            var proposal = new IntentExtraction(1, List.of(Intent.SYMPTOM_CONSULT), List.of(head, abdomen),
+                    List.of(), List.of(conflict));
+            var sources = new IntentInput(List.of(new IntentInput.SourceMessage("u1", "USER", "头痛和腹痛"),
+                    new IntentInput.SourceMessage("u2", "USER", "说不清楚是谁")));
+            assertTrue(reducer.merge(SessionFacts.empty(), proposal, sources, 1).retrievalSymptoms().isEmpty());
+        }
+    }
 }

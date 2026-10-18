@@ -190,6 +190,42 @@ class AgentWorkflowCoordinatorTest {
         }
     }
 
+    @Test void unrelatedConflictKeepsOnlyTheSourceCheckedUncontestedQueryAvailableToTools() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+            var mixed = new Conversation(conversation.session(),
+                    List.of(new Message("u1", "USER", "头痛，腹痛是否存在说不清", now, null)), List.of(), null);
+            var head = new IntentExtraction.SymptomEvent("头痛", null, null, null, null, null,
+                    IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
+                    IntentExtraction.Assertion.AFFIRMED, List.of(new IntentExtraction.SourceRef("u1", "头痛")));
+            var abdomen = new IntentExtraction.SymptomEvent("腹痛", null, null, null, null, null,
+                    IntentExtraction.Subject.SELF, IntentExtraction.Temporality.CURRENT,
+                    IntentExtraction.Assertion.UNCERTAIN, List.of(new IntentExtraction.SourceRef("u1", "腹痛")));
+            var proposal = new IntentExtraction(1, List.of(IntentExtraction.Intent.SYMPTOM_CONSULT),
+                    List.of(head, abdomen), List.of(),
+                    List.of(new IntentExtraction.Conflict(IntentExtraction.Field.ASSERTION, abdomen.sourceRefs())));
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposal, "test", "", 10, 5, 1));
+            var retrieval = new KnowledgeCatalog.Retrieval(List.of(), false, "NO_MATCH");
+            when(executor.execute(eq("medical_knowledge_retrieve"), eq(Map.of("query", "头痛"))))
+                    .thenReturn(new HospitalToolExecutor.Execution(retrieval,
+                            new ToolTrace("medical_knowledge_retrieve", "检索", "redacted", "NO_MATCH", 1, true, "")));
+            var steps = new AtomicInteger();
+            when(model.decide(any(), any(), anySet(), anySet(), anySet(), anyList(), anyInt())).thenAnswer(call -> {
+                assertEquals(Set.of("头痛"), call.getArgument(4));
+                return steps.getAndIncrement() == 0
+                        ? new AgentModel.Step(AgentModel.Status.TOOLS, List.of(new AgentModel.ToolCall(
+                                "k1", "medical_knowledge_retrieve", "{\"query\":\"头痛\"}")), 1, 1, 1)
+                        : new AgentModel.Step(AgentModel.Status.DONE, List.of(), 1, 1, 1);
+            });
+            var prepared = coordinator.prepare(mixed, "patient", mixed.messages().get(0).content());
+            assertNotNull(prepared);
+            assertSame(retrieval, prepared.retrieval().orElseThrow());
+            verify(executor).execute("medical_knowledge_retrieve", Map.of("query", "头痛"));
+            verifyNoMoreInteractions(executor);
+        }
+    }
+
     @Test void successfulReadOnlyDirectoryResultsReachPreparedPatientServiceNoticeWithoutDoctorIdentity() {
         try (var gateway = new AgentToolGateway(executor);
              var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
