@@ -5,6 +5,23 @@ mod._compile(transformSync(fs.readFileSync(file,'utf8'),{loader:'ts',format:'cjs
 const {emptyTraceDetails,traceDetailsLoader}=mod.exports
 const first='00000000-0000-4000-8000-000000000001',second='00000000-0000-4000-8000-000000000002'
 const row=(id,traceId,time)=>({id,traceId,time,purpose:'fixture',model:'fixture',inputTokens:null,outputTokens:null,elapsedMs:1,success:true,tools:[]})
+
+test('technical call validation rejects malformed nested records without losing unknown versus zero usage',()=>{
+  const valid=row('a',first,'2026')
+  assert.equal(mod.exports.isRuntimeCalls([valid]),true)
+  assert.equal(mod.exports.isRuntimeCalls([{...valid,inputTokens:0,outputTokens:0}]),true)
+  for(const value of [null,{},[null],[valid,valid],[{...valid,tools:null}],[{...valid,success:'yes'}],
+    [{...valid,inputTokens:-1}],[{...valid,inputTokens:undefined}],[{...valid,elapsedMs:NaN}],
+    [{...valid,tools:[{tool:'fixture',elapsedMs:1,success:true}]}]])assert.equal(mod.exports.isRuntimeCalls(value),false)
+})
+
+test('malformed trace response clears the selected chain and exposes only a fixed failure',async()=>{
+  const state=emptyTraceDetails(),loader=traceDetailsLoader(state,async()=>[{...row('a',first,'2026'),tools:null}])
+  await loader.load(first);assert.deepEqual(state.calls,[]);assert.ok(state.error)
+  const page=fs.readFileSync(path.resolve(__dirname,'../src/features/admin/RuntimeObservePage.vue'),'utf8')
+  assert.ok(page.includes('isRuntimeCalls(a.value)'));assert.ok(page.includes('不代表没有记录'))
+  assert.ok(!page.includes('.reason.message'))
+})
 test('trace fetch sorts its own records without changing the returned source array',async()=>{
   const source=[row('b',first,'2026-10-17T10:00:02'),row('a',first,'2026-10-17T10:00:01')]
   const state=emptyTraceDetails(),loader=traceDetailsLoader(state,async id=>{assert.equal(id,first);return source})

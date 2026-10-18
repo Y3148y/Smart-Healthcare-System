@@ -31,7 +31,7 @@ async function main(){
   browser=await chromium.launch({headless:true,executablePath:process.env.ADMIN_TEST_BROWSER||'C:/Program Files/Google/Chrome/Application/chrome.exe'})
   const page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[],unexpected=[]
   page.on('pageerror',error=>errors.push(error.name))
-  let observationRequests=0,failObservation=false,failTrace=false
+  let observationRequests=0,failObservation=false,failTrace=false,malformedCalls=false
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url())
    if(url.origin!==base){unexpected.push('NON_LOCAL_REQUEST');return route.abort()}
@@ -46,7 +46,7 @@ async function main(){
    }
    if(url.pathname==='/api/admin/calls'){
     if(url.searchParams.has('traceId'))return failTrace?reply({message:'PRIVATE_RAW_ERROR'},503):reply([call,{...call,id:'fixture-review',purpose:'Synthetic review'}])
-    return reply([call])
+    return reply(malformedCalls?[{...call,tools:null}]:[call])
    }
    if(url.pathname==='/api/admin/ai-runtime')return reply({configured:false,mode:'demo',modelName:'',detail:'Synthetic only'})
    if(url.pathname==='/api/admin/knowledge/runtime')return reply({})
@@ -78,8 +78,13 @@ async function main(){
   failTrace=true;await page.getByRole('button',{name:'查看本轮链路',exact:true}).click()
   await chain.getByText('本轮技术记录暂不可用，请重试；不会展示其他轮次的旧结果。',{exact:true}).waitFor()
   assert.doesNotMatch(await chain.innerText(),/Synthetic review|PRIVATE_RAW_ERROR/)
+  malformedCalls=true;await page.getByRole('button',{name:'刷新状态与记录',exact:true}).click()
+  await page.getByText('调用记录暂不可用，请刷新重试；不代表没有记录。',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'查看本轮链路',exact:true}).count(),0)
+  malformedCalls=false;await page.getByRole('button',{name:'刷新状态与记录',exact:true}).click()
+  await page.getByRole('button',{name:'查看本轮链路',exact:true}).waitFor()
   assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[])
-  console.log('PASS: Chromium actual components; lazy owner view, historical labels, text-only quotes, session reset, bounded layout, failure/retry, route disclosure, trace load/failure; synthetic GET APIs only')
+  console.log('PASS: Chromium actual components; lazy owner view, historical labels, text-only quotes, session reset, bounded layout, failure/retry, route disclosure, trace load/failure, malformed-call rejection/recovery; synthetic GET APIs only')
  }finally{if(browser)await browser.close();await server.close()}
 }
 main().catch(error=>{console.error('Component browser probe failed:',error.name);process.exitCode=1})

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {tokenUsageLabel} from './tokenUsage'
 import {invocationOriginLabel} from '../../invocationOrigin'
-import {emptyTraceDetails,traceDetailsLoader} from './runtimeTrace'
+import {emptyTraceDetails,traceDetailsLoader,isRuntimeCalls} from './runtimeTrace'
 import type {RuntimeCall as Call} from './runtimeTrace'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { api } from '../../api'
@@ -26,10 +26,10 @@ async function load() {
   loading.value = true; errors.value = []; currentPage.value = 1
   const results = await Promise.allSettled([api<Call[]>('/admin/calls'), api<ModelRuntime>('/admin/ai-runtime'), api<KnowledgeRuntime>('/admin/knowledge/runtime'), api<RetrievalEvent[]>('/admin/knowledge/retrieval-events')])
   const [a,b,c,d] = results
-  if (a.status === 'fulfilled') { calls.value = a.value; callsAvailable.value = true } else { callsAvailable.value = false; calls.value = []; selected.value = null; errors.value.push(`调用记录：${a.reason.message}`) }
-  if (b.status === 'fulfilled') model.value = b.value; else { model.value = null; errors.value.push(`模型配置：${b.reason.message}`) }
-  if (c.status === 'fulfilled') knowledge.value = c.value; else { knowledge.value = {}; errors.value.push(`检索配置：${c.reason.message}`) }
-  if (d.status === 'fulfilled') events.value = d.value; else { events.value = []; errors.value.push(`检索执行记录：${d.reason.message}`) }
+  if (a.status === 'fulfilled'&&isRuntimeCalls(a.value)) { calls.value = a.value; callsAvailable.value = true } else { callsAvailable.value = false; calls.value = []; selected.value = null; errors.value.push('调用记录暂不可用，请刷新重试；不代表没有记录。') }
+  if (b.status === 'fulfilled') model.value = b.value; else { model.value = null; errors.value.push('模型配置暂不可用，请刷新重试。') }
+  if (c.status === 'fulfilled') knowledge.value = c.value; else { knowledge.value = {}; errors.value.push('检索配置暂不可用，请刷新重试。') }
+  if (d.status === 'fulfilled') events.value = d.value; else { events.value = []; errors.value.push('检索执行记录暂不可用，请刷新重试。') }
   loading.value = false
 }
 onMounted(load)
