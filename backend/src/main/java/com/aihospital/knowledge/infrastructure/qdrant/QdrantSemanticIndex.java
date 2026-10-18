@@ -222,24 +222,49 @@ public class QdrantSemanticIndex {
     }
 
     private List<List<Double>> embeddings(List<String> input) throws Exception {
-        JsonNode response = request("POST", embeddingBaseUrl.replaceAll("/+$", "") + "/embeddings",
+        JsonNode response = requestEmbedding(input);
+        try {
+            return parseEmbeddings(response, input.size());
+        } catch (DuplicateEmbeddingIndexException duplicateIndex) {
+            // Some OpenAI-compatible embedding providers return index=0 for every row in a
+            // batch. Never pair those vectors by response order: retry this batch as singleton
+            // requests so every vector is unambiguously associated with its source text.
+            if (input.size() == 1) throw duplicateIndex;
+            List<List<Double>> retried = new ArrayList<>();
+            for (String text : input) retried.add(parseEmbeddings(requestEmbedding(List.of(text)), 1).get(0));
+            return List.copyOf(retried);
+        }
+    }
+
+    private JsonNode requestEmbedding(List<String> input) throws Exception {
+        return request("POST", embeddingBaseUrl.replaceAll("/+$", "") + "/embeddings",
                 Map.of("model", model, "input", input, "encoding_format", "float"), true);
+    }
+
+    private List<List<Double>> parseEmbeddings(JsonNode response, int expectedCount) throws Exception {
+        JsonNode data = response.path("data");
+        if (!data.isArray() || data.size() != expectedCount)
+            throw new IllegalStateException("Embedding API returned an unexpected vector count");
         List<List<Double>> vectors = new ArrayList<>();
-        for (int i = 0; i < input.size(); i++) vectors.add(null);
-        for (JsonNode item : response.path("data")) {
+        for (int i = 0; i < expectedCount; i++) vectors.add(null);
+        for (JsonNode item : data) {
             List<Double> vector = new ArrayList<>();
             for (JsonNode number : item.path("embedding")) {
                 if (!number.isNumber() || !Double.isFinite(number.asDouble())) throw new IllegalStateException("Invalid embedding value");
                 vector.add(number.asDouble());
             }
+            if (vector.isEmpty()) throw new IllegalStateException("Embedding API returned an empty vector");
             int index = item.path("index").asInt(-1);
-            if (index < 0 || index >= vectors.size() || vectors.get(index) != null) throw new IllegalStateException("Invalid embedding index");
+            if (index < 0 || index >= vectors.size()) throw new IllegalStateException("Invalid embedding index");
+            if (vectors.get(index) != null) throw new DuplicateEmbeddingIndexException();
             vectors.set(index, vector);
         }
         if (vectors.stream().anyMatch(value -> value == null || value.isEmpty()))
             throw new IllegalStateException("Embedding API 未返回完整向量");
-        return vectors;
+        return List.copyOf(vectors);
     }
+
+    private static final class DuplicateEmbeddingIndexException extends Exception {}
 
     private void ensureCollection(int dimensions) throws Exception {
         HttpRequest probe = HttpRequest.newBuilder(URI.create(qdrantUrl + "/collections/" + collection))

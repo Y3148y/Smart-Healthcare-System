@@ -99,6 +99,64 @@ class QdrantSemanticIndexTest {
     }
 
     @Test
+    void retriesAProviderBatchWithDuplicateIndicesAsUnambiguousSingletonRequests() throws Exception {
+        var batchRequests = new java.util.concurrent.atomic.AtomicInteger();
+        var singletonRequests = new java.util.concurrent.atomic.AtomicInteger();
+        var storedVectors = new java.util.concurrent.ConcurrentHashMap<String, Double>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/embeddings", exchange -> {
+            var request = new ObjectMapper().readTree(exchange.getRequestBody());
+            var inputs = request.path("input");
+            var response = new StringBuilder("{\"data\":[");
+            if (inputs.size() > 1) {
+                batchRequests.incrementAndGet();
+                for (int i = 0; i < inputs.size(); i++) {
+                    if (i > 0) response.append(',');
+                    response.append("{\"index\":0,\"embedding\":[99.0,0.0]}");
+                }
+            } else {
+                singletonRequests.incrementAndGet();
+                String input = inputs.get(0).asText();
+                int marker = input.contains("片段A") ? 1 : input.contains("片段B") ? 2 : 3;
+                response.append("{\"index\":0,\"embedding\":[").append(marker).append(".0,0.0]}");
+            }
+            respond(exchange, 200, response.append("]}").toString());
+        });
+        server.createContext("/collections/batch-index", exchange ->
+                respond(exchange, "GET".equals(exchange.getRequestMethod()) ? 404 : 200, "{\"result\":true}"));
+        server.createContext("/collections/batch-index/points", exchange -> {
+            var request = new ObjectMapper().readTree(exchange.getRequestBody());
+            for (var point : request.path("points")) {
+                storedVectors.put(point.path("payload").path("title").asText(), point.path("vector").get(0).asDouble());
+            }
+            respond(exchange, 200, "{\"result\":true}");
+        });
+        server.start();
+        try {
+            var index = new QdrantSemanticIndex(new ObjectMapper());
+            String base = "http://127.0.0.1:" + server.getAddress().getPort();
+            ReflectionTestUtils.setField(index, "model", "qwen3.7-text-embedding-flash");
+            ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+            ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+            ReflectionTestUtils.setField(index, "qdrantUrl", base);
+            ReflectionTestUtils.setField(index, "collection", "batch-index");
+            ReflectionTestUtils.setField(index, "batchSize", 3);
+
+            assertTrue(index.ensureIndexed(List.of(
+                    new Evidence("A", "source-a", "片段A", 1),
+                    new Evidence("B", "source-b", "片段B", 1),
+                    new Evidence("C", "source-c", "片段C", 1))));
+
+            assertEquals("INDEXED", index.status());
+            assertEquals(1, batchRequests.get(), "one malformed provider batch should be detected");
+            assertEquals(3, singletonRequests.get(), "each source text should be retried alone");
+            assertEquals(1.0, storedVectors.get("A"));
+            assertEquals(2.0, storedVectors.get("B"));
+            assertEquals(3.0, storedVectors.get("C"));
+        } finally { server.stop(0); }
+    }
+
+    @Test
     void configuredSemanticIndexCreatesCollectionAndReturnsCitedChunk() throws Exception {
         var upsertedTitles = new CopyOnWriteArrayList<String>();
         var embeddingFormats = new CopyOnWriteArrayList<String>();
