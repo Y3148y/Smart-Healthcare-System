@@ -30,6 +30,18 @@ class TriageProgressTest {
         mvc.perform(post(path).contentType("application/json").content("{\"content\":\"test\"}")).andExpect(status().isUnauthorized());
         mvc.perform(post(path).header("Authorization","Bearer "+new JwtService().issue("other","PATIENT")).contentType("application/json").content("{\"content\":\"test\"}")).andExpect(status().isNotFound());
     }
+    @Test void streamRejectsBlankAndOversizedMessagesBeforeStartingAsyncWork() throws Exception {
+        String p="progress-"+UUID.randomUUID();var c=service.create(p,new Eligibility(true,true,true));
+        String path="/api/triage/sessions/"+c.session().id()+"/turns/stream";
+        String auth="Bearer "+new JwtService().issue(p,"PATIENT");
+        mvc.perform(post(path).header("Authorization",auth).contentType("application/json")
+                        .content("{\"content\":\"   \"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").exists());
+        String oversized="x".repeat(2001);
+        mvc.perform(post(path).header("Authorization",auth).contentType("application/json")
+                        .content("{\"content\":\""+oversized+"\"}"))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").exists());
+    }
     @Test void sseReturnsStatusThenOneConversation() throws Exception {
         String p="progress-"+UUID.randomUUID();var c=service.create(p,new Eligibility(true,true,true));
         var result=mvc.perform(post("/api/triage/sessions/"+c.session().id()+"/turns/stream").header("Authorization","Bearer "+new JwtService().issue(p,"PATIENT")).contentType("application/json").content("{\"content\":\"请给我开药\"}")).andExpect(request().asyncStarted()).andReturn();

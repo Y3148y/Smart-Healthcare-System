@@ -18,11 +18,17 @@ class ServerRenderingBoundaryTest {
 
     @Test void noXsltViewsOrFragmentRenderingControllerResultsAreRegistered() {
         assertTrue(context.getBeansOfType(XsltView.class).isEmpty());
-        for (var handler : mappings.getHandlerMethods().values()) {
+        for (var entry : mappings.getHandlerMethods().entrySet()) {
+            var handler = entry.getValue();
             if (!handler.getBeanType().getName().startsWith("com.aihospital.")) continue;
             var type = handler.getMethod().getReturnType();
             assertFalse(ModelAndView.class.isAssignableFrom(type));
             assertNotEquals("org.springframework.web.servlet.view.FragmentsRendering", type.getName());
+            var paths = entry.getKey().getPathPatternsCondition();
+            if (paths != null) for (var path : paths.getPatterns()) {
+                assertNotEquals("/**", path.getPatternString(), "catch-all view mappings are not allowed");
+                assertNotEquals("/{*path}", path.getPatternString(), "catch-all view mappings are not allowed");
+            }
         }
     }
     @Test void stageSseUsesTheExplicitJsonConversationControllerNotAViewFragmentHandler() {
