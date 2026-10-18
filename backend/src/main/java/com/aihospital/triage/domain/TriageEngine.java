@@ -27,7 +27,14 @@ public interface TriageEngine {
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
     record PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
-                            com.aihospital.shared.model.Models.ToolTrace trace) {}
+                            com.aihospital.shared.model.Models.ToolTrace trace,
+                            List<NarrationModel.ServiceState> services) {
+        public PreparedEvidence(com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval retrieval,
+                com.aihospital.shared.model.Models.ToolTrace trace) {
+            this(retrieval, trace, List.of());
+        }
+        public PreparedEvidence { services = services == null ? List.of() : List.copyOf(services); }
+    }
     default Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history,
             java.util.function.Consumer<TriageProgress> progress, PreparedEvidence prepared) {
         return clarificationPrompt(symptoms, history, progress);

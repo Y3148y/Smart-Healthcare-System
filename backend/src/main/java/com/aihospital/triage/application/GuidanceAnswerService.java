@@ -44,7 +44,7 @@ public final class GuidanceAnswerService {
         String fallbackText = fallback.apply(evidence);
         progress.accept(TriageProgress.ANSWER_GENERATION);
         var answer = narration.answerWithEvidence(text, "", departments, evidence, fallbackText, history,
-                new NarrationModel.ServiceContext(List.of(), false), true,
+                new NarrationModel.ServiceContext(prepared == null ? List.of() : prepared.services(), false), true,
                 retrievalStatus(retrieval, execution.trace().success()));
         var checked = AnswerEvidenceFreshness.check(knowledge, evidence, answer);
         answer = checked.answer();

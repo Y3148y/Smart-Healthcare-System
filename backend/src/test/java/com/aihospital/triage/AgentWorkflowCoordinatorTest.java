@@ -189,4 +189,54 @@ class AgentWorkflowCoordinatorTest {
             verifyNoInteractions(executor);
         }
     }
+
+    @Test void successfulReadOnlyDirectoryResultsReachPreparedPatientServiceNoticeWithoutDoctorIdentity() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+            when(catalog.departments()).thenReturn(List.of(
+                    new com.aihospital.catalog.domain.CatalogRecords.Department("d1", "内科", true)));
+            var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.GENERAL_HEALTH,
+                    IntentExtraction.Intent.FIND_DOCTOR, IntentExtraction.Intent.BOOKING_REQUEST),
+                    List.of(), List.of(), List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposed, "test", "", 10, 5, 1));
+            var retrieval = new KnowledgeCatalog.Retrieval(List.of(), false, "NO_MATCH");
+            var doctor = new com.aihospital.shared.model.Models.Doctor("doctor-id", "private doctor name", "主任医师",
+                    "内科", "上午", "2026-10-18", 2, 10, 30);
+            when(executor.execute(anyString(), anyMap())).thenAnswer(call -> {
+                String tool = call.getArgument(0);
+                Object data = switch (tool) {
+                    case "medical_knowledge_retrieve" -> retrieval;
+                    case "department_search" -> Map.of("department", "内科", "exists", true, "enabled", true,
+                            "status", "AVAILABLE", "message", "科室已配置", "activeDoctors", 1,
+                            "scheduledDoctors", 1, "bookableDoctors", 1);
+                    case "doctor_schedule_search" -> List.of(doctor);
+                    default -> throw new IllegalArgumentException(tool);
+                };
+                return new HospitalToolExecutor.Execution(data, new ToolTrace(tool, tool, "redacted", "ok", 1, true, ""));
+            });
+            var step = new AtomicInteger();
+            when(model.decide(any(), any(), anySet(), anySet(), anySet(), anyList(), anyInt())).thenAnswer(call -> {
+                if (step.getAndIncrement() == 0) return new AgentModel.Step(AgentModel.Status.TOOLS, List.of(
+                        new AgentModel.ToolCall("k1", "medical_knowledge_retrieve", "{\"query\":\"合成测试问题\"}"),
+                        new AgentModel.ToolCall("d1", "department_search", "{\"department\":\"内科\"}"),
+                        new AgentModel.ToolCall("s1", "doctor_schedule_search", "{\"department\":\"内科\"}")), 20, 10, 1);
+                return new AgentModel.Step(AgentModel.Status.DONE, List.of(), 5, 2, 1);
+            });
+
+            var prepared = coordinator.prepare(conversation, "patient", "合成测试问题");
+            assertNotNull(prepared);
+            assertSame(retrieval, prepared.retrieval());
+            assertEquals(List.of(
+                    new NarrationModel.ServiceState("内科", "AVAILABLE", "科室已配置"),
+                    new NarrationModel.ServiceState("内科", "AVAILABLE", "本次查询返回 1 位有模拟号源的医生。")),
+                    prepared.services());
+            assertFalse(prepared.services().toString().contains("private doctor name"));
+            assertEquals(3, executorCalls());
+        }
+    }
+
+    private int executorCalls() {
+        return mockingDetails(executor).getInvocations().size();
+    }
 }

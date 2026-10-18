@@ -119,8 +119,34 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
         // Only actual tool retrieval, never model final text, reaches narration.
         return scope.snapshots().stream().filter(snapshot -> snapshot.tool().equals(AgentTool.MEDICAL_KNOWLEDGE.code())
                 && snapshot.data() instanceof KnowledgeCatalog.Retrieval).reduce((left, right) -> right)
-                .map(snapshot -> new TriageEngine.PreparedEvidence((KnowledgeCatalog.Retrieval) snapshot.data(), snapshot.trace()))
+                .map(snapshot -> new TriageEngine.PreparedEvidence((KnowledgeCatalog.Retrieval) snapshot.data(),
+                        snapshot.trace(), serviceStates(scope.snapshots())))
                 .orElse(null);
+    }
+
+    private List<com.aihospital.triage.domain.NarrationModel.ServiceState> serviceStates(
+            List<AgentToolRun.Snapshot> snapshots) {
+        var states = new java.util.LinkedHashMap<String, com.aihospital.triage.domain.NarrationModel.ServiceState>();
+        for (var snapshot : snapshots) {
+            String department = snapshot.arguments().get("department");
+            if (department == null || department.isBlank()) continue;
+            if (AgentTool.DEPARTMENT.code().equals(snapshot.tool()) && snapshot.data() instanceof java.util.Map<?, ?> data) {
+                Object status = data.get("status"), message = data.get("message");
+                if (status instanceof String state && message instanceof String detail)
+                    states.put("department:" + department, new com.aihospital.triage.domain.NarrationModel.ServiceState(
+                            department, state, detail));
+            } else if (AgentTool.SCHEDULE.code().equals(snapshot.tool()) && snapshot.data() instanceof List<?> doctors) {
+                long available = doctors.stream().filter(com.aihospital.shared.model.Models.Doctor.class::isInstance)
+                        .map(com.aihospital.shared.model.Models.Doctor.class::cast)
+                        .filter(doctor -> doctor.remaining() > 0).count();
+                String status = available == 0 ? "NO_SLOTS" : "AVAILABLE";
+                String message = available == 0 ? "本次查询没有返回可预约的模拟号源。"
+                        : "本次查询返回 " + available + " 位有模拟号源的医生。";
+                states.put("schedule:" + department, new com.aihospital.triage.domain.NarrationModel.ServiceState(
+                        department, status, message));
+            }
+        }
+        return List.copyOf(states.values());
     }
 
     private boolean scopeIsCurrent(Conversation conversation, String patient, String messageId,

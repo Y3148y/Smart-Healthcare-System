@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
 class GuidanceAnswerServiceTest {
     @Test void preparedRetrievalIsReusedWithoutExecutingAnotherToolOrBypassingNarrationChecks() {
@@ -25,11 +26,14 @@ class GuidanceAnswerServiceTest {
         when(narration.answerWithEvidence(anyString(), anyString(), anyString(), anyList(), anyString(), anyList(),
                 any(), eq(true), eq("NO_MATCH"))).thenReturn(new NarrationModel.Answer("checked", "LIVE", "synthetic"));
         var stages = new ArrayList<TriageProgress>();
+        var serviceState = new NarrationModel.ServiceState("内科", "NO_SLOTS", "本次没有返回可预约的模拟号源。");
         var result = new GuidanceAnswerService(tools, narration, logs).answer("question", "query", "", List.of(),
-                stages::add, new TriageEngine.PreparedEvidence(retrieval, trace), evidence -> "fallback");
+                stages::add, new TriageEngine.PreparedEvidence(retrieval, trace, List.of(serviceState)), evidence -> "fallback");
         assertEquals("checked", result.text());
         assertEquals(List.of(TriageProgress.KNOWLEDGE_RETRIEVAL, TriageProgress.ANSWER_GENERATION), stages);
         assertEquals(0, result.knowledgeHits());
+        verify(narration).answerWithEvidence(anyString(), anyString(), anyString(), anyList(), anyString(), anyList(),
+                eq(new NarrationModel.ServiceContext(List.of(serviceState), false)), eq(true), eq("NO_MATCH"));
         verifyNoInteractions(tools);
         verify(logs, atLeastOnce()).record(any());
     }
