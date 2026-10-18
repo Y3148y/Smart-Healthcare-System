@@ -18,6 +18,11 @@ test('retrieved does not mean adopted', () => {
 })
 test('legacy records do not invent citations', () => assert.match(context.evidenceMethod(meta), /旧记录未采集/))
 test('dependency failure does not imply no knowledge', () => assert.match(context.evidenceMethod({ ...meta, knowledgeHits: 0, answerEvidence: { retrievalStatus: 'DEPENDENCY_UNAVAILABLE' } }), /不代表没有相关资料/))
+test('non-medical service intent is not reported as an empty RAG search', () => {
+  const state={...meta,modelStatus:'SERVICE_ONLY',knowledgeHits:0,answerEvidence:{retrievalStatus:'NOT_APPLICABLE'}}
+  assert.match(context.evidenceMethod(state),/未执行 RAG.*与检索未命中不同/)
+  assert.match(context.answerMethod(state),/未调用回答生成模型/)
+})
 test('blocked answer does not claim validated adoption', () => assert.match(context.evidenceMethod({ ...meta, answerEvidence: { retrievalStatus: 'MATCHED', validationStatus: 'CONTENT_BLOCKED' } }), /未采用/))
 test('safety takeover remains independent', () => assert.equal(context.evidenceMethod({ ...meta, modelStatus: 'SAFETY_RULE' }), '危险提醒优先于知识检索'))
 test('new operational failure is not presented as a medical fallback', () => assert.match(context.answerMethod({ ...meta, modelStatus: 'FALLBACK', answerEvidence: { failure: { code: 'MODEL_TIMEOUT' } } }), /失败提示，未采用模型生成内容/))

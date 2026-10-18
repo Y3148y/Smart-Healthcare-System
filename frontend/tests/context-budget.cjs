@@ -25,3 +25,8 @@ test('route explanations use recorded backend reasons and do not invent old hist
   assert.match(source,/原因未识别/)
   assert.match(source,/不代表诊断或预约许可/)
 })
+
+test('service-only patient turns say RAG was not applicable, not an unrecorded or empty retrieval',()=>{
+  const source=fs.readFileSync(path.resolve(__dirname,'../src/features/triage/components/AnswerExecution.vue'),'utf8')
+  assert.match(source,/retrievalStatus==='NOT_APPLICABLE'\?'未执行（本轮没有医学检索问题）'/)
+})

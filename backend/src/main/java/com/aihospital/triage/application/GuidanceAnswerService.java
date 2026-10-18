@@ -35,6 +35,10 @@ public final class GuidanceAnswerService {
             List<NarrationModel.Turn> history, Consumer<TriageProgress> progress,
             TriageEngine.PreparedEvidence prepared, Function<List<Evidence>, String> fallback) {
         long started = System.nanoTime();
+        if (query == null || query.isBlank()) {
+            progress.accept(TriageProgress.SERVICE_RESPONSE);
+            return serviceOnly(prepared, started);
+        }
         progress.accept(TriageProgress.KNOWLEDGE_RETRIEVAL);
         var preparedRetrieval = prepared == null ? java.util.Optional.<Retrieval>empty() : prepared.retrieval();
         var execution = preparedRetrieval.isEmpty() ? tools.execute("medical_knowledge_retrieve", Map.of("query", query))
@@ -53,6 +57,24 @@ public final class GuidanceAnswerService {
         AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed, List.of(execution.trace())).forEach(calls::record);
         return new TriageEngine.Guidance(answer.text(), answer.status(), checked.blocked() ? 0 : evidence.size(), 1,
                 execution.trace().success() ? 0 : 1, answer.diagnostics());
+    }
+
+    private TriageEngine.Guidance serviceOnly(TriageEngine.PreparedEvidence prepared, long started) {
+        var services = prepared == null ? List.<NarrationModel.ServiceState>of() : prepared.services();
+        var messages = services.isEmpty()
+                ? List.of("本轮尚未取得科室和号源查询结果，暂不能确认平台预约方向。")
+                : services.stream().map(service -> service.department() + "：" + service.message()).toList();
+        var diagnostics = new com.aihospital.triage.domain.AnswerEvidence.Diagnostics(
+                com.aihospital.shared.diagnostics.TurnTraceContext.currentOrNewId(), "NOT_APPLICABLE", "NOT_REQUIRED",
+                List.of(), List.of(), List.of(), "NOT_APPLICABLE", null,
+                Math.max(0, (System.nanoTime() - started) / 1_000_000),
+                new com.aihospital.triage.domain.AnswerEvidence.Generation("NOT_RUN", null, null, null, null), null,
+                new com.aihospital.triage.domain.AnswerEvidence.ServiceNotice(messages, false));
+        var answer = new NarrationModel.Answer("目前没有可用于医学咨询的症状或健康问题，本轮未检索医学资料，也未生成科室推荐。"
+                + "请补充主要不适、持续时间和变化；如已查询科室或模拟号源，相关信息会单独显示。", "SERVICE_ONLY", "", diagnostics);
+        long elapsed = Math.max(0, (System.nanoTime() - started) / 1_000_000);
+        AnswerCallAudit.records("预问诊引导", "患者", answer, elapsed, List.of()).forEach(calls::record);
+        return new TriageEngine.Guidance(answer.text(), answer.status(), 0, 0, 0, diagnostics);
     }
 
     public static String retrievalStatus(Retrieval retrieval, boolean success) {

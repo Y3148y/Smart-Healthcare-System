@@ -14,12 +14,13 @@ public final class CurrentRequestIntent {
     // Consume a declined phrase as a whole so its booking word cannot re-match as positive.
     // This is a bounded lexical policy, not a general language understanding guarantee.
     private static final Pattern BOOKING_INTENT=Pattern.compile(
-            "(?<declined>(?:不想|不要|不需要|不用|无需|不打算|不考虑|取消|暂停|不)"
-            + "(?:(?:再|先|现在|目前|暂时|给我|帮我|替我|去|进行|办理|考虑|想要|想)){0,3}(?:挂号|预约))"
+            "(?<declined>(?:我)?(?:不想|不要|不需要|不用|无需|不打算|不考虑|取消|暂停|不)"
+            + "(?:(?:我|再|先|现在|目前|暂时|给我|帮我|替我|去|进行|办理|考虑|想要|想)){0,3}(?:挂号|预约(?:挂号)?))"
             + "|(?<general>(?:只|仅)(?:是)?(?:想|要)?(?:问|了解|咨询|知道)[^，。？！,.?!]{0,12}"
             + "(?:日常注意事项|注意事项|健康知识|一般问题|科普))"
-            + "|(?<requested>挂号|预约)");
+            + "|(?<requested>(?:(?:我|请|帮我|想|要|希望){0,3})(?:挂号|预约(?:挂号)?))");
     private static final Pattern DIRECTION=Pattern.compile("(?:(?:想|要|希望|请问|了解|咨询|查看|看看){0,3})?(?:挂什么科|看什么科|哪个科|就诊方向|就医方向)");
+    private static final Pattern DIRECTORY=Pattern.compile("(?:(?:我|请|帮我|想|要|希望|了解|咨询|查询|查看|查一下|找|看看|有哪些|哪位|推荐|能否){0,3})(?:医生|大夫|科室|门诊|专家|号源)");
     private static final Pattern QUERY_WRAPPER=Pattern.compile("(?:现在|暂时|目前|只|仅|想|要|希望|请问|查看|看看|了解|咨询|问一下|问问|平台|模拟|一下)+");
 
     /** Last explicit booking choice in this message wins; prior rounds are not consulted. */
@@ -43,6 +44,7 @@ public final class CurrentRequestIntent {
         for (String clause : request.split("(?<=[，,。？！?!；;\\n])|(?=[，,。？！?!；;\\n])")) {
             String cleaned = BOOKING_INTENT.matcher(clause).replaceAll(" ");
             cleaned = DIRECTION.matcher(cleaned).replaceAll(" ");
+            cleaned = DIRECTORY.matcher(cleaned).replaceAll(" ");
             cleaned = QUERY_WRAPPER.matcher(cleaned).replaceAll(" ");
             cleaned = cleaned.replaceAll("[，,。？！?!；;\\s]+", " ").strip();
             if (!cleaned.isBlank()) {
@@ -50,9 +52,9 @@ public final class CurrentRequestIntent {
                 symptoms.append(cleaned);
             }
         }
-        // Do not turn a pure booking utterance into a false empty medical query.
-        String query = symptoms.toString();
-        return query.isBlank() || query.matches("我\\s*(?:想|要|希望)?") ? request : query;
+        // A pure booking/directory request has no medical query. Returning it as fallback
+        // would retrieve arbitrary health documents for words such as "挂号" or "医生".
+        return symptoms.toString();
     }
     public static boolean restricted(String request){
         return request!=null&&!request.isBlank()&&RESTRICTED.matcher(WITHDRAWN.matcher(request).replaceAll("")).find();

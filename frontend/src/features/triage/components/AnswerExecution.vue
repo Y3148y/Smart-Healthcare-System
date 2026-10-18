@@ -24,7 +24,7 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
     <template v-else>
       <p>本地工具：{{ tools.length }} 次。工具由后端执行，不等于通过外部 MCP 服务调用。</p>
       <ul v-if="tools.length"><li v-for="(item,i) in tools" :key="i">{{ item.name }} · {{ invocationOriginLabel(item.initiator) }} · {{ item.status==='SUCCEEDED'?'执行成功':'执行失败' }} · {{ item.elapsedMs }}ms</li></ul>
-      <p>RAG 检索：{{ retrievals.length ? `执行 ${retrievals.length} 次` : '本轮未记录混合检索执行' }}。检索成功不等于回答采用了资料。</p>
+      <p>RAG 检索：{{ meta.answerEvidence?.retrievalStatus==='NOT_APPLICABLE'?'未执行（本轮没有医学检索问题）':retrievals.length ? `执行 ${retrievals.length} 次` : '本轮未记录混合检索执行' }}。检索成功不等于回答采用了资料。</p>
       <article v-for="(item,i) in retrievals" :key="i">
         <b>检索 {{ i+1 }}</b>
         <p>RRF 已融合候选：{{ flag(item.rrfUsed) }}；rerank 已开启：{{ flag(item.rerankEnabled) }}；成功使用 rerank：{{ flag(item.rerankUsed) }}</p>

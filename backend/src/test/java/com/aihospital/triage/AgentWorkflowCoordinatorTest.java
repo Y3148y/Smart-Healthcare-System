@@ -281,6 +281,26 @@ class AgentWorkflowCoordinatorTest {
         }
     }
 
+    @Test void completedServicePlanningWithoutDirectoryResultsStillPreventsMedicalQueryFallback() {
+        try (var gateway = new AgentToolGateway(executor);
+             var coordinator = coordinator(AgentWorkflowSettings.Mode.ENABLED, gateway)) {
+            when(catalog.departments()).thenReturn(List.of(
+                    new com.aihospital.catalog.domain.CatalogRecords.Department("d1", "内科", true)));
+            var proposed = new IntentExtraction(1, List.of(IntentExtraction.Intent.FIND_DOCTOR), List.of(), List.of(), List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,
+                    proposed, "test", "", 10, 5, 1));
+            when(model.decide(any(), any(), anySet(), anySet(), anySet(), anyList(), anyInt()))
+                    .thenReturn(new AgentModel.Step(AgentModel.Status.DONE, List.of(), 2, 1, 1));
+
+            var prepared = coordinator.prepare(conversation, "patient", "我想找医生");
+
+            assertNotNull(prepared);
+            assertTrue(prepared.retrieval().isEmpty());
+            assertTrue(prepared.services().isEmpty());
+            verifyNoInteractions(executor);
+        }
+    }
+
     private int executorCalls() {
         return mockingDetails(executor).getInvocations().size();
     }

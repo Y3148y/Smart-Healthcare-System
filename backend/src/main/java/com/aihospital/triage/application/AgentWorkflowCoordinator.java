@@ -128,8 +128,8 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                         snapshot.trace(), serviceStates(scope.snapshots())));
         if (retrieval.isPresent()) return retrieval.get();
         var services = serviceStates(scope.snapshots());
-        return services.isEmpty() ? null : new TriageEngine.PreparedEvidence(java.util.Optional.empty(),
-                java.util.Optional.empty(), services);
+        return queries.isEmpty() || !services.isEmpty() ? new TriageEngine.PreparedEvidence(
+                java.util.Optional.empty(), java.util.Optional.empty(), services) : null;
     }
 
     private List<com.aihospital.triage.domain.NarrationModel.ServiceState> serviceStates(

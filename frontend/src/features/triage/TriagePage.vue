@@ -47,6 +47,7 @@ function evidenceMethod(meta:ResponseProvenance):string{
   if(sourceState==='ANSWER_SOURCE_CHANGED')return '参考资料已发生变化，本轮旧片段及引用已隐藏，不代表未检索到资料'
   if(sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED')return '暂时无法核实参考资料的当前有效性，本轮片段及引用已隐藏，不代表没有相关资料'
   if(evidence?.retrievalStatus==='DEPENDENCY_UNAVAILABLE')return '资料检索暂不可用，不代表没有相关资料'
+  if(evidence?.retrievalStatus==='NOT_APPLICABLE')return '本轮没有医学检索内容，未执行 RAG；这与检索未命中不同'
   if(!meta.knowledgeHits)return '未找到可引用的医学知识片段'
   if(!evidence)return `检索到 ${meta.knowledgeHits} 条资料；旧记录未采集回答实际引用情况`
   if(evidence.supportReview?.status==='REJECTED')return `检索到 ${meta.knowledgeHits} 条资料，但生成内容未通过本轮问题与资料依据核对，未采用`
@@ -61,6 +62,7 @@ function answerMethod(meta:ResponseProvenance):string{
   // supplementing never changes a refusal, so that advice is simply wrong here.
   if(meta.modelStatus==='POLICY_REFUSAL')return '合规拒答：系统不提供诊断或处方。该答复由确定性策略直接给出，不经过模型，也不随您补充的信息而改变；如需就医方向，请改问就医相关问题或申请人工导诊'
   if(meta.modelStatus==='CLARIFICATION')return '系统在等你补充关键信息，暂不给出科室推荐或号源。该追问由确定性策略直接给出，不经过模型'
+  if(meta.modelStatus==='SERVICE_ONLY')return '本轮未调用回答生成模型；系统按固定分支整理服务查询结果。意图抽取或工具规划可能已调用模型，详见下方'
   const sourceState=meta.answerEvidence?.failure?.code||meta.answerEvidence?.retrievalStatus
   if(meta.modelStatus==='VALIDATION_BLOCKED'&&(sourceState==='ANSWER_SOURCE_CHANGED'||sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED'))return '回答因参考资料有效性未确认而暂不展示；这不是模型额度耗尽或模型能力不足的判断'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
@@ -86,7 +88,7 @@ async function startTriage(){
   elapsedTimer=setInterval(()=>{elapsedSeconds.value=(performance.now()-started)/1000},250)
   try{
     if(!activeConversation.value)activeConversation.value=await api<Conversation>('/triage/sessions',{method:'POST',body:JSON.stringify({adultConfirmed:eligible.value,forSelfConfirmed:eligible.value,notPregnantConfirmed:eligible.value})})
-    const stages:Record<string,string>={ACCEPTED:'请求已接收',SAFETY_CHECK:'正在检查危险信号…',KNOWLEDGE_RETRIEVAL:'正在检索知识依据…',ANSWER_GENERATION:'正在生成并校验回答…',SCHEDULE_LOOKUP:'正在查询模拟号源…',SAVING:'正在保存本轮结果…'}
+    const stages:Record<string,string>={ACCEPTED:'请求已接收',SAFETY_CHECK:'正在检查危险信号…',KNOWLEDGE_RETRIEVAL:'正在检索知识依据…',ANSWER_GENERATION:'正在生成并校验回答…',SERVICE_RESPONSE:'正在整理目录查询结果…',SCHEDULE_LOOKUP:'正在查询模拟号源…',SAVING:'正在保存本轮结果…'}
     requestId=await turnIdentity(activeConversation.value.session.id,content)
     const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content,requestId},stage=>{triageStatus.value=stages[stage]||'正在处理…'})
     clearTurnIdentity(activeConversation.value.session.id)
