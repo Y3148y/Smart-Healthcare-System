@@ -27,6 +27,7 @@ spring:
 ai:
   context:
     estimated-input-token-budget: ${AI_CONTEXT_INPUT_TOKEN_BUDGET:65536}
+    turn-input-estimate-budget: ${AI_TURN_INPUT_ESTIMATE_BUDGET:262144}
   booking:
     action-ttl-seconds: ${AI_BOOKING_ACTION_TTL_SECONDS:300}
   triage:

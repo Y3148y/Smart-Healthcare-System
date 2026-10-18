@@ -17,6 +17,8 @@ public final class LangChainAgentModel implements AgentModel {
     private final boolean thinking;
     @Value("${ai.context.estimated-input-token-budget:65536}")
     private int inputTokenBudget=ContextAssembler.DEFAULT_BUDGET;
+    @Value("${ai.context.turn-input-estimate-budget:262144}")
+    private int turnInputBudget=ContextAssembler.DEFAULT_TURN_BUDGET;
     private final ConfiguredChatTransport transport = new ConfiguredChatTransport();
     public LangChainAgentModel(@Value("${ai.mode:demo}") String mode, @Value("${ai.api-key:}") String key,
             @Value("${ai.base-url:}") String base, @Value("${ai.model:}") String model,
@@ -68,9 +70,9 @@ public final class LangChainAgentModel implements AgentModel {
                     Map.of("messages",ConfiguredChatTransport.wireMessages(messages),"tools",tools),messages.size());
             var contextBudget=new com.aihospital.shared.diagnostics.TurnTraceContext.ContextBudget(
                     estimated,inputTokenBudget,0,0,"UTF8_BYTES_WITH_FRAMING");
-            com.aihospital.shared.diagnostics.TurnTraceContext.record(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
+            ContextAssembler.reserve(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
                     "CONTEXT","AGENT_PLANNING","BOUNDED_ESTIMATE",0,null,null,null,null,
-                    com.aihospital.shared.diagnostics.InvocationContext.current(),contextBudget));
+                    com.aihospital.shared.diagnostics.InvocationContext.current(),contextBudget),turnInputBudget);
             var response = transport.generate(base, key, model, thinking, finishing ? 64 : 2048,
                     timeoutSeconds, messages, false, null, tools, finishing);
             var usage = response.tokenUsage();

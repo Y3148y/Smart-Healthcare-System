@@ -21,6 +21,8 @@ public final class LangChainIntentExtractor implements IntentExtractor {
     private final Sender sender;
     @Value("${ai.context.estimated-input-token-budget:65536}")
     private int inputTokenBudget=ContextAssembler.DEFAULT_BUDGET;
+    @Value("${ai.context.turn-input-estimate-budget:262144}")
+    private int turnInputBudget=ContextAssembler.DEFAULT_TURN_BUDGET;
 
     @Autowired
     public LangChainIntentExtractor(AgentWorkflowSettings settings, IntentValidator validator,
@@ -59,9 +61,9 @@ public final class LangChainIntentExtractor implements IntentExtractor {
             new ContextAssembler(inputTokenBudget).check(messages);
             var budget=new com.aihospital.shared.diagnostics.TurnTraceContext.ContextBudget(
                     ContextAssembler.estimate(messages),inputTokenBudget,0,0,"UTF8_BYTES_WITH_FRAMING");
-            com.aihospital.shared.diagnostics.TurnTraceContext.record(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
+            ContextAssembler.reserve(new com.aihospital.shared.diagnostics.TurnTraceContext.Execution(
                     "CONTEXT","INTENT_EXTRACTION","BOUNDED_ESTIMATE",0,null,null,null,null,
-                    com.aihospital.shared.diagnostics.InvocationContext.current(),budget));
+                    com.aihospital.shared.diagnostics.InvocationContext.current(),budget),turnInputBudget);
             var response = sender.send(messages);
             if (response == null || response.finishReason() != FinishReason.STOP || response.content() == null)
                 return result(Status.INVALID_OUTPUT, null, "INTENT_INCOMPLETE", response, started);

@@ -12,6 +12,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class LangChainIntentExtractorTest {
+    @Test void exhaustedTurnBudgetCannotIssueAnExtractionRequest(){
+        try(var scope=com.aihospital.shared.diagnostics.TurnTraceContext.open("u","policy")){
+            ContextAssembler.reserveMessages(List.of(UserMessage.from("reserved")),"SYNTHETIC",65536,700);
+            var requests=new AtomicInteger();
+            var result=extractor(AgentWorkflowSettings.Mode.ENABLED,"openai-compatible",messages->{requests.incrementAndGet();return null;}).extract(input);
+            assertEquals("INTENT_CONTEXT_TURN_INPUT_BUDGET_EXCEEDED",result.failureCode());assertEquals(0,requests.get());
+        }
+    }
     @Test void contextBudgetBlocksBeforeProviderAndDoesNotTruncateSources(){
         var calls=new AtomicInteger();
         var extractor=extractor(AgentWorkflowSettings.Mode.SHADOW,"openai-compatible",messages->{calls.incrementAndGet();return null;});

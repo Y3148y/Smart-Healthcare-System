@@ -10,6 +10,23 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContextAssemblerTest {
+    @Test void cumulativeBudgetBlocksGenerationAndReviewBeforeAnyProviderRequest(){
+        try(var scope=com.aihospital.shared.diagnostics.TurnTraceContext.open("u","policy")){
+            var allocated=new com.aihospital.shared.diagnostics.TurnTraceContext.Execution("CONTEXT","SYNTHETIC","BOUNDED_ESTIMATE",0,
+                    null,null,null,null,"WORKFLOW",new com.aihospital.shared.diagnostics.TurnTraceContext.ContextBudget(500,65536,0,0,"UTF8_BYTES_WITH_FRAMING"));
+            ContextAssembler.reserve(allocated,512);
+            var model=new OptionalNarrationModel();
+            ReflectionTestUtils.setField(model,"mode","openai-compatible");ReflectionTestUtils.setField(model,"apiKey","synthetic-test-key");
+            ReflectionTestUtils.setField(model,"model","synthetic");
+            var answer=model.answerWithEvidence("synthetic","","",List.of(),"fallback",List.of(),null,false,"NO_MATCH");
+            assertEquals("CONTEXT_TURN_INPUT_BUDGET_EXCEEDED",answer.diagnostics().failure().code());
+            assertEquals("PROMPT_PREPARATION",answer.diagnostics().generation().phase());
+            var requests=new AtomicInteger();
+            var review=AnswerSupportReviewer.review("synthetic",List.of(),List.of(),new Draft(List.of(),List.of(),List.of()),false,
+                    messages->{requests.incrementAndGet();return null;});
+            assertEquals(0,requests.get());assertEquals("REVIEW_CONTEXT_TURN_INPUT_BUDGET_EXCEEDED",review.failure().code());
+        }
+    }
     private Reference ref(String id,String text){return new Reference(id,"synthetic","local",text,"hash-"+id,"UNKNOWN");}
 
     @Test void oversizedCurrentIsRejectedRatherThanTruncated(){

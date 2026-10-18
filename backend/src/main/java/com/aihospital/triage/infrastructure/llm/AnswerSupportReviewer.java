@@ -45,6 +45,10 @@ final class AnswerSupportReviewer {
     }
     static SupportReview review(String request,List<Turn> history,List<Reference> references,
                                 Draft draft,Boolean thinking,int inputBudget,Caller caller){
+        return review(request,history,references,draft,thinking,inputBudget,ContextAssembler.DEFAULT_TURN_BUDGET,caller);
+    }
+    static SupportReview review(String request,List<Turn> history,List<Reference> references,
+                                Draft draft,Boolean thinking,int inputBudget,int turnBudget,Caller caller){
         long started = System.nanoTime();
         Integer input = null, output = null;
         try {
@@ -60,7 +64,7 @@ final class AnswerSupportReviewer {
                     "references", references, "draft", draft));
             var messages=List.<ChatMessage>of(new SystemMessage(INSTRUCTIONS+MedicalAnswerInstructions.task(request)),
                     new UserMessage("<review_data>"+payload+"</review_data>"));
-            new ContextAssembler(inputBudget).check(messages);
+            ContextAssembler.reserveMessages(messages,"ANSWER_REVIEW",inputBudget,turnBudget);
             var response=caller.call(messages);
             if (response == null) throw new InvalidReview("REVIEW_EMPTY_RESPONSE");
             if (response.tokenUsage() != null) {

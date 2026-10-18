@@ -11,6 +11,14 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AgentPlanningBudgetTest {
+    @Test void exhaustedTurnBudgetCannotIssueAPlanningRequest(){
+        try(var scope=com.aihospital.shared.diagnostics.TurnTraceContext.open("u","policy")){
+            ContextAssembler.reserveMessages(List.of(UserMessage.from("reserved")),"SYNTHETIC",65536,700);
+            var model=new LangChainAgentModel("openai-compatible","synthetic-key","invalid://not-a-provider","synthetic",false);
+            var result=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of("synthetic"),List.of(),1);
+            assertEquals("CONTEXT_TURN_INPUT_BUDGET_EXCEEDED",result.failureCode());assertNull(result.inputTokens());
+        }
+    }
     private final IntentInput input=new IntentInput(List.of(new IntentInput.SourceMessage("u1","USER","synthetic")));
     private final IntentExtraction intent=new IntentExtraction(1,List.of(IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
     @Test void initialPlanningBudgetRejectsBeforeConstructingAProviderRequest(){

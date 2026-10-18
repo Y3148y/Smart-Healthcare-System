@@ -11,4 +11,7 @@ test('context details label estimates separately from provider usage and preserv
   assert.match(source,/referencesRemoved/)
   assert.match(source,/contextLabel\(item.name\)/)
   for(const stage of ['NARRATION','INTENT_EXTRACTION','AGENT_PLANNING'])assert.ok(source.includes(stage))
+  assert.ok(source.includes("ANSWER_REVIEW:'回答核对'"))
+  assert.match(source,/turnInputReserved/);assert.match(source,/turnInputBudget/)
+  assert.match(source,/不是实际消耗或账单/)
 })
