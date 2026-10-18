@@ -99,6 +99,52 @@ class QdrantSemanticIndexTest {
     }
 
     @Test
+    void classifiesMalformedEmbeddingResponseAndCollectionDimensionMismatchWithoutRawDetails() throws Exception {
+        var responseBody = new AtomicReference<>("{\"data\":[],\"message\":\"private provider detail\"}");
+        HttpServer malformed = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        malformed.createContext("/embeddings", exchange -> respond(exchange, 200, responseBody.get()));
+        malformed.start();
+        try {
+            var index = configuredIndex("diagnostic-test", malformed.getAddress().getPort());
+            assertFalse(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("EMBEDDING_RESPONSE_VECTOR_COUNT_MISMATCH", index.status());
+            assertFalse(index.status().contains("private"));
+            responseBody.set("private provider detail: invalid JSON");
+            assertFalse(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("EMBEDDING_INVALID_RESPONSE", index.status());
+        } finally { malformed.stop(0); }
+
+        HttpServer mismatch = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        mismatch.createContext("/embeddings", exchange -> respond(exchange, 200,
+                "{\"data\":[{\"index\":0,\"embedding\":[1.0,0.0]}]}"));
+        mismatch.createContext("/collections/diagnostic-test", exchange -> respond(exchange, 200,
+                "{\"result\":{\"config\":{\"params\":{\"vectors\":{\"size\":3,\"distance\":\"Cosine\"}}}}}"));
+        var upserts = new java.util.concurrent.atomic.AtomicInteger();
+        mismatch.createContext("/collections/diagnostic-test/points", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod())) upserts.incrementAndGet();
+            respond(exchange, 200, "{\"result\":[]}");
+        });
+        mismatch.start();
+        try {
+            var index = configuredIndex("diagnostic-test", mismatch.getAddress().getPort());
+            assertFalse(index.ensureIndexed(List.of(new Evidence("Synthetic", "source", "text", 0))));
+            assertEquals("QDRANT_COLLECTION_DIMENSION_MISMATCH", index.status());
+            assertEquals(0, upserts.get(), "mismatched collection must not receive vectors");
+        } finally { mismatch.stop(0); }
+    }
+
+    private QdrantSemanticIndex configuredIndex(String collection, int port) {
+        var index = new QdrantSemanticIndex(new ObjectMapper());
+        String base = "http://127.0.0.1:" + port;
+        ReflectionTestUtils.setField(index, "model", "test-embedding");
+        ReflectionTestUtils.setField(index, "apiKey", "test-only-key");
+        ReflectionTestUtils.setField(index, "embeddingBaseUrl", base);
+        ReflectionTestUtils.setField(index, "qdrantUrl", base);
+        ReflectionTestUtils.setField(index, "collection", collection);
+        return index;
+    }
+
+    @Test
     void retriesAProviderBatchWithDuplicateIndicesAsUnambiguousSingletonRequests() throws Exception {
         var batchRequests = new java.util.concurrent.atomic.AtomicInteger();
         var singletonRequests = new java.util.concurrent.atomic.AtomicInteger();

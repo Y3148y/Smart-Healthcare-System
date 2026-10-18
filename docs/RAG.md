@@ -124,7 +124,7 @@ node scripts/es-snapshot-maintenance.mjs --url http://127.0.0.1:9201 --keep $cur
 
 禁用重排记录 `DISABLED_BY_CONFIGURATION` / `UNRERANKED`，不计供应商故障，也不计严格重排通过。评估器的 `passed` 表示**当前配置模式**的依赖与目标资料检查通过，另以 `strictRerankedPasses` 保留严格重排口径；两种模式不可直接合并比较。相关度和规则参考分值都不是经过校准的概率。
 
-embedding 或 Qdrant 的非成功 HTTP 响应在管理员检索状态中分别记录为 `EMBEDDING_HTTP_状态码`、`QDRANT_HTTP_状态码`，不记录供应商响应正文、密钥或患者问题。无法分类的传输/解析异常仍为 `INDEX_UNAVAILABLE` 或 `SEARCH_UNAVAILABLE`；`configured=true` 只表示参数齐全，不表示调用成功。要求语义检索的运行模式遇到这些故障仍阻断资料依据，不把依赖失败伪装成无资料。
+embedding 或 Qdrant 的非成功 HTTP 响应在管理员检索状态中分别记录为 `EMBEDDING_HTTP_状态码`、`QDRANT_HTTP_状态码`。HTTP成功但向量数量、序号、数值或维度不合法时记录 `EMBEDDING_RESPONSE_*`；已有集合维度或距离不匹配时记录 `QDRANT_COLLECTION_DIMENSION_MISMATCH`，不覆盖旧集合。连接拒绝、建连/请求超时、无效JSON和传输异常按embedding、Qdrant查点/集合/写入/搜索阶段区分；其余未分类异常保留 `INDEX_UNAVAILABLE` 或 `SEARCH_UNAVAILABLE`。状态仅含固定错误码，不记录供应商响应正文、密钥或患者问题；`configured=true` 只表示参数齐全，不表示调用成功。要求语义检索的运行模式遇到这些故障仍阻断资料依据，不把依赖失败伪装成无资料。
 
 embedding 请求显式指定 `encoding_format=float`，与数值向量解析契约一致，接口参数见[百炼官方说明](https://help.aliyun.com/zh/model-studio/text-embedding-synchronous-api/)。非成功响应仅提取预设白名单中的错误标识及 `model/input/dimensions/encoding_format` 参数名，例如 `EMBEDDING_HTTP_400:InvalidParameter:model`；不保留自由文本 message、未知 code/param 或超长响应。HTTP 400 本身不能证明额度耗尽；根据安全错误标识核对配置或账户，不自动切换模型、供应商或关闭语义依赖闸门。
 

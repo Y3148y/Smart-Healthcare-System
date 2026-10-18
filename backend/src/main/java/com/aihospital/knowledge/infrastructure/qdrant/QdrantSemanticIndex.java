@@ -11,6 +11,9 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.net.ConnectException;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -109,9 +112,11 @@ public class QdrantSemanticIndex {
         activePayloads = Map.copyOf(expectedPayloads);
         indexedPointIds.removeIf(id -> !java.util.Objects.equals(indexedPayloads.get(id), activePayloads.get(id)));
         if (corpus.isEmpty()) { indexed = false; status = "EMPTY_CORPUS"; return false; }
+        String phase = "EMBEDDING";
         try {
             List<Evidence> pending = corpus.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
             if (pending.isEmpty()) return indexed;
+            phase = "QDRANT_LOOKUP";
             indexedPointIds.addAll(existingPointIds(pending));
             for (String id : indexedPointIds) if (activePayloads.containsKey(id)) indexedPayloads.put(id, activePayloads.get(id));
             pending = pending.stream().filter(item -> !indexedPointIds.contains(pointId(item))).toList();
@@ -120,6 +125,7 @@ public class QdrantSemanticIndex {
                 status = "INDEXED";
                 return true;
             }
+            phase = "EMBEDDING";
             List<List<Double>> vectors = new ArrayList<>();
             int batch = Math.max(1, Math.min(32, batchSize));
             for (int from = 0; from < pending.size(); from += batch)
@@ -127,7 +133,9 @@ public class QdrantSemanticIndex {
                         .stream().map(item -> item.title() + "\n" + item.excerpt()).toList()));
             if (vectors.size() != pending.size()) throw new IllegalStateException("向量数量与片段数量不一致");
             int dimensions = vectors.get(0).size();
-            if (vectors.stream().anyMatch(v -> v.size() != dimensions)) throw new IllegalStateException("Inconsistent embedding dimensions");
+            if (vectors.stream().anyMatch(v -> v.size() != dimensions))
+                throw new SafeIndexFailure("EMBEDDING_RESPONSE_INCONSISTENT_DIMENSIONS");
+            phase = "QDRANT_COLLECTION";
             ensureCollection(dimensions);
             List<Map<String,Object>> points = new ArrayList<>();
             for (int i = 0; i < pending.size(); i++) {
@@ -135,6 +143,7 @@ public class QdrantSemanticIndex {
                 String id = pointId(evidence);
                 points.add(Map.of("id", id, "vector", vectors.get(i), "payload", activePayloads.get(id)));
             }
+            phase = "QDRANT_UPSERT";
             request("PUT", qdrantUrl + "/collections/" + collection + "/points?wait=true", Map.of("points", points), false);
             for (Evidence item : pending) {
                 String id = pointId(item);
@@ -146,10 +155,23 @@ public class QdrantSemanticIndex {
             return true;
         } catch (Exception ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            status = ex instanceof UpstreamHttpException upstream ? upstream.safeStatus() : "INDEX_UNAVAILABLE";
+            status = safeFailureStatus(ex, phase, "INDEX_UNAVAILABLE");
             log.warn("Semantic index unavailable; retrieval policy controls fallback ({})", status);
             return false;
         }
+    }
+
+    private String safeFailureStatus(Exception failure, String phase, String fallback) {
+        if (failure instanceof UpstreamHttpException upstream) return upstream.safeStatus();
+        if (failure instanceof SafeIndexFailure safe) return safe.code();
+        if (failure instanceof HttpConnectTimeoutException) return phase + "_CONNECT_TIMEOUT";
+        if (failure instanceof HttpTimeoutException) return phase + "_REQUEST_TIMEOUT";
+        if (failure instanceof ConnectException) return phase + "_CONNECTION_REFUSED";
+        if (failure instanceof InterruptedException) return phase + "_INTERRUPTED";
+        if (failure instanceof com.fasterxml.jackson.core.JsonProcessingException)
+            return phase + "_INVALID_RESPONSE";
+        if (failure instanceof java.io.IOException) return phase + "_TRANSPORT_UNAVAILABLE";
+        return fallback;
     }
 
     private String pointId(Evidence evidence) {
@@ -164,7 +186,7 @@ public class QdrantSemanticIndex {
         HttpResponse<String> response = http.send(probe, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() == 404) return Set.of();
         if (response.statusCode() != 200)
-            throw new IllegalStateException("Qdrant collection check returned HTTP " + response.statusCode());
+            throw new UpstreamHttpException("QDRANT", response.statusCode(), "");
 
         Map<String, Evidence> expected = new java.util.HashMap<>();
         for (Evidence item : candidates) expected.put(pointId(item), item);
@@ -175,7 +197,7 @@ public class QdrantSemanticIndex {
             List<String> batchIds = ids.subList(from, Math.min(ids.size(), from + batch));
             JsonNode retrieved = request("POST", qdrantUrl + "/collections/" + collection + "/points",
                     Map.of("ids", batchIds, "with_payload", true, "with_vector", false), false);
-            if (!retrieved.path("result").isArray()) throw new IllegalStateException("Invalid Qdrant point retrieval response");
+            if (!retrieved.path("result").isArray()) throw new SafeIndexFailure("QDRANT_LOOKUP_INVALID_RESPONSE");
             for (JsonNode point : retrieved.path("result")) {
                 String id = point.path("id").asText();
                 Evidence evidence = expected.get(id);
@@ -194,12 +216,14 @@ public class QdrantSemanticIndex {
         Map<String, JsonNode> expectedSnapshot = activePayloads;
         Set<String> snapshotIds = expectedSnapshot.keySet();
         if (!indexed || !configured() || snapshotIds.isEmpty()) return new SearchResult(List.of(), "NOT_READY");
+        String phase = "EMBEDDING";
         try {
             List<Double> vector = embeddings(List.of(query)).get(0);
+            phase = "QDRANT_SEARCH";
             JsonNode response = request("POST", qdrantUrl + "/collections/" + collection + "/points/search",
                     Map.of("vector", vector, "limit", Math.max(1, Math.min(limit, 100)), "with_payload", true,
                             "score_threshold", minimumScore, "filter", Map.of("must", List.of(Map.of("has_id", snapshotIds)))), false);
-            if (!response.path("result").isArray()) throw new IllegalStateException("Invalid Qdrant search response");
+            if (!response.path("result").isArray()) throw new SafeIndexFailure("QDRANT_SEARCH_INVALID_RESPONSE");
             List<Evidence> found = new ArrayList<>();
             for (JsonNode hit : response.path("result")) {
                 JsonNode payload = hit.path("payload");
@@ -214,7 +238,7 @@ public class QdrantSemanticIndex {
             return new SearchResult(List.copyOf(found), "READY");
         } catch (Exception ex) {
             if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
-            status = ex instanceof UpstreamHttpException upstream ? upstream.safeStatus() : "SEARCH_UNAVAILABLE";
+            status = safeFailureStatus(ex, phase, "SEARCH_UNAVAILABLE");
             synchronized (this) { indexed = false; indexedPointIds.clear(); }
             log.warn("Semantic retrieval failed; retrieval policy controls fallback ({})", status);
             return new SearchResult(List.of(), status);
@@ -244,24 +268,32 @@ public class QdrantSemanticIndex {
     private List<List<Double>> parseEmbeddings(JsonNode response, int expectedCount) throws Exception {
         JsonNode data = response.path("data");
         if (!data.isArray() || data.size() != expectedCount)
-            throw new IllegalStateException("Embedding API returned an unexpected vector count");
+            throw new SafeIndexFailure("EMBEDDING_RESPONSE_VECTOR_COUNT_MISMATCH");
         List<List<Double>> vectors = new ArrayList<>();
         for (int i = 0; i < expectedCount; i++) vectors.add(null);
         for (JsonNode item : data) {
             List<Double> vector = new ArrayList<>();
             for (JsonNode number : item.path("embedding")) {
-                if (!number.isNumber() || !Double.isFinite(number.asDouble())) throw new IllegalStateException("Invalid embedding value");
+                if (!number.isNumber() || !Double.isFinite(number.asDouble()))
+                    throw new SafeIndexFailure("EMBEDDING_RESPONSE_INVALID_VECTOR_VALUE");
                 vector.add(number.asDouble());
             }
-            if (vector.isEmpty()) throw new IllegalStateException("Embedding API returned an empty vector");
+            if (vector.isEmpty()) throw new SafeIndexFailure("EMBEDDING_RESPONSE_EMPTY_VECTOR");
             int index = item.path("index").asInt(-1);
-            if (index < 0 || index >= vectors.size()) throw new IllegalStateException("Invalid embedding index");
+            if (index < 0 || index >= vectors.size())
+                throw new SafeIndexFailure("EMBEDDING_RESPONSE_INVALID_INDEX");
             if (vectors.get(index) != null) throw new DuplicateEmbeddingIndexException();
             vectors.set(index, vector);
         }
         if (vectors.stream().anyMatch(value -> value == null || value.isEmpty()))
-            throw new IllegalStateException("Embedding API 未返回完整向量");
+            throw new SafeIndexFailure("EMBEDDING_RESPONSE_INCOMPLETE");
         return List.copyOf(vectors);
+    }
+
+    private static final class SafeIndexFailure extends Exception {
+        private final String code;
+        private SafeIndexFailure(String code) { this.code = code; }
+        private String code() { return code; }
     }
 
     private static final class DuplicateEmbeddingIndexException extends Exception {}
@@ -274,12 +306,12 @@ public class QdrantSemanticIndex {
         if (code == 200) {
             var vectors = json.readTree(response.body()).path("result").path("config").path("params").path("vectors");
             if (vectors.path("size").asInt(-1) != dimensions || !"Cosine".equalsIgnoreCase(vectors.path("distance").asText()))
-                throw new IllegalStateException("Qdrant collection dimensions/distance mismatch; configure a new collection");
+                throw new SafeIndexFailure("QDRANT_COLLECTION_DIMENSION_MISMATCH");
             return;
         }
-        if (code != 404) throw new IllegalStateException("Qdrant collection check returned HTTP " + code);
+        if (code != 404) throw new UpstreamHttpException("QDRANT", code, "");
         if (hnswM < 2 || hnswEfConstruct < 1 || hnswFullScanThresholdKb < 0)
-            throw new IllegalStateException("Invalid Qdrant HNSW configuration");
+            throw new SafeIndexFailure("QDRANT_INVALID_INDEX_CONFIGURATION");
         request("PUT", qdrantUrl + "/collections/" + collection,
                 Map.of("vectors", Map.of("size", dimensions, "distance", "Cosine"),
                         "hnsw_config", Map.of("m", hnswM, "ef_construct", hnswEfConstruct,
