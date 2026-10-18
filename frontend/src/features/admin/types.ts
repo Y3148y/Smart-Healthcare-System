@@ -22,6 +22,11 @@ export const stateLabels: Record<string, string> = {
 }
 export function label(value?: string) {
   if (value === 'HTTP_400:Arrearage') return '供应商拒绝访问：账户结算状态异常（Arrearage）'
+  if (value === 'ELASTICSEARCH_CONNECTION_REFUSED') return 'ES 连接被拒绝：检查容器和端口'
+  if (value === 'ELASTICSEARCH_CONNECT_TIMEOUT') return 'ES 建连超时'
+  if (value === 'ELASTICSEARCH_REQUEST_TIMEOUT') return 'ES 请求超时'
+  const esHttpStatus = value?.match(/^ELASTICSEARCH_HTTP_([45]\d\d)$/)
+  if (esHttpStatus) return `ES 返回 HTTP ${esHttpStatus[1]}`
   return value ? stateLabels[value] || value : '未检测'
 }
 export function sources(value: string) { return value.split('|').map(s => s.trim()).filter(s => /^https?:\/\//.test(s)) }

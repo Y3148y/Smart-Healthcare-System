@@ -11,6 +11,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
+import java.net.ConnectException;
+import java.net.http.HttpConnectTimeoutException;
+import java.net.http.HttpTimeoutException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -97,6 +100,14 @@ public class ElasticsearchLexicalSearch implements LexicalSearch {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             return new Result(List.of(), "ELASTICSEARCH_INTERRUPTED", Map.of());
+        } catch (HttpConnectTimeoutException timeout) {
+            return new Result(List.of(), "ELASTICSEARCH_CONNECT_TIMEOUT", Map.of());
+        } catch (HttpTimeoutException timeout) {
+            return new Result(List.of(), "ELASTICSEARCH_REQUEST_TIMEOUT", Map.of());
+        } catch (ConnectException refused) {
+            return new Result(List.of(), "ELASTICSEARCH_CONNECTION_REFUSED", Map.of());
+        } catch (ElasticsearchHttpStatusException response) {
+            return new Result(List.of(), "ELASTICSEARCH_HTTP_" + response.status(), Map.of());
         } catch (Exception failure) {
             installedSnapshot = null;
             // No provider response, query, URL or credential in diagnostics; never silently switch engines.
@@ -146,7 +157,7 @@ public class ElasticsearchLexicalSearch implements LexicalSearch {
 
     private JsonNode send(String method, String path, String body, String contentType, int expected) throws Exception {
         var response = raw(method, path, body, contentType);
-        if (response.statusCode() != expected) throw new IllegalStateException("Elasticsearch request failed");
+        if (response.statusCode() != expected) throw new ElasticsearchHttpStatusException(response.statusCode());
         return json.readTree(response.body());
     }
     private HttpResponse<String> raw(String method, String path, String body, String contentType) throws Exception {
@@ -158,5 +169,11 @@ public class ElasticsearchLexicalSearch implements LexicalSearch {
     }
     private static String digest(String value) throws Exception {
         return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private static final class ElasticsearchHttpStatusException extends Exception {
+        private final int status;
+        private ElasticsearchHttpStatusException(int status) { this.status = status; }
+        private int status() { return status; }
     }
 }

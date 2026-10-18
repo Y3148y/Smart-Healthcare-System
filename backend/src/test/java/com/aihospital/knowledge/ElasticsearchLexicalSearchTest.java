@@ -57,6 +57,25 @@ class ElasticsearchLexicalSearchTest {
         }
     }
 
+    @Test void safeFailureCodesDistinguishConnectionAndHttpStatusWithoutExposingResponseBody() throws Exception {
+        int port;
+        try (var socket = new java.net.ServerSocket(0)) { port = socket.getLocalPort(); }
+        var refused = new ElasticsearchLexicalSearch(new ObjectMapper());
+        ReflectionTestUtils.setField(refused, "url", "http://127.0.0.1:" + port);
+        refused.validate();
+        assertEquals("ELASTICSEARCH_CONNECTION_REFUSED", refused.search("not logged", List.of(
+                new Evidence("title", "source", "body", 0)), 3, 0).status());
+
+        try (var fixture = new Fixture()) {
+            fixture.searchStatus.set(503);
+            var failed = fixture.engine().search("not logged", List.of(
+                    new Evidence("private title", "private source", "private body", 0)), 3, 0);
+            assertEquals("ELASTICSEARCH_HTTP_503", failed.status());
+            assertTrue(failed.evidence().isEmpty());
+            assertFalse(failed.status().contains("private"));
+        }
+    }
+
     @Test void invalidEndpointAndScoreConfigurationAreRejected() {
         var engine = new ElasticsearchLexicalSearch(new ObjectMapper());
         ReflectionTestUtils.setField(engine, "url", "http://example.com:9200");
@@ -74,6 +93,7 @@ class ElasticsearchLexicalSearchTest {
         final Map<String, Map<String, JsonNode>> indexes = new LinkedHashMap<>();
         final Map<String, JsonNode> mappings = new HashMap<>();
         final AtomicBoolean corrupt = new AtomicBoolean(), bulkFailure = new AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicInteger searchStatus = new java.util.concurrent.atomic.AtomicInteger();
         JsonNode mapping, query;
         int bulkCalls, searchCalls;
         Fixture() throws Exception {
@@ -96,10 +116,15 @@ class ElasticsearchLexicalSearchTest {
                 } else if (path.endsWith("/_search")) {
                     searchCalls++;
                     query = json.readTree(exchange.getRequestBody());
-                    var hits = new ArrayList<Object>();
-                    indexes.get(index).forEach((id, source) -> hits.add(Map.of("_id", corrupt.get() ? "stale" : id,
-                            "_score", 2.0, "_source", source)));
-                    response = Map.of("timed_out", false, "_shards", Map.of("failed", 0), "hits", Map.of("hits", hits));
+                    if (searchStatus.get() > 0) {
+                        status = searchStatus.get();
+                        response = Map.of("error", Map.of("type", "synthetic_error", "reason", "private provider detail"));
+                    } else {
+                        var hits = new ArrayList<Object>();
+                        indexes.get(index).forEach((id, source) -> hits.add(Map.of("_id", corrupt.get() ? "stale" : id,
+                                "_score", 2.0, "_source", source)));
+                        response = Map.of("timed_out", false, "_shards", Map.of("failed", 0), "hits", Map.of("hits", hits));
+                    }
                 } else if (indexes.containsKey(index)) {
                     status = 400;
                     response = Map.of("error", Map.of("type", "resource_already_exists_exception"));

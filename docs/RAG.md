@@ -99,7 +99,7 @@ node scripts/es-snapshot-maintenance.mjs --url http://127.0.0.1:9201 --keep $cur
 
 隔离集成验证：设置 `ES_SNAPSHOT_TEST_URL=http://127.0.0.1:<测试ES端口>` 后运行 `node scripts/test-es-snapshot-live.mjs --apply`。脚本在真实ES创建唯一 `testlexical-<uuid>` 前缀的两个合成索引，核对真实时钟下近期删除被拒绝，再以注入48小时的测试时钟验证真实DELETE及保留索引UUID不变，最后按明确名称/UUID清理自己的索引。测试时钟不作为维护CLI选项，不降低日常24小时门槛；该测试不是实际等待24小时或在线租约验证。不得对共享患者环境运行，失败不自动重试；CI提供独立服务。2026-10-16隔离ES8.17.6实跑通过。
 
-查询通过 `multi_match` 搜索标题和正文；ES专用 `AI_ELASTICSEARCH_MIN_SCORE` 默认0，不套用内存BM25的0.28。ES结果再次校验文档ID、当前快照原文及来源；部分结果、超时和异常响应不采用。故障返回明确 `ELASTICSEARCH_*` 状态，不自动切到内存；Qdrant和已有语义/重排依赖策略继续独立生效，不能把词法故障当“资料不存在”。后台检索详情、事件及轮次trace保存词法状态，ES没有本地TF解释时不伪造解释项。
+查询通过 `multi_match` 搜索标题和正文；ES专用 `AI_ELASTICSEARCH_MIN_SCORE` 默认0，不套用内存BM25的0.28。ES结果再次校验文档ID、当前快照原文及来源；部分结果、超时和异常响应不采用。故障返回脱敏 `ELASTICSEARCH_*` 状态：连接拒绝、建连超时、请求超时及HTTP状态码分别区分，不保留响应正文；其他解析/传输异常仍归入 `ELASTICSEARCH_UNAVAILABLE`。不自动切到内存；Qdrant和已有语义/重排依赖策略继续独立生效，不能把词法故障当“资料不存在”。后台检索详情、事件及轮次trace保存词法状态，ES没有本地TF解释时不伪造解释项。
 
 本机Compose仅绑定9201，关闭认证仅供开发；远端端点须HTTPS，API Key从 `AI_ELASTICSEARCH_API_KEY` 注入。唯一的非回环HTTP例外是显式 `AI_DEMO_LOCAL_CONTAINER=true`、Docker标记存在、无API Key且目标恰为 `http://elasticsearch:9200` 的本机Compose服务；不同主机/端口/路径/嵌入凭据均不获此例外。应用不能验证外层网络隔离，操作者仍须遵守Compose的回环发布边界。默认离线测试显式使用memory；`ElasticsearchLiveIntegrationTest` 须传 `-Dai.test.elasticsearch-url=http://127.0.0.1:<隔离端口>`，只创建合成语料和唯一测试前缀，按校验后的明确名称清理。该集成测试验证Lucene分析和索引接口，不提供医学召回率或质量结论。
 
