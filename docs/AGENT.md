@@ -86,6 +86,8 @@
 
 意图抽取失败通过现有异常分类器记录固定错误码，区分 `INTENT_MODEL_TIMEOUT`、`INTENT_MODEL_AUTH_FAILED`、`INTENT_MODEL_RATE_LIMITED` 和网络等错误；不记录供应商正文、异常消息或密钥，不自动重试。429只代表限流响应，不能单凭此码判断额度耗尽。抽取失败不进入工具规划，后续工作流生成的回答仍须独立通过引用与支持核对；工具成功或审计关联成功不代表答案通过。
 
-测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; .\mvnw.cmd test`（Linux/macOS：`./mvnw test`），前端 `npm test` 与 `npm run build`。
+模式回退不删除持久化观察或待确认预约。`AI_AGENT_MODE=OFF` 关闭后续抽取/规划入口，不会给旧动作增加权限：确认仍检查本人、期限、取消状态、会话版本与排班；已确认动作重放原回执，不重复扣号。模式配置在启动时读取，不是热切换。`AgentModeRollbackTest` 用两个无Web应用生命周期共享隔离H2数据，验证ENABLED准备、OFF恢复后的保留/拒绝/单扣及已完成观察读取；夹具直接构造合法观察与评估，不冒称真实模型、多进程或MySQL验证。跨JVM预约竞争另有专门集成测试。
+
+测试入口：`WorkflowRouterTest`、`TriageWorkflowTest`、`SessionFactReducerTest`、`GuidanceAnswerServiceTest`、`AgentWorkflowCoordinatorTest`、`AgentRunnerTest`、`AgentModeRollbackTest` 和 `AgentFunctionCallingTransportTest`。完整运行方式为JDK17下 `cd backend; .\mvnw.cmd test`（Linux/macOS：`./mvnw test`），前端 `npm test` 与 `npm run build`。
 
 本地HTTP协议测试只证明适配器消息传输。2026-10-11 在百炼配置下的一次合成普通咨询已观察到模型选工具、工具结果消费、`Agent执行/COMPLETED` 和独立回答核对 `PASSED`；这是单样本集成验证，不证明稳定性、临床准确性或性能收益。患者页面的服务端待确认预约动作已接入，但不是模型生成动作，Agent仍无预约写权限。来源校验后的模型观察可跨轮持久化，并仅在轮次完成后发布；历史观察不会自动进入当前工具/模型窗口。完整事件消歧、历史事实驱动追问、完整意图路由与多场景真实模型验收仍待完成。
