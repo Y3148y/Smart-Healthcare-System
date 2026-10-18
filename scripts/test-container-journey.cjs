@@ -72,14 +72,19 @@ async function journey(config, onStage = () => {}) {
   assert.equal((await search()).some(row => row.title === stamp), false)
 
   onStage('CATALOG_AND_BOOKING')
+  onStage('CATALOG_AND_BOOKING:CREATE_DEPARTMENT')
   const department = await request('admin', 'POST', '/admin/catalog/departments', {name: stamp, enabled: true})
   const date = new Date(); date.setUTCDate(date.getUTCDate() + 2)
   const doctorBody = {name: stamp, title: 'Synthetic', departmentId: department.id, enabled: true,
     date: date.toISOString().slice(0,10), period: '上午', total: 3, fee: 0}
+  onStage('CATALOG_AND_BOOKING:CREATE_DOCTOR')
   const doctor = await request('admin', 'POST', '/admin/catalog/doctors', doctorBody)
   const booking = {doctorId: doctor.id, sessionId: 'walk-in', idempotencyKey: randomUUID()}
+  onStage('CATALOG_AND_BOOKING:BOOK')
   const receipt = await request('patient', 'POST', '/appointments', booking)
+  onStage('CATALOG_AND_BOOKING:IDEMPOTENCY_REPLAY')
   assert.deepEqual(await request('patient', 'POST', '/appointments', booking), receipt)
+  onStage('CATALOG_AND_BOOKING:VERIFY_ISOLATION_AND_CAPACITY')
   assert.equal((await request('admin', 'GET', '/admin/catalog/doctors')).find(row => row.id === doctor.id).remaining, 2)
   assert.equal((await request('other', 'GET', '/appointments')).some(row => row.id === receipt.id), false)
   await request('patient', 'GET', '/admin/catalog/doctors', undefined, 403)
@@ -87,10 +92,13 @@ async function journey(config, onStage = () => {}) {
 
   onStage('STAGE_STREAM_AND_SAFETY_GATE')
   const eligibility = {adultConfirmed: true, forSelfConfirmed: true, notPregnantConfirmed: true}
+  onStage('STAGE_STREAM_AND_SAFETY_GATE:CREATE_SESSION')
   const created = await request('patient', 'POST', '/triage/sessions', eligibility)
   const session = '/triage/sessions/' + created.session.id
   const turnId = randomUUID(), question = {content: '胸痛', requestId: turnId}
+  onStage('STAGE_STREAM_AND_SAFETY_GATE:STREAM_TURN')
   const answered = await request('patient', 'POST', session + '/turns/stream', question, 200, true)
+  onStage('STAGE_STREAM_AND_SAFETY_GATE:VERIFY_EMERGENCY_AND_REPLAY')
   assert.equal(answered.assessments.at(-1).result.safetyAssessment.acuity, 'EMERGENCY')
   assert.equal(answered.assessments.at(-1).result.safetyAssessment.stopRoutineFlow, true)
   assert.deepEqual((await request('patient', 'GET', session)).messages, answered.messages)
@@ -98,6 +106,7 @@ async function journey(config, onStage = () => {}) {
   assert.equal((await request('patient', 'GET', session + '/turns/' + turnId)).status, 'COMPLETED')
   await request('patient', 'POST', session + '/turns', {...question, content: 'Different question'}, 409)
   await request('other', 'GET', session, undefined, 404)
+  onStage('STAGE_STREAM_AND_SAFETY_GATE:BLOCK_BOOKING')
   await request('patient', 'POST', '/appointments', {...booking, sessionId: created.session.id, idempotencyKey: randomUUID()}, 409)
   assert.equal((await request('admin', 'GET', '/admin/catalog/doctors')).find(row => row.id === doctor.id).remaining, 2)
   await request('admin', 'PUT', '/admin/catalog/doctors/' + doctor.id, {...doctorBody, enabled: false})

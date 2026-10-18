@@ -12,7 +12,7 @@ WORKDIR /app
 COPY --from=build /build/target/*.jar /app/app.jar
 COPY --from=build /health /app/health
 USER 10001:10001
-ENV SERVER_ADDRESS=0.0.0.0 SERVER_PORT=8081
+ENV SERVER_ADDRESS=0.0.0.0 SERVER_PORT=8081 JAVA_TOOL_OPTIONS=-Duser.timezone=Asia/Shanghai
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=8s --start-period=60s --retries=3 \
     CMD ["java", "-cp", "/app/health", "HealthProbe"]

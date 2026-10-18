@@ -14,10 +14,10 @@ public interface AppointmentMapper {
     @Insert("INSERT INTO sim_booking_request(patient_id,idempotency_key) VALUES(#{patient},#{key})")
     int claimRequest(@Param("patient") String patient, @Param("key") String key);
 
-    @Select("SELECT id,patient_id,session_id,doctor_json,status,created_at FROM sim_appointment WHERE patient_id=#{patient} ORDER BY created_at DESC")
+    @Select("SELECT id,patient_id,session_id,doctor_json,status,TRIM(CAST(created_at AS CHAR(32))) AS created_at FROM sim_appointment WHERE patient_id=#{patient} ORDER BY created_at DESC")
     List<Map<String, Object>> appointments(@Param("patient") String patient);
 
-    @Select("SELECT id,patient_id,session_id,doctor_json,status,created_at FROM sim_appointment WHERE patient_id=#{patient} AND idempotency_key=#{key}")
+    @Select("SELECT id,patient_id,session_id,doctor_json,status,TRIM(CAST(created_at AS CHAR(32))) AS created_at FROM sim_appointment WHERE patient_id=#{patient} AND idempotency_key=#{key}")
     List<Map<String, Object>> appointmentByKey(@Param("patient") String patient, @Param("key") String key);
 
     @Insert("INSERT INTO sim_appointment(id,patient_id,doctor_id,session_id,doctor_json,status,idempotency_key,created_at) VALUES(#{id},#{patient},#{doctorId},#{sessionId},#{doctorJson},#{status},#{key},#{createdAt})")

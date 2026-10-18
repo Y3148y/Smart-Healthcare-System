@@ -2,6 +2,7 @@ package com.aihospital.shared.infrastructure.mybatis;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 /** Converts MyBatis map rows consistently across H2 and MySQL column-label casing. */
@@ -29,6 +30,7 @@ public final class RowValues {
         Object value = value(row, column);
         if (value instanceof LocalDateTime dateTime) return dateTime;
         if (value instanceof Timestamp timestamp) return timestamp.toLocalDateTime();
+        if (value instanceof String text) return LocalDateTime.parse(text.strip().replace(' ', 'T'), DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         throw new IllegalStateException("Missing timestamp column: " + column);
     }
 }
