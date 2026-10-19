@@ -26,18 +26,30 @@ try {
       corpusIds.add(identity(chunk));
     }
   }
+  const resultsById=new Map();
+  for (const result of report.results) {
+    if (typeof result.id !== 'string' || !result.id.trim() || resultsById.has(result.id))
+      throw new Error('Invalid or duplicate report case id');
+    if (typeof result.query !== 'string' || !result.query.trim())
+      throw new Error('Report cases must include the exact query');
+    resultsById.set(result.id,result);
+  }
   const byId=new Map();
   for(const label of labels.cases) {
     if (typeof label.id !== 'string' || byId.has(label.id)) throw new Error('Invalid or duplicate label id');
+    const result=resultsById.get(label.id);
+    if (!result) throw new Error('Label id not present in report');
+    const hasQuery=Object.hasOwn(label,'query'),hasQueryHash=Object.hasOwn(label,'querySha256');
+    const queryHash=createHash('sha256').update(result.query).digest('hex');
+    if ((!hasQuery && !hasQueryHash) || hasQuery && label.query !== result.query
+        || hasQueryHash && label.querySha256 !== queryHash)
+      throw new Error('Relevance labels must match the exact case query');
     if (!Array.isArray(label.relevant) || label.relevant.some(chunk=>!corpusIds.has(identity(chunk))))
       throw new Error('Relevance label references a chunk outside the frozen corpus');
     byId.set(label.id,label);
   }
   const retrieval=[],answers=[],cases=[],stageCases=[];
   let unlabelled=0,unreviewedAnswers=0;
-  const known=new Set(report.results.map(r=>r.id));
-  if (known.size !== report.results.length) throw new Error('Duplicate report case id');
-  if (labels.cases.some(l=>!known.has(l.id))) throw new Error('Label id not present in report');
   for(const result of report.results) {
     const label=byId.get(result.id);
     if (!label) {unlabelled++;cases.push({id:result.id,status:'UNLABELLED'});continue;}

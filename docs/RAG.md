@@ -175,7 +175,7 @@ npm run evaluate:public
 | 回答正确率、忠实度 | 独立人工答案审核，绑定回答哈希、消息及 trace |
 | 分诊参考分值 Brier / ECE | 独立处置正确性标签，不能用模型自报代替 |
 
-离线评分入口为 `node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签须绑定语料 SHA-256，逐题声明 `exhaustive=true` 与相关片段身份；缺正文、语料漂移、身份歧义或非穷举标签拒绝计算对应指标。逐题保留 missed/extra 身份，不能按预设标题自动补标。
+离线评分入口为 `node tools/rag-eval/quality-cli.mjs 报告.json 标签.json 3`。标签须绑定语料 SHA-256，并以逐题原始 `query` 或其 UTF-8 SHA-256 `querySha256` 绑定查询；两者同时存在时必须都匹配。相同题目ID不能让新查询复用旧标签，空白、标点改变也需重新确认；不含查询身份的旧标签拒绝评分。逐题还须声明 `exhaustive=true` 与相关片段身份；缺正文、语料漂移、身份歧义或非穷举标签拒绝计算对应指标。逐题保留 missed/extra 身份，不能按预设标题自动补标。
 
 `review-packet-cli.mjs` 从完整冻结语料生成检索评审包，初始不自动标相关；旧候选-only 报告不能充当完整评审语料。
 
