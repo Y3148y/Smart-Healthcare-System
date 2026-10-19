@@ -48,8 +48,9 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     assert.equal(run().status,1,'A retrieval-only report cannot acquire fabricated answer scores');
     const withAnswer={...source,results:[{...source.results[0],answerSnapshot},source.results[1]]};
     writeFileSync(report,JSON.stringify(withAnswer));
-    const answerResult=run();assert.equal(answerResult.status,0,answerResult.stderr);
-    assert.equal(JSON.parse(answerResult.stdout).summary.answerCorrectness.value,1);
+    const answerResult=run();assert.equal(answerResult.status,1);
+    assert.equal(answerResult.stdout,'');
+    assert.match(answerResult.stderr,/answer-review-cli/,'Even a matching answer hash cannot replace context and adopted-source checks');
     for(const override of [{text:'Changed answer'}, {messageId:'different-message'}, {traceId:'different-trace'},
       {contentSha256:'0'.repeat(64)}]) {
       writeFileSync(report,JSON.stringify({...withAnswer,results:[{...withAnswer.results[0],answerSnapshot:{...answerSnapshot,...override}}]}));
@@ -117,5 +118,42 @@ test('relevance labels bind the exact query as well as case id and corpus',()=>{
       assert.equal(run(source,withCase(overrides)).status,1,'Missing or contradictory query identity must be rejected');
     for(const query of [undefined,null,'','   ',4])
       assert.equal(run({...source,results:[{...source.results[0],query}]}).status,1,'Missing report query cannot be scored');
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
+test('retrieval scoring refuses answer labels without the persisted-context review contract',()=>{
+  const dir=mkdtempSync(join(tmpdir(),'rag-answer-boundary-'));
+  const hash=text=>createHash('sha256').update(text).digest('hex');
+  try {
+    const report=join(dir,'report.json'),labels=join(dir,'labels.json');
+    const text='Synthetic corpus fixture, not medical information.';
+    const chunk={documentVersion:'v1',text,contentSha256:hash(text)};
+    const approved=[{id:'fixture',chunks:[chunk]}],query='synthetic question';
+    const answerSnapshot={text:'Synthetic answer.',messageId:'answer-one',traceId:'trace-one',contentSha256:hash('Synthetic answer.')};
+    const source={corpus:{approved,sha256:hash(JSON.stringify(approved))},results:[
+      {id:'one',query,selectedEvidence:[],candidates:[],answerSnapshot}]};
+    const label={schemaVersion:1,corpusSha256:source.corpus.sha256,cases:[
+      {id:'one',query,exhaustive:true,relevant:[],answerReview:{correctness:'CORRECT',claimsExhaustive:true,
+        claims:[{support:'SUPPORTED'}],answerSha256:answerSnapshot.contentSha256,
+        answerMessageId:answerSnapshot.messageId,traceId:answerSnapshot.traceId}}]};
+    writeFileSync(report,JSON.stringify(source));
+    const run=review=>{
+      writeFileSync(labels,JSON.stringify({...label,cases:[{...label.cases[0],answerReview:review}]}));
+      return spawnSync(process.execPath,[new URL('../quality-cli.mjs',import.meta.url).pathname.replace(/^\/(\w:)/,'$1'),report,labels],{encoding:'utf8'});
+    };
+    for(const review of [label.cases[0].answerReview,false,{},[],
+      {...label.cases[0].answerReview,claims:[{text:'Synthetic claim.',support:'SUPPORTED',referenceIds:['E1']}]}]) {
+      const result=run(review);
+      assert.equal(result.status,1,'A text hash and trace alone cannot produce a perfect answer score');
+      assert.equal(result.stdout,'');
+      assert.match(result.stderr,/answer-review-cli/);
+    }
+    for(const review of [null,undefined]) {
+      const result=run(review);assert.equal(result.status,0,result.stderr);
+      const retrievalOnly=JSON.parse(result.stdout);
+      assert.equal(retrievalOnly.summary.answerCorrectness.value,null);
+      assert.equal(retrievalOnly.summary.faithfulness.value,null);
+      assert.equal(retrievalOnly.summary.faithfulness.evaluated,0);
+    }
   } finally {rmSync(dir,{recursive:true,force:true});}
 });

@@ -103,6 +103,24 @@ test('confidence calibration requires separate disposition review bound to the s
   const unknown=scoreAnswerReviewPacket(packet).confidenceCalibration;
   assert.equal(unknown.evaluated,0);assert.equal(unknown.brierScore,null);
 });
+
+test('answer scoring refuses empty factual claims even with adopted references and a matching identity',()=>{
+  for(const text of [undefined,null,'','   ',4]) {
+    const packet=answerReviewPacket(fixture()),item=packet.cases.at(-1);
+    item.answerReview={...item.answerReview,correctness:'CORRECT',claimsExhaustive:true,
+      claims:[{text,support:'SUPPORTED',referenceIds:['E1']}]};
+    assert.throws(()=>scoreAnswerReviewPacket(packet),/Every factual claim needs text/);
+  }
+});
+
+test('answer scoring refuses supported claims without material actually adopted',()=>{
+  for(const referenceIds of [undefined,[],['E9']]) {
+    const packet=answerReviewPacket(fixture()),item=packet.cases.at(-1);
+    item.answerReview={...item.answerReview,correctness:'CORRECT',claimsExhaustive:true,
+      claims:[{text:'Synthetic factual claim.',support:'SUPPORTED',referenceIds}]};
+    assert.throws(()=>scoreAnswerReviewPacket(packet),/actually adopted/);
+  }
+});
 test('changing patient context or sources cannot borrow a review from the same answer text',()=>{
   for(const mutate of [item=>item.context[0].content='changed source',
     item=>item.retrieval.retrievedReferences[0].excerpt='changed evidence',

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {retrievalQuality,answerQuality,summarizeQuality,summarizeRetrievalStages,confidenceCalibration} from '../quality.mjs';
+import {retrievalQuality,summarizeQuality,summarizeRetrievalStages,confidenceCalibration} from '../quality.mjs';
 const chunk=n=>({documentVersion:'version-1',contentSha256:String(n).padStart(64,'0')});
 test('recall and precision require exhaustive versioned labels, not title matching',()=>{
   const r=retrievalQuality([chunk(2),chunk(3),chunk(1)],{exhaustive:true,relevant:[chunk(1),chunk(2)]},2);
@@ -18,21 +18,15 @@ test('duplicates, uncovered and empty results cannot inflate quality',()=>{
   assert.equal(negative.recallAtK,null);assert.equal(negative.precisionAtK,0);
   assert.equal(negative.noCoverageFalseSelection,true);
 });
-test('faithfulness is reviewed factual claims, not the support-review pass flag',()=>{
-  const answer=answerQuality({correctness:'INCORRECT',claimsExhaustive:true,claims:[{support:'SUPPORTED'},{support:'UNSUPPORTED'}]});
-  assert.equal(answer.faithfulness,.5);assert.equal(answer.correct,false);
-  assert.equal(answerQuality({correctness:'UNREVIEWED',claims:[{support:'UNREVIEWED'}]}).faithfulness,null);
-  assert.equal(answerQuality({correctness:'CORRECT',claims:[]}).faithfulness,null);
-  const summary=summarizeQuality([],[answer,answerQuality({correctness:'UNREVIEWED',claims:[]})]);
+test('summary aggregates already-scored answers without counting unknown values',()=>{
+  const summary=summarizeQuality([],[{correct:false,faithfulness:.5},{correct:null,faithfulness:null}]);
   assert.deepEqual(summary.answerCorrectness,{value:0,evaluated:1});
   assert.deepEqual(summary.faithfulness,{value:.5,evaluated:1});
 });
-test('partial claim review cannot claim complete answer faithfulness',()=>{
-  for(const claimsExhaustive of [undefined,false]){
-    const result=answerQuality({correctness:'UNREVIEWED',claimsExhaustive,claims:[{support:'SUPPORTED'}]});
-    assert.equal(result.faithfulness,null);assert.equal(result.claimsExhaustive,false);
-  }
-  assert.equal(answerQuality({correctness:'CORRECT',claimsExhaustive:true,claims:[]}).faithfulness,null);
+test('retrieval-only summary never fabricates answer correctness or faithfulness',()=>{
+  const result=summarizeQuality([],[]);
+  assert.deepEqual(result.answerCorrectness,{value:null,evaluated:0});
+  assert.deepEqual(result.faithfulness,{value:null,evaluated:0});
 });
 test('retrieval stages are measured independently and no-coverage false selections remain visible',()=>{
   const labels={exhaustive:true,relevant:[chunk(1)]};

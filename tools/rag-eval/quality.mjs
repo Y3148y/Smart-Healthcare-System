@@ -21,21 +21,6 @@ export function retrievalQuality(retrieved, label, k) {
     noCoverageFalseSelection:relevant.size === 0 && ranking.length > 0};
 }
 
-export function answerQuality(review) {
-  if (!review || !['CORRECT','INCORRECT','UNREVIEWED'].includes(review.correctness)
-      || !Array.isArray(review.claims)) throw new Error('Invalid answer review');
-  const states = ['SUPPORTED','UNSUPPORTED','UNREVIEWED'];
-  if (review.claims.some(c => !states.includes(c.support))) throw new Error('Invalid claim support');
-  const supported = review.claims.filter(c => c.support === 'SUPPORTED').length;
-  const unsupported = review.claims.filter(c => c.support === 'UNSUPPORTED').length;
-  const unreviewed = review.claims.length - supported - unsupported;
-  // No factual claims (e.g. refusal) is not a fabricated 100% faithfulness score.
-  return {correct:review.correctness === 'UNREVIEWED' ? null : review.correctness === 'CORRECT',
-    claimCount:review.claims.length, supported, unsupported, unreviewed,
-    claimsExhaustive:review.claimsExhaustive === true,
-    faithfulness:review.claimsExhaustive !== true || unreviewed ? null : ratio(supported,review.claims.length)};
-}
-
 export function summarizeQuality(retrieval, answers) {
   const mean = (rows,key) => {
     const values=rows.map(r=>r[key]).filter(v=>typeof v === 'number');

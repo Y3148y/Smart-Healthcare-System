@@ -197,6 +197,8 @@ node tools/rag-eval/answer-review-cli.mjs reports/rag/review.json
 
 整份答案忠实度要求 `claimsExhaustive=true`，且逐断言审核；SUPPORTED 断言须引用实际采用的资料。部分审核、无标签或无事实断言保持未知。纯检索报告没有答案快照，不能计算回答正确率/忠实度。工具不认证评审人的独立性或临床资质；未脱敏会话不能公开提交或外发。
 
+检索与答案评分使用不同入口：`quality-cli.mjs` 只接受检索相关性标签，任何非null的 `answerReview` 都明确拒绝并提示改用 `answer-review-cli.mjs`。旧的“答案正文哈希+messageId+trace”简化标签不足以绑定患者上下文和实际采用来源，不能继续计算答案分数；须从持久化会话重新生成完整评审包并审核。检索输出中兼容保留的答案指标始终为null，不能据此推断已完成答案评审。
+
 ## 离线消融工具
 
 `ablation-cli.mjs` 可对比同一冻结语料、相同case ID及原话查询的多个检索报告，适用于分别采集memory与ES配置后的结果。无需模型、embedding或rerank额度：

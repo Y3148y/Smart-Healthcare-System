@@ -1,7 +1,7 @@
 // Offline scoring; no network calls, credentials or automatic medical labels.
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {retrievalQuality,answerQuality,summarizeQuality,summarizeRetrievalStages} from './quality.mjs';
+import {retrievalQuality,summarizeQuality,summarizeRetrievalStages} from './quality.mjs';
 
 try {
   const [reportPath,labelPath,kArgument='3']=process.argv.slice(2);
@@ -44,11 +44,13 @@ try {
     if ((!hasQuery && !hasQueryHash) || hasQuery && label.query !== result.query
         || hasQueryHash && label.querySha256 !== queryHash)
       throw new Error('Relevance labels must match the exact case query');
+    if (label.answerReview != null)
+      throw new Error('Answer labels require a persisted-context review packet; use answer-review-cli.mjs');
     if (!Array.isArray(label.relevant) || label.relevant.some(chunk=>!corpusIds.has(identity(chunk))))
       throw new Error('Relevance label references a chunk outside the frozen corpus');
     byId.set(label.id,label);
   }
-  const retrieval=[],answers=[],cases=[],stageCases=[];
+  const retrieval=[],cases=[],stageCases=[];
   let unlabelled=0,unreviewedAnswers=0;
   for(const result of report.results) {
     const label=byId.get(result.id);
@@ -91,24 +93,13 @@ try {
     cases.push({id:result.id,status:'LABELLED',retrieval:quality,retrievalStages:stages,
       missed:label.relevant.filter(chunk=>!selectedIds.has(identity(chunk))),
       extra:selected.filter(chunk=>!relevant.has(identity(chunk)))});
-    if (label.answerReview) {
-      const snapshot=result.answerSnapshot,review=label.answerReview;
-      if (!snapshot || typeof snapshot.text !== 'string' || !snapshot.text.trim()
-          || typeof snapshot.messageId !== 'string' || !snapshot.messageId
-          || typeof snapshot.traceId !== 'string' || !snapshot.traceId
-          || createHash('sha256').update(snapshot.text).digest('hex') !== snapshot.contentSha256
-          || review.answerSha256 !== snapshot.contentSha256
-          || review.answerMessageId !== snapshot.messageId || review.traceId !== snapshot.traceId)
-        throw new Error('Answer review must match the exact versioned answer snapshot');
-      answers.push(answerQuality(review));
-    }
-    else unreviewedAnswers++;
+    unreviewedAnswers++;
   }
   console.log(JSON.stringify({labelVersion:labels.labelVersion ?? null,reviewer:labels.reviewer ?? null,
     reviewStatus:labels.reviewStatus ?? 'UNSPECIFIED',clinicalReview:labels.clinicalReview ?? 'UNSPECIFIED',
     split:labels.split ?? 'UNSPECIFIED',
     reportCases:report.results.length,unlabelled,unreviewedAnswers,
-    summary:{...summarizeQuality(retrieval,answers),retrievalStages:summarizeRetrievalStages(stageCases)},cases},null,2));
+    summary:{...summarizeQuality(retrieval,[]),retrievalStages:summarizeRetrievalStages(stageCases)},cases},null,2));
 } catch(error) {
   // Do not print label bodies or patient text on parse errors.
   console.error(error instanceof SyntaxError ? 'Invalid JSON input' : error.message);
