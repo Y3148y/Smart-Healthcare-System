@@ -79,6 +79,45 @@ jobs:
         run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
       - name: Check chunk-boundary regression examples
         run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java --self-test
+      - name: Reproduce all eleven documents in one isolated MySQL and hybrid-index lifecycle
+        env:
+          AI_MODE: demo
+          AI_AGENT_MODE: 'OFF'
+          AI_DB_USER: root
+          AI_DB_PASSWORD: synthetic-ci-only
+          AI_DB_URL: jdbc:mysql://127.0.0.1:3306/ai_hospital_corpus_test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+          AI_EMBEDDING_API_KEY: synthetic-test-only-key
+          AI_EMBEDDING_MODEL: synthetic-corpus-lifecycle-v1
+          AI_QDRANT_COLLECTION: test_corpus_ci_${{ github.run_id }}_${{ github.run_attempt }}
+          AI_LEXICAL_BACKEND: elasticsearch
+          AI_ELASTICSEARCH_URL: http://127.0.0.1:9201
+          AI_ELASTICSEARCH_INDEX_PREFIX: test-corpus-ci-${{ github.run_id }}-${{ github.run_attempt }}
+          AI_RERANK_ENABLED: 'false'
+          SERVER_ADDRESS: 127.0.0.1
+          SERVER_PORT: '18082'
+          CORPUS_TEST_BASE_URL: http://127.0.0.1:18082
+          CORPUS_TEST_ISOLATED: 'YES'
+          CORPUS_TEST_PASSWORD: synthetic-ci-only
+        run: |
+          docker exec -e MYSQL_PWD=synthetic-ci-only ${{ job.services.mysql.id }} mysql -uroot -e 'CREATE DATABASE ai_hospital_corpus_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'
+          node scripts/test-corpus-lifecycle.mjs --serve-embedding > "$RUNNER_TEMP/corpus-embedding.json" &
+          corpus_fixture_pid=$!
+          corpus_backend_pid=''
+          trap 'if [ -n "$corpus_backend_pid" ]; then kill "$corpus_backend_pid" 2>/dev/null || true; fi; kill "$corpus_fixture_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if [ -s "$RUNNER_TEMP/corpus-embedding.json" ]; then break; fi
+            sleep 0.2
+          done
+          export AI_EMBEDDING_BASE_URL="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).baseUrl)' "$RUNNER_TEMP/corpus-embedding.json")"
+          (cd backend && ./mvnw --batch-mode -DskipTests package)
+          java -jar backend/target/ai-hospital-backend-1.0.0.jar > "$RUNNER_TEMP/corpus-backend.log" 2>&1 &
+          corpus_backend_pid=$!
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:18082/api/health/ready >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18082/api/health/ready
+          node scripts/test-corpus-lifecycle.mjs --apply
 
   containers:
     runs-on: ubuntu-latest
@@ -146,6 +185,7 @@ jobs:
           node --test scripts/check-public-content.test.cjs
           node scripts/check-public-content.cjs
           node --test scripts/local-test-target.test.cjs
+          node --test scripts/corpus-lifecycle.test.mjs
           node --test scripts/container-contract.test.cjs
           node --test scripts/container-journey.test.cjs
           node --test scripts/es-snapshot-maintenance.test.mjs

@@ -35,6 +35,23 @@
 
 此命令只能连回环地址，但**不能识别该地址是否意外指向共享/真实患者环境**；操作者必须先确认使用独立数据库和Qdrant集合。它不是临床审核、法律许可判定或医院发布路径。现有审批状态 `READY` 只表示该测试库可检索，不能用于面向真实患者的医学服务。旧库已有同文不同元数据导入或非本脚本的批准时命令拒绝/冲突，不会覆盖。
 
+## 隔离全链复验（模拟向量）
+
+仓库根目录的 `node scripts/test-corpus-lifecycle.mjs --serve-embedding` 启动随机回环端口的本机向量夹具，输出接口地址并保持运行。它为所有文本返回相同二维向量，只检查索引生命周期，不具备医学语义或质量评估能力。
+
+另启动一个**空的独立MySQL数据库**上的测试后端，不能复用日常8081或真实患者实例。沿用项目启动命令，但设 `AI_MODE=demo`、`AI_AGENT_MODE=OFF`、`AI_LEXICAL_BACKEND=elasticsearch`、`AI_RERANK_ENABLED=false`，为 `AI_DB_URL`、`SERVER_PORT`、`AI_QDRANT_COLLECTION`、`AI_ELASTICSEARCH_INDEX_PREFIX` 选择独立值；集合和索引前缀均不得与日常服务相同。`AI_EMBEDDING_BASE_URL` 使用上一步输出的本机地址，`AI_EMBEDDING_MODEL=synthetic-corpus-lifecycle-v1`，`AI_EMBEDDING_API_KEY` 只需在进程环境设非空测试占位值，不使用真实密钥。MySQL、ES和Qdrant须已就绪。
+
+在探针终端显式设置 `CORPUS_TEST_BASE_URL` 为这个测试后端的回环HTTP origin、`CORPUS_TEST_PASSWORD` 为非空演示登录值、`CORPUS_TEST_ISOLATED=YES`、`AI_MODE=demo`、`AI_AGENT_MODE=OFF`，然后从仓库根目录执行：
+
+```powershell
+node --test scripts/corpus-lifecycle.test.mjs
+node scripts/test-corpus-lifecycle.mjs --apply
+```
+
+探针验证固定11篇/78片段的待审导入、测试许可/审批、逐篇索引计数、ES与Qdrant候选、导入重放身份不变、撤回后待审与空语料状态。结果明确为 `PASSED_SYNTHETIC_LIFECYCLE`、`qualityMetrics:null`，不会发送患者咨询或调用外部LLM/rerank。模拟向量可能使最终片段与主题无关，因此不据最终排序断言相关性，也不发布召回率或忠实度。CI在同一个独立数据库/集合/索引命名范围运行此链路。
+
+脚本拒绝非空知识库或其他embedding模型；这些检查和环境声明**不能证明后台数据库、索引或embedding URL实际隔离**，操作者必须核对真实启动配置。失败仅输出固定阶段名，不回显正文或凭据；不要对已有写入的失败实例盲目重跑，应保留日志并重新准备空的隔离实例。成功后11篇仍留在该测试库但已撤回，旧向量和ES快照不自动删除；停掉夹具和测试后端，只按事先记录的测试资源名清理，不运行通配或日常数据卷删除命令。
+
 ## 采集和审核边界
 
 本地待审导入也接受 `.md`：顶部两行 `---` 包围严格JSON。最小头包含schemaVersion、documentId、title、approvalStatus=PENDING_REVIEW、clinicalReviewStatus=NOT_REVIEWED、provenanceFile和provenanceSha256。来源/范围metadata、日期、采集指纹及章节来源放同目录provenance.json；指纹绑定该文件及全部声明的英文快照。旧内联metadata格式仍可读取，但两套metadata不能并存。导入器将受绑定的文档ID、provenance/正文哈希、来源快照清单和抽取告警放入 `metadata.intakeAudit`，与正文一同提交；只有分隔符之后正文进入切分/向量化，审核说明不进入正文。后端保存来源/适用元数据与该审计清单；原始网页正文和章节到来源的逐段映射仍留在本地。客户端哈希记录不等于服务端独立认证来源。
