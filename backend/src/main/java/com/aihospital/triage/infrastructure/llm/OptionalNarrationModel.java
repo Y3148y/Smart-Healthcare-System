@@ -127,6 +127,13 @@ public class OptionalNarrationModel implements NarrationModel {
                     traceId, retrievalStatus, "REFERENCE_INTEGRITY_PASSED", references, checked.adopted(), checked.uncovered(),
                     null, started, generation), review);
         } catch (Exception ex) {
+            var invalidResponse = ConfiguredChatTransport.responseFailure(ex);
+            if (invalidResponse != null) {
+                var usage = invalidResponse.usage;
+                generation = new AnswerEvidence.Generation("OUTPUT_VALIDATION",
+                        invalidResponse.finishReason == null ? null : invalidResponse.finishReason.name(),
+                        usage == null ? null : usage.inputTokenCount(), usage == null ? null : usage.outputTokenCount(), null);
+            }
             if(ex instanceof ContextAssembler.BudgetExceeded budgetFailure){
                 var failure=new AnswerEvidence.Failure(budgetFailure.code,"ContextAssembler",null);
                 return diagnosed(new Answer("本次问题或资料超出处理范围，请简化问题或申请人工导诊。","VALIDATION_BLOCKED",model),
@@ -135,6 +142,9 @@ public class OptionalNarrationModel implements NarrationModel {
             var failure = ModelFailureDiagnostics.classify(ex);
             if ("MODEL_INTERRUPTED".equals(failure.code())) Thread.currentThread().interrupt();
             if (references.isEmpty()) return noEvidenceFallback(traceId, retrievalStatus, failure, started, generation);
+            if (invalidResponse != null)
+                return diagnosed(new Answer(ModelFailureDiagnostics.patientMessage(failure), "VALIDATION_BLOCKED", model),
+                        traceId, retrievalStatus, "SCHEMA_OR_REFERENCE_BLOCKED", references, List.of(), List.of(), failure, started, generation);
             return diagnosed(new Answer(ModelFailureDiagnostics.patientMessage(failure), "FALLBACK", model),
                     traceId, retrievalStatus, "MODEL_UNAVAILABLE", references, List.of(), List.of(), failure, started, generation);
         }

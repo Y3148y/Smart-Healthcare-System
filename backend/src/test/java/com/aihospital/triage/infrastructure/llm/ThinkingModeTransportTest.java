@@ -71,6 +71,44 @@ class ThinkingModeTransportTest {
             assertFalse(json.writeValueAsString(failed).contains("synthetic-secret-provider-error"));
         } finally { server.stop(0); }
     }
+    @Test void missingAnswerContentPreservesStopReasonAndUsageInsteadOfBecomingANetworkFailure() throws Exception {
+        var body = new AtomicReference<String>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/v1/chat/completions", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            byte[] bytes = body.get().getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var stream = exchange.getResponseBody()) { stream.write(bytes); }
+        });
+        server.start();
+        try {
+            var model = model(server, "true");
+            for (var sample : List.of(
+                    new String[]{"length", "OUTPUT_TRUNCATED", "LENGTH"},
+                    new String[]{"content_filter", "OUTPUT_PROVIDER_FILTERED", "CONTENT_FILTER"},
+                    new String[]{"stop", "MODEL_RESPONSE_CONTENT_INVALID", "STOP"})) {
+                body.set("{\"choices\":[{\"finish_reason\":\"" + sample[0]
+                        + "\",\"message\":{\"content\":null,\"reasoning_content\":\"synthetic-private-reasoning\"}}],"
+                        + "\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":4096}}");
+                var answer = turn(model);
+                assertEquals("VALIDATION_BLOCKED", answer.status());
+                assertEquals(sample[1], answer.diagnostics().failure().code());
+                assertEquals("ModelResponseException", answer.diagnostics().failure().causeType());
+                assertEquals("OUTPUT_VALIDATION", answer.diagnostics().generation().phase());
+                assertEquals(sample[2], answer.diagnostics().generation().finishReason());
+                assertEquals(7, answer.diagnostics().generation().inputTokens());
+                assertEquals(4096, answer.diagnostics().generation().outputTokens());
+                assertTrue(answer.diagnostics().adoptedReferenceIds().isEmpty());
+                assertFalse(json.writeValueAsString(answer).contains("synthetic-private-reasoning"));
+            }
+            body.set("synthetic-private-provider-data: invalid JSON");
+            var invalid = turn(model);
+            assertEquals("MODEL_RESPONSE_JSON_INVALID", invalid.diagnostics().failure().code());
+            assertEquals("OUTPUT_VALIDATION", invalid.diagnostics().generation().phase());
+            assertFalse(json.writeValueAsString(invalid).contains("synthetic-private-provider-data"));
+        } finally { server.stop(0); }
+    }
+
     @Test void emptyKeepsExistingAdapterAndInvalidFlagIsRejected() {
         var model=new OptionalNarrationModel();
         ReflectionTestUtils.setField(model,"mode","demo");
@@ -116,7 +154,8 @@ class ThinkingModeTransportTest {
         });server.createContext("/leak",exchange->{downstream.incrementAndGet();exchange.close();});server.start();
         try {
             var client=new ConfiguredChatTransport();String base="http://127.0.0.1:"+server.getAddress().getPort()+"/v1";
-            assertThrows(java.util.concurrent.ExecutionException.class,()->client.generate(base,"synthetic-key","synthetic",false,4096,3,List.of(new dev.langchain4j.data.message.UserMessage("test"))));
+            var oversized = assertThrows(java.util.concurrent.ExecutionException.class,()->client.generate(base,"synthetic-key","synthetic",false,4096,3,List.of(new dev.langchain4j.data.message.UserMessage("test"))));
+            assertEquals("MODEL_RESPONSE_TOO_LARGE", ModelFailureDiagnostics.classify(oversized).code());
             status.set(302);
             var ex=assertThrows(dev.ai4j.openai4j.OpenAiHttpException.class,()->client.generate(base,"synthetic-key","synthetic",false,4096,3,List.of(new dev.langchain4j.data.message.UserMessage("test"))));
             assertEquals(302,ex.code());assertEquals(0,downstream.get());

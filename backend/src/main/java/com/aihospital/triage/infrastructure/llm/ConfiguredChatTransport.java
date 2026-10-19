@@ -16,6 +16,28 @@ import java.util.concurrent.*;
 /** Bounded compatible HTTP transport with LangChain4j messages; no streaming or reasoning retention. */
 final class ConfiguredChatTransport {
     private static final ObjectMapper JSON = new ObjectMapper();
+    enum ResponseIssue {
+        OUTPUT_TRUNCATED, OUTPUT_PROVIDER_FILTERED,
+        MODEL_RESPONSE_JSON_INVALID, MODEL_RESPONSE_CHOICES_INVALID, MODEL_RESPONSE_FINISH_REASON_INVALID,
+        MODEL_RESPONSE_CONTENT_INVALID, MODEL_RESPONSE_UNEXPECTED_TOOL_CALLS,
+        MODEL_RESPONSE_TOOL_CALLS_INVALID, MODEL_RESPONSE_TOOL_CALLS_MISSING, MODEL_RESPONSE_TOO_LARGE
+    }
+    /** Fixed diagnostics only; never retain provider content or reasoning in an exception. */
+    static final class InvalidResponse extends IOException {
+        final ResponseIssue issue;
+        final FinishReason finishReason;
+        final TokenUsage usage;
+        InvalidResponse(ResponseIssue issue) { this(issue, null, null); }
+        InvalidResponse(ResponseIssue issue, FinishReason finishReason, TokenUsage usage) {
+            this.issue = issue; this.finishReason = finishReason; this.usage = usage;
+        }
+    }
+    static InvalidResponse responseFailure(Throwable error) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Throwable cause = error; cause != null && seen.size() < 16 && seen.add(cause); cause = cause.getCause())
+            if (cause instanceof InvalidResponse response) return response;
+        return null;
+    }
     /** Shared wire representation includes tool arguments and results in the input budget. */
     static List<Map<String,Object>> wireMessages(List<ChatMessage> messages){
         var turns = new ArrayList<Map<String,Object>>();
@@ -91,43 +113,55 @@ final class ConfiguredChatTransport {
             // Includes body receipt, rather than timing only response headers. No retries.
             var response = pending.get(seconds, TimeUnit.SECONDS);
             if (response.statusCode() != 200) throw new OpenAiHttpException(response.statusCode(), "");
-            var root = JSON.readTree(response.body());
+            com.fasterxml.jackson.databind.JsonNode root;
+            try { root = JSON.readTree(response.body()); }
+            catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_JSON_INVALID);
+            }
+            if (root == null) throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CHOICES_INVALID);
             var choices = root.path("choices");
-            if (!choices.isArray() || choices.size() != 1) throw new IOException("Invalid model response");
+            if (!choices.isArray() || choices.size() != 1)
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CHOICES_INVALID);
             var choice = choices.get(0); var message = choice.path("message");
             boolean hasTools = message.hasNonNull("tool_calls");
-            if ((hasTools && (tools.isEmpty() || forbidToolCalls))
-                    || (!hasTools && !message.path("content").isTextual()))
-                throw new IOException("Invalid model content");
             FinishReason finish = switch (choice.path("finish_reason").asText()) {
                 case "stop" -> FinishReason.STOP;
                 case "length" -> FinishReason.LENGTH;
                 case "content_filter" -> FinishReason.CONTENT_FILTER;
                 case "tool_calls" -> FinishReason.TOOL_EXECUTION;
-                default -> throw new IOException("Invalid model finish reason");
+                default -> throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_FINISH_REASON_INVALID);
             };
             var usage = root.path("usage");
             TokenUsage tokens = null;
             if (usage.path("prompt_tokens").canConvertToInt() && usage.path("completion_tokens").canConvertToInt())
                 tokens = new TokenUsage(usage.path("prompt_tokens").intValue(), usage.path("completion_tokens").intValue());
+            if (hasTools && (tools.isEmpty() || forbidToolCalls))
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_UNEXPECTED_TOOL_CALLS, finish, tokens);
+            if (!hasTools && finish == FinishReason.TOOL_EXECUTION)
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_TOOL_CALLS_MISSING, finish, tokens);
+            if (!hasTools && (!message.path("content").isTextual() || message.path("content").asText().isBlank())) {
+                ResponseIssue issue = finish == FinishReason.LENGTH ? ResponseIssue.OUTPUT_TRUNCATED
+                        : finish == FinishReason.CONTENT_FILTER ? ResponseIssue.OUTPUT_PROVIDER_FILTERED
+                        : ResponseIssue.MODEL_RESPONSE_CONTENT_INVALID;
+                throw new InvalidResponse(issue, finish, tokens);
+            }
             if (hasTools) {
                 var requested = message.path("tool_calls");
                 if (finish != FinishReason.TOOL_EXECUTION || !requested.isArray() || requested.isEmpty() || requested.size() > 4)
-                    throw new IOException("Invalid tool response");
+                    throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_TOOL_CALLS_INVALID, finish, tokens);
                 var requests = new ArrayList<ToolExecutionRequest>(); var ids = new HashSet<String>();
                 for (var item : requested) {
                     var function = item.path("function"); String id = item.path("id").asText();
                     if (!id.matches("[A-Za-z0-9_-]{1,128}") || !ids.add(id) || !"function".equals(item.path("type").asText())
                             || !function.path("name").isTextual() || !function.path("arguments").isTextual()
                             || function.path("name").asText().length() > 80 || function.path("arguments").asText().length() > 2400)
-                        throw new IOException("Invalid tool request");
+                        throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_TOOL_CALLS_INVALID, finish, tokens);
                     requests.add(ToolExecutionRequest.builder().id(id).name(function.path("name").asText())
                             .arguments(function.path("arguments").asText()).build());
                 }
                 // Accompanying free text is not a checked patient answer and is deliberately discarded.
                 return Response.from(AiMessage.from(requests), tokens, finish);
             }
-            if (finish == FinishReason.TOOL_EXECUTION) throw new IOException("Missing tool calls");
             return Response.from(AiMessage.from(message.path("content").textValue()), tokens, finish);
         } finally { pending.cancel(true); }
     }
@@ -145,7 +179,7 @@ final class ConfiguredChatTransport {
             if (terminal) return;
             for (ByteBuffer buffer : buffers) size += buffer.remaining();
             if (size > maximum) {
-                terminal = true; subscription.cancel(); delegate.onError(new IOException("Model response exceeds limit"));
+                terminal = true; subscription.cancel(); delegate.onError(new InvalidResponse(ResponseIssue.MODEL_RESPONSE_TOO_LARGE));
             } else delegate.onNext(buffers);
         }
         public void onError(Throwable error) { if (!terminal) { terminal = true; delegate.onError(error); } }

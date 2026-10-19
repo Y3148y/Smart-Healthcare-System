@@ -35,6 +35,7 @@ final class ModelFailureDiagnostics {
         return new Failure(result.code(), result.causeType(), result.httpStatus(), chain, List.copyOf(locations));
     }
     private static String typeLabel(Throwable cause) {
+        if (cause instanceof ConfiguredChatTransport.InvalidResponse) return "ModelResponseException";
         if (cause instanceof OpenAiHttpException) return "OpenAiHttpException";
         if (cause instanceof SocketTimeoutException) return "SocketTimeoutException";
         if (cause instanceof java.io.InterruptedIOException) return "InterruptedIOException";
@@ -55,6 +56,8 @@ final class ModelFailureDiagnostics {
         Throwable io = null;
         for (Throwable cause = error; cause != null && seen.size() < 16 && seen.add(cause); cause = cause.getCause()) {
             last = cause;
+            if (cause instanceof ConfiguredChatTransport.InvalidResponse response)
+                return failure(response.issue.name(), cause, null);
             if (cause instanceof SocketTimeoutException || cause instanceof HttpTimeoutException || cause instanceof TimeoutException)
                 return failure("MODEL_TIMEOUT", cause, null);
             if (cause instanceof InterruptedException) return failure("MODEL_INTERRUPTED", cause, null);
@@ -88,7 +91,7 @@ final class ModelFailureDiagnostics {
     static String patientMessage(Failure failure) {
         if ("OUTPUT_SUPPORT_REJECTED".equals(failure.code())) return "这次生成内容未通过问题与资料依据核对，相关内容未采用。您可以继续说明需要了解的问题，或申请人工导诊。";
         if ("REVIEW_UNAVAILABLE".equals(failure.code())) return "这次回答的依据核对暂未完成，生成内容尚未采用。可以稍后重试或申请人工导诊。";
-        if (failure.code().startsWith("OUTPUT_")) return "这次AI回答未通过校验，未采用生成内容。"
+        if (failure.code().startsWith("OUTPUT_") || failure.code().startsWith("MODEL_RESPONSE_")) return "这次AI回答未通过校验，未采用生成内容。"
                 + "可以稍后重试或申请人工导诊；本次失败不能作为病情判断或具体护理建议。";
         String lead = switch (failure.code()) {
             case "MODEL_TIMEOUT", "PROVIDER_TIMEOUT" -> "这次AI回答等待超时，未能完成。";
