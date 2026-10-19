@@ -1,5 +1,16 @@
 const {test}=require('node:test'),assert=require('node:assert/strict')
 const {localTestTarget}=require('./local-test-target.cjs')
+test('live audit preserves measured zero, missing usage and partial usage without network calls',()=>{
+  const {assertMeasuredUsage}=require('./test-triage-audit-live.cjs')
+  assert.doesNotThrow(()=>assertMeasuredUsage({inputTokens:0,outputTokens:0},{inputTokens:0,outputTokens:0}))
+  assert.doesNotThrow(()=>assertMeasuredUsage({inputTokens:null,outputTokens:null},undefined))
+  assert.doesNotThrow(()=>assertMeasuredUsage({inputTokens:7,outputTokens:null},{inputTokens:7}))
+  assert.doesNotThrow(()=>assertMeasuredUsage({inputTokens:7,outputTokens:9},{inputTokens:7,outputTokens:9}))
+  assert.throws(()=>assertMeasuredUsage({inputTokens:null,outputTokens:null},{inputTokens:0,outputTokens:0}))
+  assert.throws(()=>assertMeasuredUsage({inputTokens:0,outputTokens:0},{}))
+  for(const value of [-1,NaN,Infinity,1.5,'0',Number.MAX_SAFE_INTEGER+1])
+    assert.throws(()=>assertMeasuredUsage({inputTokens:value,outputTokens:null},{inputTokens:value}),/Invalid usage measurement/)
+})
 test('all mutating probe entry points fail before browser dependencies or networking',()=>{
   const {spawnSync}=require('node:child_process'),path=require('node:path')
   for(const name of ['test-admin-ui.cjs','test-catalog-ui.cjs','test-human-review-ui.cjs',

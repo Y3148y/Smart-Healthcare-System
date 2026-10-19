@@ -1,9 +1,15 @@
 // Explicit live integration check. Creates one synthetic lisi session, no booking or catalogue writes.
 // Medical text is sent by the configured backend to its existing provider. No credentials or text printed.
 const assert = require('node:assert/strict')
-const base = require('./local-test-target.cjs').localTestTarget(process.env.AI_HOSPITAL_BASE_URL)
-const endpoint = new URL(base)
-assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname), 'This probe is local-only')
+let base
+
+function assertMeasuredUsage(record, measurement) {
+  for (const field of ['inputTokens', 'outputTokens']) {
+    const measured = measurement?.[field] ?? null
+    assert.ok(measured === null || Number.isSafeInteger(measured) && measured >= 0, 'Invalid usage measurement')
+    assert.equal(record[field], measured, 'Measured usage mismatch')
+  }
+}
 
 async function request(path, token, body) {
   const response = await fetch(base + '/api' + path, {
@@ -20,6 +26,7 @@ async function login(username) {
   return response.data.token
 }
 async function main() {
+  base = require('./local-test-target.cjs').localTestTarget(process.env.AI_HOSPITAL_BASE_URL)
   const admin = await login('admin')
   const patient = await login('lisi')
   assert.equal((await request('/admin/calls')).status, 401)
@@ -76,18 +83,12 @@ async function main() {
   }
   const generation = calls.data.find(item => item.id === diagnostics.traceId)
   assert.ok(generation, 'Answer and call record not linked; restart the new backend')
-  for (const field of ['inputTokens', 'outputTokens']) {
-    const measured = diagnostics.generation?.[field]
-    assert.equal(generation[field], measured > 0 ? measured : null, 'Generation usage mismatch')
-  }
+  assertMeasuredUsage(generation, diagnostics.generation)
   if (diagnostics.supportReview) {
     const review = calls.data.find(item => item.id === diagnostics.traceId + '-review')
     assert.ok(review, 'Separate review audit missing')
     assert.equal(review.success, diagnostics.supportReview.status === 'PASSED')
-    for (const field of ['inputTokens', 'outputTokens']) {
-      const measured = diagnostics.supportReview[field]
-      assert.equal(review[field], measured > 0 ? measured : null, 'Review usage mismatch')
-    }
+    assertMeasuredUsage(review, diagnostics.supportReview)
   }
   const live = ['LIVE', 'LIVE_UNGROUNDED'].includes(provenance.modelStatus)
   if (!live || diagnostics.failure) assert.equal(generation.success, false, 'Failed answer counted as successful')
@@ -98,4 +99,5 @@ async function main() {
   assert.ok(live && !diagnostics.failure, 'Real model answer did not pass; telemetry checks do not imply answer quality')
   assert.equal(diagnostics.supportReview?.status, 'PASSED', 'Support review did not pass')
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1 })
+module.exports = {assertMeasuredUsage}
+if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1 })
