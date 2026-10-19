@@ -1,6 +1,6 @@
 # 知识源工具
 
-本工具维护来源记录、准备本地待审资料包，并在显式选择后将资料创建为 `PENDING_REVIEW`。它不把医学正文打包进应用、不写应用资源目录，也不审批资料。来源快照和生成资料包保存在本机忽略目录。
+本工具维护来源记录、准备本地待审资料包，并在显式选择后将资料创建为 `PENDING_REVIEW`。普通采集和待审导入不审批资料；仅下文显式授权的隔离本机测试准入命令可调用审批接口。工具不把医学正文打包进应用、不写应用资源目录。来源快照和生成资料包保存在本机忽略目录。
 
 目录统一为项目根knowledge/sources/（原始网页快照）和reports/knowledge-sync/（采集报告、intake待审包、proposals工作单）；11篇公开示例正文及必要来源文本见knowledge/corpus/。本机抓取缓存和待审包被Git忽略；公开语料的许可边界见knowledge/LICENSE.md。
 
@@ -17,7 +17,8 @@
 | `npm test` | 否 | 测试来源抓取与待审导入包校验。 |
 | `npm run sources` | 否 | 输出登记的来源 ID、URL 和采集方式。 |
 | `npm run fetch -- --dry-run` | 是 | 抓取可采集来源，不更新本地状态。 |
-| `npm run fetch` | 是 | 抓取到期来源并保存本地快照和哈希。 |
+| `npm run fetch` | 是 | 抓取全部自动采集来源并保存本地快照和哈希。 |
+| `npm run fetch -- --cycle` | 是 | 仅抓取到期（含尚未采集）的自动采集来源，按登记的复查周期筛选。 |
 | `npm run fetch -- <id>` | 是 | 只抓指定来源。 |
 | `npm run diff` | 否 | 在本地生成来源变更报告。 |
 | `npm run proposals` | 否 | 为来源变更生成本地编辑工作单。 |
@@ -42,7 +43,7 @@
 
 使用 `npm run import:local -- document.md` 先离线校验；加 `--apply` 才创建待审记录。contentKind沿用后端 reviewed_summary 枚举，这个名称不表示已经完成医学审核。
 
-`node validate-document.mjs --corpus` 跨平台一次校验全部公开正文及来源快照；传入具体MD路径可校验单篇或多篇。命令只读、无网络，不导入或审批；拒绝路径穿越、缺失来源或指纹漂移。JDK17编译后可用 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 检查实际切分片段的长度、偏移、哈希、确定性及每个原文段落完整落在一个片段内；`--self-test` 验证完整短段可通过、被切开的长段被拒绝。长段落如果跨片段，会要求人工检查而非静默通过。短片段数量仅供人工审视，段落完整不等于临床条件完整。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
+`node validate-document.mjs --corpus` 跨平台一次校验全部公开正文及来源快照；传入具体MD路径可校验单篇或多篇。命令只读、无网络，不导入或审批；拒绝路径穿越、缺失来源或指纹漂移。从仓库根目录，在JDK17编译后运行 `java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus`，检查实际切分片段的长度、偏移、哈希、确定性及每个原文段落完整落在一个片段内；`--self-test` 验证完整短段可通过、被切开的长段被拒绝。长段落如果跨片段，会要求人工检查而非静默通过。短片段数量仅供人工审视，段落完整不等于临床条件完整。新修订必须重新审核、索引和评估，旧版本查询结果不能替代新版本验收。
 
 新增NLM来源仅提取MedlinePlus健康主题页的topic-summary区域；找不到或区域重复则拒绝，不回退整页。依据官方使用说明，该区域政府编写的摘要可复用；百科、药物、图片及外链内容不在此许可范围。本机英文摘要与中文整理稿仍需逐段核查，来源可复用不等于临床审核完成。历史受限百科ID与新感冒摘要ID分离。
 
