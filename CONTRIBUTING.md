@@ -28,6 +28,9 @@
 | 观察回看与运行链路组件 | `node scripts/test-observation-trace-ui.cjs` | 随机本机端口、真实 Chromium、合成 GET 拦截 |
 | 容器业务闭环 | `scripts/test-container-smoke.cjs`、`scripts/test-container-journey.cjs` | 隔离 demo/OFF；真实 HTTP 合成写入，CI 执行 |
 | 公开 11 篇资料生命周期 | `scripts/test-corpus-lifecycle.mjs` | 隔离 MySQL/ES/Qdrant；等向量夹具，不验证语义质量 |
+| 官方MCP工具互操作 | `McpOfficialClientIntegrationTest`，显式`ai.test.mcp-client=true` | 随机回环HTTP、官方SDK、独立H2；无外部模型，见docs/AGENT |
+| 知识发布/回滚与保留 | `KnowledgePublicationTest` | 默认独立H2；CI另用显式隔离MySQL，索引故障注入与实际远端索引测试分开 |
+| exact/HNSW对照 | `tools/rag-eval/ann-benchmark.mjs --apply` | 唯一随机合成集合及精确清理；ANN Recall不是医学质量 |
 | 知识审批、预约确认浏览器闭环 | `scripts/test-knowledge-approval-ui.cjs`、`scripts/test-booking-confirmation-ui.cjs` | 隔离 demo/OFF；真实浏览器写入，CI 执行 |
 | 目录、本人资料、人工导诊浏览器检查 | `scripts/test-catalog-ui.cjs`、`scripts/test-patient-profile-ui.cjs`、`scripts/test-human-review-ui.cjs` | 可选隔离本机写入；不是默认 CI 组 |
 | 已配置模型的调用与用量关联 | `scripts/test-triage-audit-live.cjs` | 显式本机目标；会请求模型、留下合成会话 |

@@ -69,11 +69,20 @@ jobs:
         env:
           KNOWLEDGE_TEST_PASSWORD: synthetic-ci-only
         run: ./mvnw --batch-mode -Dtest=KnowledgeRevisionCoherenceTest -Dai.test.knowledge-db-url=jdbc:mysql://127.0.0.1:3306/ai_hospital_revision_test test
+      - name: Create isolated publication database
+        run: docker exec -e MYSQL_PWD=synthetic-ci-only ${{ job.services.mysql.id }} mysql -uroot -e 'CREATE DATABASE ai_hospital_publication_test;'
+      - name: Verify publication CAS, approval epochs and retention on MySQL
+        working-directory: backend
+        env:
+          KNOWLEDGE_TEST_PASSWORD: synthetic-ci-only
+        run: ./mvnw --batch-mode -Dtest=KnowledgePublicationTest -Dai.test.publication-db-url=jdbc:mysql://127.0.0.1:3306/ai_hospital_publication_test test
       - name: Verify synthetic indexing against Qdrant
         working-directory: backend
         run: >-
           ./mvnw --batch-mode -Dtest=QdrantLiveIntegrationTest
           -Dai.test.qdrant-url=http://127.0.0.1:6333 test
+      - name: Compare exact and indexed ANN on a disposable synthetic collection
+        run: node tools/rag-eval/ann-benchmark.mjs --apply --url http://127.0.0.1:6333 --output reports/rag/ann-ci.json --points 1000 --dimensions 32 --queries 10
       - name: Verify Elasticsearch lexical indexing and native CJK analysis
         working-directory: backend
         run: ./mvnw --batch-mode -Dtest=ElasticsearchLiveIntegrationTest -Dai.test.elasticsearch-url=http://127.0.0.1:9201 test
