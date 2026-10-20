@@ -37,6 +37,7 @@ final class MedicalAnswerInstructions {
                 + "仅缺失信息会改变就医方向或安全判断时追问；尊重本轮不追问意愿，不重复已回答的问题。"
                 + "护理问题只解释资料确实写出的护理信息；资料仅介绍导诊时，说明护理问题未覆盖。"
                 + "正文尽量使用2至3个短句，总正文不超过1200字。只输出完整JSON对象，不使用围栏。"
+                + "每句医学信息须能由一个已引用片段直接支持；需要不同资料时分句，并保留完整适用条件。"
                 + (hasReferences
                     ? "格式为{\"paragraphs\":[{\"text\":\"正文\",\"kind\":\"GENERAL_INFORMATION\",\"referenceIds\":[\"E1\"]}],"
                     : "格式为{\"paragraphs\":[{\"text\":\"本轮资料不足以回答具体问题\",\"kind\":\"LIMITATION\",\"referenceIds\":[]}],")

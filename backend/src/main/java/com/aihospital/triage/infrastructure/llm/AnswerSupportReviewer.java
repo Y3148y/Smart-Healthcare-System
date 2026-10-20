@@ -37,11 +37,33 @@ final class AnswerSupportReviewer {
     private static final List<String> CODES = List.of("UNSUPPORTED_CLAIM", "CONDITION_NOT_ESTABLISHED",
             "OFF_TOPIC", "SERVICE_CONTENT", "WRONG_REFERENCE", "QUESTION_NOT_JUSTIFIED");
     static final String PROOF_INSTRUCTIONS="本次输出格式扩展为上述六个布尔字段加paragraphChecks，取代前文仅六字段的格式限制。paragraphChecks数组只覆盖GENERAL_INFORMATION段落。每项含paragraphIndex(从0起)和claims数组。"
-            +"每条claim必须含text、referenceId、evidenceQuote、supported、conditionsPreserved。按原段落顺序切分所有断言，text逐项拼接须与该段原文完全相同，不能省略无依据的词或建议。"
+            +"本次已由服务端按完整句子提供claimUnits；每条claim必须含claimId、referenceId、evidenceQuote、supported、conditionsPreserved。逐一核对全部claimUnits，每个id恰好一次，不得省略；不要复写或改写text。"
+            +"每个单元可能包含多项断言，supported=true要求其中所有事实和建议均有直接支持；必须结合完整段落和患者上下文判断条件，不能只核对单元中的一部分。"
             +"referenceId须为该段实际采用ID，evidenceQuote须逐字摘自该引用正文，不能从其他段、标题或自己的医学知识补证据。"
             +"逐条判断阶段、主体、时间、否定、病程和建议：来源的前一阶段现象不能改写为后一阶段；描述可能诱因不等于来源建议识别或避免它。"
             +"没有直接支持或无法确认时supported=false；条件改变时conditionsPreserved=false。可用六项false并返回空paragraphChecks表达拒绝。"
-            +"LIMITATION不生成医学证明；禁止额外字段、思考链或说明。示例结构：paragraphChecks:[{paragraphIndex:0,claims:[{text:'原段落全文',referenceId:'E1',evidenceQuote:'引用中的原句',supported:true,conditionsPreserved:true}]}]。";
+            +"LIMITATION不生成医学证明；禁止额外字段、思考链或说明。示例结构：paragraphChecks:[{paragraphIndex:0,claims:[{claimId:'P0S0',referenceId:'E1',evidenceQuote:'引用中的原句',supported:true,conditionsPreserved:true}]}]。";
+    record ClaimUnit(String id,int paragraphIndex,String text) {}
+    /** Mechanical sentence coverage, not medical atomization. Keep the whole paragraph in the request. */
+    static List<ClaimUnit> claimUnits(Draft draft) {
+        var result=new ArrayList<ClaimUnit>();
+        for(int index=0;index<draft.paragraphs().size();index++) {
+            var paragraph=draft.paragraphs().get(index);
+            if(!"GENERAL_INFORMATION".equals(paragraph.kind()))continue;
+            String text=paragraph.text();var pieces=new ArrayList<String>();int start=0;
+            var boundary=java.util.regex.Pattern.compile("[。！？]+|[.!?]+(?=\\s|$)").matcher(text);
+            while(boundary.find()) {pieces.add(text.substring(start,boundary.end()));start=boundary.end();}
+            if(start<text.length()) {
+                String tail=text.substring(start);
+                if(tail.isBlank()&&!pieces.isEmpty())pieces.set(pieces.size()-1,pieces.get(pieces.size()-1)+tail);
+                else pieces.add(tail);
+            }
+            if(pieces.isEmpty())throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
+            for(int sentence=0;sentence<pieces.size();sentence++)result.add(new ClaimUnit("P"+index+"S"+sentence,index,pieces.get(sentence)));
+        }
+        if(result.size()>24)throw new InvalidReview("REVIEW_PROOF_TOO_MANY_UNITS");
+        return List.copyOf(result);
+    }
     record Decision(String status, List<String> issues) {}
     @FunctionalInterface interface Caller { Response<AiMessage> call(List<ChatMessage> messages) throws Exception; }
 
@@ -70,8 +92,10 @@ final class AnswerSupportReviewer {
                 if (size + turn.content().length() > 4000) break;
                 patient.add(0, turn); size += turn.content().length();
             }
-            String payload = JSON.writeValueAsString(Map.of("currentRequest", request, "patientStatements", patient,
-                    "references", references, "draft", draft));
+            var data=new LinkedHashMap<String,Object>();data.put("currentRequest",request);data.put("patientStatements",patient);
+            data.put("references",references);data.put("draft",draft);
+            if(requireProof)data.put("claimUnits",claimUnits(draft));
+            String payload = JSON.writeValueAsString(data);
             var messages=List.<ChatMessage>of(new SystemMessage(INSTRUCTIONS+(requireProof?PROOF_INSTRUCTIONS:"")+MedicalAnswerInstructions.task(request)),
                     new UserMessage("<review_data>"+payload+"</review_data>"));
             ContextAssembler.reserveMessages(messages,"ANSWER_REVIEW",inputBudget,turnBudget);
@@ -128,6 +152,7 @@ final class AnswerSupportReviewer {
         var base=parse(JSON.writeValueAsString(root),draft);
         if(!base.issues().isEmpty())return base;
         var byId=new HashMap<String,Reference>();references.forEach(r->byId.put(r.id(),r));
+        var units=claimUnits(draft);
         var covered=new HashSet<Integer>();var issues=new LinkedHashSet<String>();int total=0;
         for(var proof:proofs) {
             if(!proof.isObject()||proof.size()!=2||!proof.path("paragraphIndex").isIntegralNumber()||!proof.path("paragraphIndex").canConvertToInt()||!proof.path("claims").isArray())throw new InvalidReview("REVIEW_PROOF_INVALID");
@@ -135,18 +160,22 @@ final class AnswerSupportReviewer {
             if(index<0||index>=draft.paragraphs().size()||!covered.add(index))throw new InvalidReview("REVIEW_PROOF_INVALID");
             var paragraph=draft.paragraphs().get(index);
             if(!"GENERAL_INFORMATION".equals(paragraph.kind())||proof.path("claims").isEmpty())throw new InvalidReview("REVIEW_PROOF_INVALID");
-            var joined=new StringBuilder();
+            var joined=new StringBuilder();var unitIds=new HashSet<String>();
+            var expected=units.stream().filter(unit->unit.paragraphIndex()==index).map(ClaimUnit::id).collect(java.util.stream.Collectors.toSet());
+            boolean identified=proof.path("claims").get(0).has("claimId");
             for(var claim:proof.path("claims")) {
-                if(++total>24||!claim.isObject()||claim.size()!=5||!claim.path("text").isTextual()||claim.path("text").asText().isEmpty()
+                if(++total>24||!claim.isObject()||claim.size()!=5
+                        ||identified&&(!claim.path("claimId").isTextual()||!expected.contains(claim.path("claimId").asText())||!unitIds.add(claim.path("claimId").asText()))
+                        ||!identified&&(!claim.path("text").isTextual()||claim.path("text").asText().isEmpty())
                         ||!claim.path("referenceId").isTextual()||!claim.path("evidenceQuote").isTextual()
                         ||!claim.path("supported").isBoolean()||!claim.path("conditionsPreserved").isBoolean())throw new InvalidReview("REVIEW_PROOF_INVALID");
-                joined.append(claim.path("text").asText());
+                if(!identified)joined.append(claim.path("text").asText());
                 String id=claim.path("referenceId").asText(),quote=claim.path("evidenceQuote").asText();var reference=byId.get(id);
                 if(reference==null||!paragraph.referenceIds().contains(id)||quote.isBlank()||quote.length()>1000||!reference.excerpt().contains(quote))issues.add("WRONG_REFERENCE");
                 if(!claim.path("supported").booleanValue())issues.add("UNSUPPORTED_CLAIM");
                 if(!claim.path("conditionsPreserved").booleanValue())issues.add("CONDITION_NOT_ESTABLISHED");
             }
-            if(!joined.toString().equals(paragraph.text()))throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
+            if(identified?!unitIds.equals(expected):!joined.toString().equals(paragraph.text()))throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
         }
         for(int i=0;i<draft.paragraphs().size();i++)if("GENERAL_INFORMATION".equals(draft.paragraphs().get(i).kind())&&!covered.contains(i))throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
         return new Decision(issues.isEmpty()?"PASSED":"REJECTED",List.copyOf(issues));
