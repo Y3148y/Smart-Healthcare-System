@@ -33,6 +33,14 @@ test('offline scoring rejects corpus drift and separates missing labels',()=>{
     const result=JSON.parse(valid.stdout);assert.equal(result.unlabelled,1);
     assert.equal(result.unreviewedAnswers,1);assert.equal(result.summary.recallAtK.value,1);
     assert.equal(result.reviewStatus,'UNSPECIFIED');assert.equal(result.split,'UNSPECIFIED');
+    assert.equal(result.reviewerType,'UNSPECIFIED');
+    writeFileSync(labels,JSON.stringify({...label,reviewStatus:'AI_ASSISTED_REVIEWED',reviewerType:'AI_ASSISTED'}));
+    const aiResult=run();assert.equal(aiResult.status,0,aiResult.stderr);
+    assert.equal(JSON.parse(aiResult.stdout).reviewerType,'AI_ASSISTED');
+    assert.match(JSON.parse(aiResult.stdout).reviewNotice,/not human gold/);
+    writeFileSync(labels,JSON.stringify({...label,reviewStatus:'AI_ASSISTED_REVIEWED',reviewerType:'HUMAN'}));
+    assert.equal(run().status,1);
+    writeFileSync(labels,JSON.stringify(label));
     assert.equal(result.summary.answerCorrectness.value,null);
     assert.equal(result.summary.retrievalStages.bm25.recallAtK.value,1);
     assert.equal(result.summary.retrievalStages.qdrant.recallAtK.value,1);

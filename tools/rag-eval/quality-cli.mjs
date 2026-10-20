@@ -2,12 +2,14 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {retrievalQuality,summarizeQuality,summarizeRetrievalStages} from './quality.mjs';
+import {reviewProvenance} from './review-provenance.mjs';
 
 try {
   const [reportPath,labelPath,kArgument='3']=process.argv.slice(2);
   if (!reportPath || !labelPath) throw new Error('Usage: node quality-cli.mjs report.json reviewed-labels.json [k]');
   const report=JSON.parse(readFileSync(reportPath,'utf8'));
   const labels=JSON.parse(readFileSync(labelPath,'utf8'));
+  const provenance=reviewProvenance(labels);
   if (!Array.isArray(report.results) || labels.schemaVersion !== 1 || !Array.isArray(labels.cases)
       || !labels.corpusSha256 || labels.corpusSha256 !== report.corpus?.sha256)
     throw new Error('Labels must match the exact report corpus snapshot');
@@ -96,6 +98,7 @@ try {
     unreviewedAnswers++;
   }
   console.log(JSON.stringify({labelVersion:labels.labelVersion ?? null,reviewer:labels.reviewer ?? null,
+    ...provenance,
     reviewStatus:labels.reviewStatus ?? 'UNSPECIFIED',clinicalReview:labels.clinicalReview ?? 'UNSPECIFIED',
     split:labels.split ?? 'UNSPECIFIED',
     reportCases:report.results.length,unlabelled,unreviewedAnswers,

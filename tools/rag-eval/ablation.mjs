@@ -1,6 +1,7 @@
 // Offline replay of captured candidates, not a new retrieval/model execution.
 import {createHash} from 'node:crypto';
 import {retrievalQuality} from './quality.mjs';
+import {reviewProvenance} from './review-provenance.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const identity = chunk => `${chunk.documentVersion}:${chunk.contentSha256}`;
@@ -126,7 +127,8 @@ export function compareRetrievalRuns(reports,labels=null,{k=3,rrfKs=[10,30,60,10
       JSON.stringify(runs[0].cases.find(other=>other.id===item.id).rankings.captured_final.identities)).length,
     cases:run.cases.length}));
   return {schemaVersion:1,corpusSha256:reference.corpus.sha256,k,rrfKs,
-    review:{status:labels?.reviewStatus??'UNLABELLED',reviewer:labels?.reviewer??null,split:labels?.split??'UNSPECIFIED'},
+    review:{status:labels?.reviewStatus??'UNLABELLED',reviewer:labels?.reviewer??null,split:labels?.split??'UNSPECIFIED',
+      ...reviewProvenance(labels)},
     interpretation:'Offline replay of captured top-depth candidates, not a fresh retrieval or latency benchmark. RRF variants are before safety/negation gates, semantic reserve and rerank; captured_final is the actual saved result. Scores require exhaustive query-bound labels; no answer faithfulness or clinical accuracy is inferred.',
     runs,differences};
 }

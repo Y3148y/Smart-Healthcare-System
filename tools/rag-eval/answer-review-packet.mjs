@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import {confidenceCalibration} from './quality.mjs';
+import {reviewProvenance} from './review-provenance.mjs';
 
 const sha256=text=>createHash('sha256').update(text,'utf8').digest('hex');
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -118,6 +119,7 @@ export function answerReviewPacket(conversation) {
 export function scoreAnswerReviewPacket(packet) {
   if(packet?.schemaVersion!==1||packet.kind!=='PERSISTED_ANSWER_REVIEW'||!Array.isArray(packet.cases))
     throw new Error('Invalid persisted-answer review packet');
+  const provenance=reviewProvenance(packet);
   const seen=new Set(),scored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
   for(const item of packet.cases) {
     if(typeof item.messageId!=='string'||!item.messageId||seen.has(item.messageId)) throw new Error('Invalid or duplicate answer message identity');
@@ -155,6 +157,7 @@ export function scoreAnswerReviewPacket(packet) {
   const faithfulness=scored.filter(q=>typeof q.faithfulness==='number');
   const ratio=(n,d)=>d?n/d:null;
   return {reviewStatus:packet.reviewStatus??'UNSPECIFIED',reviewer:packet.reviewer??null,
+    ...provenance,
     clinicalReview:packet.clinicalReview??'UNSPECIFIED',reviewedAnswers:correctness.length,unreviewed,unreviewable,
     answerCorrectness:{value:ratio(correctness.filter(q=>q.correct===true).length,correctness.length),evaluated:correctness.length},
     faithfulness:{value:ratio(faithfulness.reduce((n,q)=>n+q.faithfulness,0),faithfulness.length),

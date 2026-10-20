@@ -31,8 +31,17 @@ test('offline RRF replay uses reciprocal ranks and never treats missing labels a
   assert.equal(run.strategies.bm25.recallAtK.evaluated,0);
   assert.equal(rankings.captured_final.quality,null);
   assert.equal(run.unlabelledCases,1);
+  assert.equal(result.review.reviewerType,'UNSPECIFIED');
   assert.equal(JSON.stringify(result).includes('synthetic query'),false,'Do not copy patient queries to comparison output');
   assert.equal(JSON.stringify(result).includes('alpha synthetic'),false,'Do not duplicate corpus text');
+});
+
+test('RRF comparisons preserve AI-assisted label provenance rather than silently implying human gold',()=>{
+  const {report,labels}=fixture();
+  const aiLabels={...labels,reviewStatus:'AI_ASSISTED_REVIEWED',reviewerType:'AI_ASSISTED'};
+  const result=compareRetrievalRuns([report],aiLabels);
+  assert.equal(result.review.reviewerType,'AI_ASSISTED');assert.match(result.review.reviewNotice,/not human gold/);
+  assert.throws(()=>compareRetrievalRuns([report],{...aiLabels,reviewerType:'HUMAN'}));
 });
 
 test('query-bound exhaustive labels score routes independently and compare exact matching runs',()=>{

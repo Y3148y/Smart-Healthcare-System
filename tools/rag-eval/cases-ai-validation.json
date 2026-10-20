@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "labelVersion": "public-corpus-ai-designed-validation-2026-10-20-v1",
+  "reviewStatus": "NOT_CLINICALLY_REVIEWED",
+  "split": "AI_DESIGNED_VALIDATION",
+  "labelAuthor": "AI_REVIEWER",
+  "frozenBeforeRetrieval": "2026-10-20",
+  "note": "Queries frozen by the read-only AI reviewer before observing their retrieval results. Not human gold labels, an independent human holdout, clinical truth or population accuracy. Expected titles are only topic smoke targets; chunk-quality scoring requires the separately bound exhaustive AI-assisted labels. Do not change queries or labels after viewing rankings to inflate scores.",
+  "cases": [
+    {"id":"ai-v01","query":"头晕时还能开车、爬梯吗？起床应注意什么？","expectedTitle":"头晕：表现、安全照护与医疗评估"},
+    {"id":"ai-v02","query":"偏头痛的疼痛已经停止，但还很疲惫虚弱，恢复期会持续多久？","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
+    {"id":"ai-v03","query":"偏头痛日记该记哪些内容？是否所有患者都必须统一禁食某类食物？","expectedTitle":"偏头痛：表现、病程、就医条件与日常管理"},
+    {"id":"ai-v04","query":"痛经和月经前一两周的腹胀、易怒是一回事吗？","expectedTitle":"痛经：表现、照护与就医评估"},
+    {"id":"ai-v05","query":"手腕骨折打石膏后能弄湿或自己伸东西抓痒吗？手指变白、有异味时怎么办？","expectedTitle":"手臂或腕部疑似骨折：就医与恢复注意事项"},
+    {"id":"ai-v06","query":"一岁以下婴儿咳嗽可以喝蜂蜜吗？这只是一般知识问题。","expectedTitle":"咳嗽：病程、一般照护与就医条件"},
+    {"id":"ai-v07","query":"普通感冒吃抗生素能好得更快吗？复方感冒药叠加止痛药有什么问题？","expectedTitle":"普通感冒：表现、一般照护、传播与就医条件"},
+    {"id":"ai-v08","query":"只有流鼻涕，没有咳嗽，能仅凭这个确认是感冒吗？","expectedTitle":"普通感冒：表现、一般照护、传播与就医条件"},
+    {"id":"ai-v09","query":"只有胸痛、没有腹痛，能拿腹痛的病因表来解释我的胸痛吗？","expectedTitle":"胸痛：立即求助与进一步评估"},
+    {"id":"ai-v10","query":"昨天突然口角歪、手臂无力、说话含糊，现在好了，还需要求助吗？能自己开车吗？","expectedTitle":"卒中警示：突然神经症状与立即求助"},
+    {"id":"ai-v11","query":"嘴唇和喉咙突然肿、呼吸费力，但没有皮疹，能排除严重过敏吗？","expectedTitle":"严重过敏反应：危险表现与就医边界"},
+    {"id":"ai-v12","query":"只有耳鸣，没有头晕或眩晕，应该选哪种助听器？","expectedTitle":null}
+  ]
+}
