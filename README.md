@@ -226,7 +226,7 @@ CI 的 MySQL 业务步骤还启用 `DurableTurnProcessIntegrationTest`：登记�
 
 `BookingConfirmationProcessIntegrationTest` 用两个真正的JDK17子JVM和同一隔离MySQL验证重复确认单回执/单扣号，以及不同动作竞争最后一号。子进程强制demo/OFF、不启动Web端口，默认跳过；本机显式设置 `-Dai.test.booking-process-race=true` 并提供带端口的loopback MySQL测试库才执行。CI MySQL步骤已配置启用，配置不等于远端已运行。这验证事务一致性，不是预约吞吐或真实模型性能测试。
 
-旧版写入/真实模型探针（`scripts/test-*-live.cjs` 以及 `test-admin-ui`、`test-catalog-ui`、`test-human-review-ui`、`test-patient-profile-ui`）必须显式设置脚本使用的 `ADMIN_TEST_BASE_URL` 或 `AI_HOSPITAL_BASE_URL`，并传入 `--apply`。仅接受不含凭据的本机 HTTP origin；请使用隔离测试实例，它们可能留下合成会话、预约、资料或消耗模型额度。浏览器探针另需在 `NODE_PATH` 中提供 Playwright，不属于默认安装/验收命令。日常只读检查优先使用 `test-ui-readonly.cjs`，无需该写入开关。离线 SSE 检查 `node scripts/test-progress-client.cjs` 只依赖前端已安装的 TypeScript，不再依赖任何 `.codex` 临时目录。
+测试入口及其作用见 [贡献说明的测试矩阵](CONTRIBUTING.md#测试入口)。保留的写入/真实模型探针必须显式设置脚本使用的本机测试地址并传入 `--apply`；它们可能留下合成记录或消耗模型额度，不能针对共用患者数据库运行。浏览器探针另需在 `NODE_PATH` 中提供 Playwright。日常只读检查使用 `test-ui-readonly.cjs`；离线 SSE 检查使用 `test-progress-client.cjs`，不需要后端或模型。过时的固定科室、强制重排模式及旧页面断言探针已删除，不再维护两套相互冲突的验收口径。
 
 ```powershell
 cd backend

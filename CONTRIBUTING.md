@@ -14,6 +14,29 @@
 
 内部工作文件由 .gitignore 排除。新增公开文件时先确认其用途与维护成本。
 
+## 测试入口
+
+默认回归不需要模型凭据；完整命令见 [README](README.md#开发与测试)。以下按用途保留测试入口，不将一次性调试脚本作为第二套测试框架。
+
+| 用途 | 入口 | 数据与外部调用 |
+| --- | --- | --- |
+| 后端契约、权限、模型适配器 | `backend` 下 `.\mvnw.cmd test`（JDK 17） | 默认无外部模型；显式集成组另需隔离数据库/索引 |
+| 前端组件契约、构建 | `frontend` 下 `npm test`、`npm run build` | 无外部模型 |
+| 知识来源、导入与切分 | `tools/knowledge-sync` 下 `npm test`、`npm run audit:corpus` | 离线；来源下载须另行显式执行 |
+| 检索、答案、意图/工具评分器 | `tools/rag-eval` 下 `npm test` | 合成夹具验证评分契约，不是医学质量成绩 |
+| SSE 分片解码 | `node scripts/test-progress-client.cjs` | 无服务；使用前端已安装的 TypeScript |
+| 观察回看与运行链路组件 | `node scripts/test-observation-trace-ui.cjs` | 随机本机端口、真实 Chromium、合成 GET 拦截 |
+| 容器业务闭环 | `scripts/test-container-smoke.cjs`、`scripts/test-container-journey.cjs` | 隔离 demo/OFF；真实 HTTP 合成写入，CI 执行 |
+| 公开 11 篇资料生命周期 | `scripts/test-corpus-lifecycle.mjs` | 隔离 MySQL/ES/Qdrant；等向量夹具，不验证语义质量 |
+| 知识审批、预约确认浏览器闭环 | `scripts/test-knowledge-approval-ui.cjs`、`scripts/test-booking-confirmation-ui.cjs` | 隔离 demo/OFF；真实浏览器写入，CI 执行 |
+| 目录、本人资料、人工导诊浏览器检查 | `scripts/test-catalog-ui.cjs`、`scripts/test-patient-profile-ui.cjs`、`scripts/test-human-review-ui.cjs` | 可选隔离本机写入；不是默认 CI 组 |
+| 已配置模型的调用与用量关联 | `scripts/test-triage-audit-live.cjs` | 显式本机目标；会请求模型、留下合成会话 |
+| 预约非法输入、页面只读巡检 | `scripts/test-booking-input-live.cjs`、`scripts/test-ui-readonly.cjs` | 前者仅应向隔离实例发送非法请求；后者登录并读取页面 |
+
+写入探针需 `--apply`，并设置各脚本要求的本机地址、模式与测试密码；仅 `--apply` 不能证明实例已隔离。容器、知识生命周期及浏览器探针的具体配置见 README、知识工具说明和 `.github/workflows/verify.yml`。保留的可选浏览器脚本覆盖不同交互，不因 HTTP 测试存在就删除其 UI 断言；真实模型调用也不能由 demo 探针代替。
+
+`scripts/*.test.cjs` / `scripts/*.test.mjs` 验证公开文件、凭据形态、锁文件、目标限制、容器与维护工具的机械契约。CI 是受维护测试入口的清单，新增脚本应说明用途、依赖、写入边界及失败行为，避免复制某次运行的模型名、科室和排序作为永久断言。
+
 ## 分支与版本
 
 - main 保存经过检查、可以独立构建的公开基线；功能开发和在制修复不直接推送 main。

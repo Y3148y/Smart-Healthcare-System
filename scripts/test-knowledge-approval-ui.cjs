@@ -11,13 +11,18 @@ const {randomUUID} = require('node:crypto')
     executablePath: process.env.ADMIN_TEST_BROWSER || 'C:/Program Files/Google/Chrome/Application/chrome.exe'})
   const page = await browser.newPage()
   const marker = 'syntheticknowledge' + randomUUID().replaceAll('-', '')
-  const body = `${marker}\n\nNonmedical browser fixture. Contains no medical advice.`
+  const body = `${marker}\n\n中文文件读取测试：仅验证文本传输，不含医学建议。\n\nNonmedical browser fixture. Contains no medical advice.`
   let documentId, headers
   try {
     await page.goto(base + '/?demo=admin&page=admin&adminPage=knowledge')
     await page.getByRole('button', {name: '新增资料', exact: true}).click()
     await page.getByLabel('资料标题', {exact: true}).fill(marker)
-    await page.getByLabel('资料正文', {exact: true}).fill(body)
+    const upload = page.getByLabel('读取本地正文或待审包')
+    await upload.setInputFiles({name: 'empty.md', mimeType: 'text/markdown', buffer: Buffer.alloc(0)})
+    await page.getByRole('alert').filter({hasText: '每个不超过4MB'}).waitFor()
+    await upload.setInputFiles({name: marker + '.md', mimeType: 'text/markdown', buffer: Buffer.from(body, 'utf8')})
+    await page.waitForFunction(expected => document.querySelector('textarea')?.value === expected, body)
+    assert.equal(await page.getByLabel('资料正文', {exact: true}).inputValue(), body)
     await page.getByLabel('来源登记 ID', {exact: true}).fill(marker)
     await page.getByLabel('发布机构', {exact: true}).fill('Synthetic test author')
     await page.getByLabel('来源链接', {exact: true}).fill('https://example.invalid/synthetic-test')
@@ -58,7 +63,7 @@ const {randomUUID} = require('node:crypto')
     await page.getByRole('status').filter({hasText: '资料已撤回到待审批'}).waitFor()
     assert.equal((await search()).some(r => r.title === marker), false)
     console.log(JSON.stringify({passed: true, mode: 'SYNTHETIC_DEMO_ONLY',
-      checks: ['browser-source-metadata-entry', 'pending-excluded', 'full-body-and-chunks',
+      checks: ['browser-invalid-file-rejected', 'browser-markdown-file-read', 'browser-source-metadata-entry', 'pending-excluded', 'full-body-and-chunks',
         'browser-approval', 'real-lexical-retrieval', 'clinical-review-not-fabricated', 'browser-withdrawal']}))
   } finally {
     // Withdraw only the exact self-created fixture if a later assertion interrupted the journey.

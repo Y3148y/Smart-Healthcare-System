@@ -13,8 +13,8 @@ test('live audit preserves measured zero, missing usage and partial usage withou
 })
 test('all mutating probe entry points fail before browser dependencies or networking',()=>{
   const {spawnSync}=require('node:child_process'),path=require('node:path')
-  for(const name of ['test-admin-ui.cjs','test-catalog-ui.cjs','test-human-review-ui.cjs',
-    'test-patient-profile-ui.cjs','test-knowledge-approval-ui.cjs','test-booking-confirmation-ui.cjs','test-current-intent-live.cjs','test-progress-live.cjs',
+  for(const name of ['test-catalog-ui.cjs','test-human-review-ui.cjs',
+    'test-patient-profile-ui.cjs','test-knowledge-approval-ui.cjs','test-booking-confirmation-ui.cjs',
     'test-triage-audit-live.cjs','test-booking-input-live.cjs']){
     const result=spawnSync(process.execPath,[path.join(__dirname,name)],{encoding:'utf8',timeout:5000})
     assert.notEqual(result.status,0,name)
