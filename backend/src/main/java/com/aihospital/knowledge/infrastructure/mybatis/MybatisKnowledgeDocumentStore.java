@@ -92,6 +92,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
             }
         }
         advanceRevision("READY".equals(document.status()));
+        if ("READY".equals(document.status())) recordApproval(document.id(),"BASELINE");
     }
 
     @Override @Transactional
@@ -104,6 +105,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
             throw new IllegalArgumentException("Knowledge usage permission must be resolved before approval");
         if (mapper.approvePending(id, chunkCount, updatedAt) == 1) {
             advanceRevision(true);
+            recordApproval(id,"APPROVE");
             return find(id);
         }
         StoredKnowledgeDocument existing = find(id);
@@ -124,7 +126,7 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
     public StoredKnowledgeDocument withdraw(String id, LocalDateTime updatedAt) {
         lockRevision();
         if (mapper.lockDocument(id) == null) throw new IllegalArgumentException("知识资料不存在");
-        if (mapper.withdrawReady(id, updatedAt) == 1) advanceRevision(true);
+        if (mapper.withdrawReady(id, updatedAt) == 1) { advanceRevision(true); recordApproval(id,"WITHDRAW"); }
         StoredKnowledgeDocument existing = find(id);
         if (existing == null || !"PENDING_REVIEW".equals(existing.status()))
             throw new IllegalStateException("Knowledge withdrawal state changed concurrently");
@@ -156,6 +158,14 @@ public class MybatisKnowledgeDocumentStore implements KnowledgeDocumentStore {
         return new StoredKnowledgeDocument(String.valueOf(row.get("id")), String.valueOf(row.get("title")),
                 String.valueOf(row.get("body")), String.valueOf(row.get("source")), String.valueOf(row.get("status")),
                 ((Number) row.get("chunk_count")).intValue(), updatedAt, metadata(row.get("metadata_json")));
+    }
+    private void recordApproval(String id,String type) {
+        try {
+            String snapshot=json.writeValueAsString(find(id));
+            String hash=java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(snapshot.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            if(mapper.appendApprovalEvent(java.util.UUID.randomUUID().toString(),id,revision(),type,snapshot,hash)!=1)
+                throw new IllegalStateException("Knowledge approval history was not persisted");
+        } catch(JsonProcessingException|java.security.NoSuchAlgorithmException invalid) { throw new IllegalStateException("Knowledge approval snapshot is invalid",invalid); }
     }
     private KnowledgeMetadata metadata(Object value) {
         if (value == null) return null;

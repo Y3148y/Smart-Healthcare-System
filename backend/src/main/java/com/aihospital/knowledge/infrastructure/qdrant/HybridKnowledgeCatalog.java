@@ -43,6 +43,7 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     private long cachedRevision = -1;
     private long cachedPublishedRevision = -1;
     private boolean revisionTracking;
+    @Autowired(required=false) private com.aihospital.knowledge.application.KnowledgePublicationService publications;
 
     /** Called under this catalog's monitor; never hold a DB transaction during remote retrieval. */
     private synchronized void refreshFromStore() {
@@ -58,10 +59,17 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         }
     }
     private record ApprovedSnapshot(List<Evidence> corpus,
-            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins, long revision) {}
+            Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins, long revision, long publicationVersion) {}
     private synchronized ApprovedSnapshot approvedSnapshot() {
         refreshFromStore();
-        return new ApprovedSnapshot(local.approvedCorpus(), chunkOrigins(), cachedPublishedRevision);
+        if(publications!=null) {
+            var active=publications.active();
+            if(active!=null) {
+                var released=new InMemoryKnowledgeCatalog(false);released.restorePersistedDocuments(active.documents());
+                return new ApprovedSnapshot(released.approvedCorpus(),chunkOrigins(released),cachedPublishedRevision,active.pointerVersion());
+            }
+        }
+        return new ApprovedSnapshot(local.approvedCorpus(), chunkOrigins(), cachedPublishedRevision,0);
     }
     @Override public EvidenceState evidenceState(List<Evidence> evidence) {
         try {
@@ -76,7 +84,8 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
     private String snapshotFailure(ApprovedSnapshot snapshot) {
         if (!revisionTracking) return null;
         try {
-            return documentStore.publishedRevision() == snapshot.revision() ? null : "KNOWLEDGE_SNAPSHOT_CHANGED";
+            return documentStore.publishedRevision() == snapshot.revision()
+                    &&(publications==null||publications.pointerVersion()==snapshot.publicationVersion()) ? null : "KNOWLEDGE_SNAPSHOT_CHANGED";
         } catch (RuntimeException unavailable) { return "KNOWLEDGE_STORE_UNAVAILABLE"; }
     }
     private final java.util.Deque<RetrievalEvent> events = new java.util.ArrayDeque<>();
@@ -110,10 +119,13 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         return indexApprovedCorpus(corpus, chunkOrigins());
     }
     private Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> chunkOrigins() {
+        return chunkOrigins(local);
+    }
+    private Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> chunkOrigins(InMemoryKnowledgeCatalog sourceCatalog) {
         Map<String, List<com.aihospital.knowledge.domain.KnowledgeChunk>> origins = new HashMap<>();
-        for (KnowledgeDocument document : local.documents()) {
+        for (KnowledgeDocument document : sourceCatalog.documents()) {
             if (!"READY".equals(document.status())) continue;
-            for (var chunk : local.documentChunks(document.id())) {
+            for (var chunk : sourceCatalog.documentChunks(document.id())) {
                 String key = Bm25Retriever.key(new Evidence(document.title(), chunk.source(), chunk.text(), 1));
                 origins.computeIfAbsent(key, ignored -> new ArrayList<>()).add(chunk);
             }
@@ -309,9 +321,12 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         var lexicalReport = lexicalSearch.search(query, corpus, depth, minimumScore);
         List<Evidence> lexical = lexicalReport.evidence();
         var origins = snapshot.origins();
-        boolean indexed = indexApprovedCorpus(corpus, origins);
-        var semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
-                : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
+        QdrantSemanticIndex.SearchResult semanticReport;
+        synchronized(semantic) {
+            boolean indexed = indexApprovedCorpus(corpus, origins);
+            semanticReport = indexed ? semantic.searchDetailed(query, depth, semanticMinScore)
+                    : new QdrantSemanticIndex.SearchResult(List.of(), semantic.status());
+        }
         List<Evidence> dense = semanticReport.evidence();
         boolean denseOk = "READY".equals(semanticReport.status());
         Set<String> active = new HashSet<>(); corpus.forEach(e -> active.add(Bm25Retriever.key(e)));

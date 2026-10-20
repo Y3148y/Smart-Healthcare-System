@@ -233,3 +233,32 @@ CREATE TABLE IF NOT EXISTS triage_fact_snapshot (
   FOREIGN KEY (turn_id) REFERENCES triage_turn(id),
   FOREIGN KEY (session_id) REFERENCES triage_session(id)
 );
+
+CREATE TABLE IF NOT EXISTS knowledge_approval_event (
+  id VARCHAR(64) PRIMARY KEY,
+  document_id VARCHAR(64) NOT NULL,
+  catalog_revision BIGINT NOT NULL,
+  event_type VARCHAR(16) NOT NULL,
+  document_json LONGTEXT NOT NULL,
+  document_sha256 CHAR(64) NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  UNIQUE(document_id,catalog_revision),
+  FOREIGN KEY(document_id) REFERENCES knowledge_document(id)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_release (
+  id VARCHAR(64) PRIMARY KEY,
+  source_revision BIGINT NOT NULL,
+  base_version BIGINT NOT NULL,
+  snapshot_json LONGTEXT NOT NULL,
+  snapshot_sha256 CHAR(64) NOT NULL,
+  build_status VARCHAR(16) NOT NULL,
+  build_receipt LONGTEXT,
+  created_at TIMESTAMP NOT NULL
+);
+CREATE TABLE IF NOT EXISTS knowledge_release_pointer (
+  id INT PRIMARY KEY,
+  active_release_id VARCHAR(64),
+  pointer_version BIGINT NOT NULL
+);
+INSERT IGNORE INTO knowledge_release_pointer(id,active_release_id,pointer_version) VALUES(1,NULL,0);

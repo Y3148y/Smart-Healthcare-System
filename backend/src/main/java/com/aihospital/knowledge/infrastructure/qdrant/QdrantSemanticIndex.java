@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.HashMap;
 
 /** Optional semantic index. API keys never appear in corpus metadata or tool traces. */
 @Component
@@ -159,6 +160,31 @@ public class QdrantSemanticIndex {
             log.warn("Semantic index unavailable; retrieval policy controls fallback ({})", status);
             return false;
         }
+    }
+    /** Fresh remote publication check. Cached acknowledgements cannot satisfy this gate. */
+    public synchronized boolean verifyRemote(List<Evidence> corpus) {
+        if(corpus.isEmpty())return true;
+        boolean verified=false;
+        try {
+            var configuration=collectionConfiguration();
+            if(!"Cosine".equalsIgnoreCase(configuration.distance())||!Set.of("green","yellow").contains(configuration.status()))return false;
+            var expected=new HashMap<String,JsonNode>();for(var item:corpus)expected.put(pointId(item),payload(item));
+            var ids=new ArrayList<>(expected.keySet());var seen=new HashSet<String>();
+            for(int offset=0;offset<ids.size();offset+=50) {
+                var batch=ids.subList(offset,Math.min(ids.size(),offset+50));
+                var points=request("POST",qdrantUrl+"/collections/"+collection+"/points",Map.of("ids",batch,"with_payload",true,"with_vector",true),false).path("result");
+                if(!points.isArray()||points.size()!=batch.size())return false;
+                for(var point:points) {
+                    String id=point.path("id").asText();var vector=point.path("vector");
+                    if(!batch.contains(id)||!seen.add(id)||!expected.get(id).equals(point.path("payload"))||!vector.isArray()||vector.size()!=configuration.vectorSize())return false;
+                    double norm=0;for(var value:vector){if(!value.isNumber()||!Double.isFinite(value.asDouble()))return false;norm+=value.asDouble()*value.asDouble();}
+                    if(!Double.isFinite(norm)||norm==0)return false;
+                }
+            }
+            verified=seen.size()==expected.size();return verified;
+        } catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}
+        catch(Exception unavailable){return false;}
+        finally{if(!verified){indexed=false;indexedPointIds.clear();status="PUBLICATION_VERIFICATION_FAILED";}}
     }
 
     private String safeFailureStatus(Exception failure, String phase, String fallback) {

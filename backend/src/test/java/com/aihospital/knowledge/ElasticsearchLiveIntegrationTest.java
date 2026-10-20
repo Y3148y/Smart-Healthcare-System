@@ -41,6 +41,16 @@ class ElasticsearchLiveIntegrationTest {
             assertEquals("ELASTICSEARCH_READY", increment.status());
             assertEquals("synthetic-cough", increment.evidence().get(0).source());
             assertTrue(engine.search("头痛", List.of(cough), 3, 0).evidence().isEmpty());
+            assertTrue(engine.verify(List.of(cough)));
+            String owned=(String)ReflectionTestUtils.getField(engine,"installedSnapshot");
+            String id=HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(
+                    com.aihospital.knowledge.domain.Bm25Retriever.key(cough).getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            var deleted=client.send(HttpRequest.newBuilder(URI.create(url+"/"+owned+"/_doc/"+id+"?refresh=wait_for"))
+                    .timeout(Duration.ofSeconds(5)).DELETE().build(),HttpResponse.BodyHandlers.discarding());
+            assertEquals(200,deleted.statusCode());
+            assertEquals("ELASTICSEARCH_READY",engine.search("咳嗽",List.of(cough),3,0).status());
+            assertFalse(engine.verify(List.of(cough)),"A zero-hit successful query cannot certify an intact remote index");
+            engine.search("咳嗽",List.of(cough),3,0);assertTrue(engine.verify(List.of(cough)));
             // Native analyzer output is tested, not a locally simulated tokenizer.
             var analyzed = client.send(HttpRequest.newBuilder(URI.create(url + "/_analyze"))
                     .timeout(Duration.ofSeconds(5)).header("Content-Type", "application/json")

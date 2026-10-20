@@ -5,6 +5,7 @@ import { label, sources, time } from './types'
 import type { DocumentDetail, KnowledgeDocument, KnowledgeRuntime } from './types'
 import KnowledgeImportForm from './KnowledgeImportForm.vue'
 import KnowledgeProvenancePanel from './KnowledgeProvenancePanel.vue'
+import KnowledgePublications from './KnowledgePublications.vue'
 const documents = ref<KnowledgeDocument[]>([]), runtime = ref<KnowledgeRuntime>({}), detail = ref<DocumentDetail | null>(null)
 const loading = ref(false), busy = ref(false), detailLoading = ref(false), error = ref(''), notice = ref('')
 const approvalReady = ref(false)
@@ -69,6 +70,7 @@ onMounted(load)
 </script>
 <template>
   <div class="admin-workspace">
+    <KnowledgePublications :document-id="detail?.document.id" />
     <div class="admin-title"><div><h2>医学知识库</h2><p>正文、来源声明和审批状态保存到数据库；审批与向量同步状态分别展示。</p></div><div class="admin-actions"><button class="mini" :disabled="loading || busy" @click="load">刷新</button><button class="mini" :disabled="busy" @click="sync">{{ busy ? '处理中…' : '同步向量索引' }}</button><button class="primary" @click="editor = !editor">{{ editor ? '收起录入' : '新增资料' }}</button></div></div>
     <p v-if="error" ref="errorNotice" class="admin-error" role="alert">{{ error }}</p><p v-if="notice" class="admin-notice" role="status">{{ notice }}</p>
     <KnowledgeImportForm v-if="editor" @saved="saved" />

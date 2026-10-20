@@ -115,6 +115,32 @@ public class ElasticsearchLexicalSearch implements LexicalSearch {
         }
     }
 
+    @Override public synchronized boolean verify(List<Evidence> corpus) {
+        if(corpus.isEmpty())return true;
+        boolean verified=false;
+        try {
+            var active=new TreeMap<String,Evidence>();for(var item:corpus)active.put(digest(Bm25Retriever.key(item)),item);
+            String snapshot=digest(SCHEMA+"\n"+String.join("\n",active.keySet())),index=prefix+"-"+snapshot;
+            var metadata=send("GET","/"+index,"","application/json",200).path(index).path("mappings").path("_meta");
+            if(!SCHEMA.equals(metadata.path("schema").asText())||!snapshot.equals(metadata.path("snapshot").asText()))return false;
+            if(send("GET","/"+index+"/_count","","application/json",200).path("count").asLong(-1)!=active.size())return false;
+            var ids=new ArrayList<>(active.keySet());var seen=new HashSet<String>();
+            for(int offset=0;offset<ids.size();offset+=100) {
+                var batch=ids.subList(offset,Math.min(ids.size(),offset+100));
+                var fetched=send("POST","/"+index+"/_mget",json.writeValueAsString(Map.of("ids",batch)),"application/json",200).path("docs");
+                if(!fetched.isArray()||fetched.size()!=batch.size())return false;
+                for(var document:fetched) {
+                    String id=document.path("_id").asText();var expected=active.get(id);var source=document.path("_source");
+                    if(expected==null||!batch.contains(id)||!seen.add(id)||!document.path("found").asBoolean()
+                            ||!expected.title().equals(source.path("title").asText())||!expected.source().equals(source.path("source").asText())
+                            ||!expected.excerpt().equals(source.path("body").asText())||!id.equals(source.path("chunk_id").asText()))return false;
+                }
+            }
+            verified=seen.size()==active.size();return verified;
+        } catch(InterruptedException interrupted){Thread.currentThread().interrupt();return false;}
+        catch(Exception unavailable){return false;}
+        finally{if(!verified)installedSnapshot=null;}
+    }
     private synchronized void ensureInstalled(String index, String snapshot, Map<String, Evidence> active) throws Exception {
         if (index.equals(installedSnapshot)) return;
         var definition = Map.of("settings", Map.of("number_of_shards", 1, "number_of_replicas", 0,

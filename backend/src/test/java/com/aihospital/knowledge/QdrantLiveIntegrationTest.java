@@ -59,6 +59,15 @@ class QdrantLiveIntegrationTest {
             assertEquals(List.of("synthetic-beta"), index.search("beta", 2, 0.5).stream().map(Evidence::title).toList());
             assertTrue(index.ensureIndexed(List.of(alpha)));
             assertTrue(index.search("beta", 2, 0.5).isEmpty(), "withdrawn point must not be returned as active evidence");
+            assertTrue(index.verifyRemote(List.of(alpha)));
+            String alphaId=ReflectionTestUtils.invokeMethod(index,"pointId",alpha);
+            var removed=HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create(qdrantUrl+"/collections/"+collection+"/points/delete?wait=true"))
+                    .timeout(Duration.ofSeconds(5)).header("Content-Type","application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(json.writeValueAsString(java.util.Map.of("points",List.of(alphaId))))).build(),HttpResponse.BodyHandlers.discarding());
+            assertEquals(200,removed.statusCode());
+            assertTrue(index.ensureIndexed(List.of(alpha)),"Old process acknowledgement alone still looks indexed");
+            assertFalse(index.verifyRemote(List.of(alpha)),"Publication must detect a missing remote point despite cached acknowledgement");
+            assertTrue(index.ensureIndexed(List.of(alpha)));assertTrue(index.verifyRemote(List.of(alpha)));
         } finally {
             embedding.stop(0);
             HttpRequest delete = HttpRequest.newBuilder(URI.create(qdrantUrl + "/collections/" + collection))

@@ -11,6 +11,11 @@ import java.util.Map;
 
 @Mapper
 public interface KnowledgeDocumentMapper {
+    @Insert("INSERT INTO knowledge_approval_event(id,document_id,catalog_revision,event_type,document_json,document_sha256,created_at) VALUES(#{eventId},#{documentId},#{revision},#{type},#{snapshot},#{hash},CURRENT_TIMESTAMP)")
+    int appendApprovalEvent(@Param("eventId") String eventId,@Param("documentId") String documentId,@Param("revision") long revision,
+            @Param("type") String type,@Param("snapshot") String snapshot,@Param("hash") String hash);
+    @Select("SELECT id,document_id,catalog_revision,event_type,document_json,document_sha256,created_at FROM knowledge_approval_event WHERE document_id=#{id} ORDER BY catalog_revision DESC")
+    List<Map<String,Object>> approvalHistory(@Param("id") String id);
     @Select("SELECT revision FROM knowledge_catalog_revision WHERE id=1")
     Long revision();
     @Select("SELECT published_revision FROM knowledge_catalog_revision WHERE id=1")

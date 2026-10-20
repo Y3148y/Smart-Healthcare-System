@@ -14,4 +14,6 @@ public interface LexicalSearch {
         }
     }
     Result search(String query, List<Evidence> approvedCorpus, int limit, double memoryMinimum);
+    /** Publication gate: must check all expected IDs and content, not just query success. */
+    default boolean verify(List<Evidence> approvedCorpus) { return false; }
 }

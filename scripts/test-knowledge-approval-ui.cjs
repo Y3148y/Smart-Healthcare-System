@@ -58,13 +58,28 @@ const {randomUUID} = require('node:crypto')
     await page.getByRole('status').filter({hasText: '审批完成'}).waitFor()
     assert.equal((await search()).some(r => r.title === marker), true)
     assert.equal((await read(`/admin/knowledge/${documentId}/metadata`)).clinicalReview, 'NOT_REVIEWED')
+    await page.getByText('知识发布版本与审批历史', {exact: true}).click()
+    await page.getByRole('button', {name: '读取发布状态', exact: true}).click()
+    const build = page.getByRole('button', {name: '构建并发布', exact: true})
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some(b => b.textContent === '构建并发布' && !b.disabled))
+    page.once('dialog', dialog => dialog.accept())
+    const publishing = page.waitForResponse(r => r.request().method() === 'POST' && new URL(r.url()).pathname === '/api/admin/knowledge/releases')
+    await build.click()
+    assert.equal((await publishing).status(), 200)
+    await page.getByText('操作已保存。', {exact: true}).waitFor()
+    assert.equal((await read('/admin/knowledge/releases')).state.mode, 'VERSIONED')
+    await page.getByRole('button', {name: '查看所选资料审批历史', exact: true}).click()
+    const history = await read(`/admin/knowledge/${documentId}/history`)
+    assert.equal(history[0].event_type, 'APPROVE')
+    assert.match(history[0].document_sha256, /^[a-f0-9]{64}$/)
     page.once('dialog', dialog => dialog.accept())
     await page.getByRole('button', {name: '撤回到待审批', exact: true}).click()
     await page.getByRole('status').filter({hasText: '资料已撤回到待审批'}).waitFor()
     assert.equal((await search()).some(r => r.title === marker), false)
     console.log(JSON.stringify({passed: true, mode: 'SYNTHETIC_DEMO_ONLY',
       checks: ['browser-invalid-file-rejected', 'browser-markdown-file-read', 'browser-source-metadata-entry', 'pending-excluded', 'full-body-and-chunks',
-        'browser-approval', 'real-lexical-retrieval', 'clinical-review-not-fabricated', 'browser-withdrawal']}))
+        'browser-approval', 'real-lexical-retrieval', 'browser-build-and-publish', 'immutable-approval-history',
+        'clinical-review-not-fabricated', 'browser-withdrawal']}))
   } finally {
     // Withdraw only the exact self-created fixture if a later assertion interrupted the journey.
     try {

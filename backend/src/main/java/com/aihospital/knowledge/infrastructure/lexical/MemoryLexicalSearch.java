@@ -12,6 +12,7 @@ import java.util.List;
 @ConditionalOnProperty(name = "ai.retrieval.lexical-backend", havingValue = "memory")
 public class MemoryLexicalSearch implements LexicalSearch {
     private Bm25Retriever.Index index;
+    @Override public synchronized boolean verify(List<Evidence> corpus) { return corpus.isEmpty()||index!=null&&index.matches(corpus); }
 
     @Override public synchronized Result search(String query, List<Evidence> corpus, int limit, double minimum) {
         if (index == null || !index.matches(corpus)) index = Bm25Retriever.index(corpus);

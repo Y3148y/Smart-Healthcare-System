@@ -1,0 +1,16 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path')
+const source=fs.readFileSync(path.join(__dirname,'../src/features/admin/KnowledgePublications.vue'),'utf8')
+test('publication writes carry the loaded version and require explicit confirmation',()=>{
+  assert.ok(source.includes('window.confirm(description)'))
+  assert.ok(source.includes('expectedVersion=data.value.state.pointerVersion'))
+  assert.ok(source.includes('JSON.stringify({expectedVersion})'))
+  assert.ok(source.includes("action==='delete'?'DELETE':'POST'"))
+  assert.ok(source.includes('busy||!data'));assert.ok(source.includes('Number.isSafeInteger'))
+})
+test('uncertain writes disable replay until explicit reload and do not invent success or clinical review',()=>{
+  assert.ok(source.includes("catch{data.value=null;error.value='操作结果待核对"))
+  assert.ok(source.includes("data.value=null;history.value=null"))
+  assert.ok(source.includes('首次发布后，新审批资料须再次发布'))
+  assert.ok(source.includes('历史回滚不能恢复撤回授权'))
+  assert.ok(!source.includes('v-html'));assert.ok(!source.includes('localStorage'))
+})
