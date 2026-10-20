@@ -29,6 +29,7 @@ backend/data/
 /reports/
 /scripts/local/
 tools/knowledge-sync/node_modules/
+tools/mcp-client/node_modules/
 
 # Local collaboration and generated working records; not public deliverables.
 /AGENTS.md

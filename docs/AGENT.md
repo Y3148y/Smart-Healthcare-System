@@ -16,6 +16,23 @@
 
 ## 代码职责
 
+### MCP 工具服务与官方客户端
+
+`/mcp` 支持 [MCP 2025-11-25 Streamable HTTP](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports) 的无状态工具服务：`initialize` 协商、`notifications/initialized` 返回202、`ping`、`tools/list` 和 `tools/call`。声明的能力只有只读tools；不声明resources、prompts、任务或服务端通知，不分配会话ID，GET/DELETE返回405。认证仍使用本应用ADMIN令牌，不是OAuth授权服务器，不能直接作为公网MCP服务部署。患者Agent继续经本地网关，不因新增服务端协议而改成MCP客户端。
+
+工具发现反映当前启用状态，调用重新验证启用状态；参数仅接受Schema中唯一的字符串字段，空值、超长、额外字段、数值/对象强转和预约写工具均拒绝。MCP来源标记仅供审计，不授予权限。Origin、协议版本、请求ID和JSON-RPC错误单独检查；执行失败不返回患者输入或原始异常。旧 `2026-07-28` 自定义元数据入口保留兼容，不作为官方互操作证明。
+
+`tools/mcp-client/interop.mjs` 使用锁定的官方 `@modelcontextprotocol/sdk@1.32.1`，只读执行初始化、发现和未知测试科室查询，并验证非法参数、写工具、患者权限、Origin、版本、无认证和GET负例。地址须显式为回环`/mcp`，令牌只从进程环境读取，拒绝重定向和跨源请求。JDK17下复现：
+
+```powershell
+cd tools/mcp-client
+npm ci --ignore-scripts --registry=https://registry.npmjs.org
+cd ../../backend
+.\mvnw.cmd '-Dtest=McpOfficialClientIntegrationTest' '-Dai.test.mcp-client=true' test
+```
+
+集成测试自己启动随机回环端口和独立H2，并向子进程注入短期合成JWT；不会读取日常模型密钥或调用供应商。普通Maven回归跳过此显式组，CI另行安装SDK后执行。通过证明所声明tools能力的官方客户端互操作，不证明OAuth、可选资源功能、患者MCP传输或模型质量。
+
 | 组件 | 职责 | 不负责 |
 | --- | --- | --- |
 | `TriageConversationService` | 身份、同会话并发保护、消息/分诊保存、会话状态 | 模型工具循环 |

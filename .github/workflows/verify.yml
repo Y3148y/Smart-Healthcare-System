@@ -47,6 +47,12 @@ jobs:
       - name: Test backend without external model credentials
         working-directory: backend
         run: ./mvnw --batch-mode test
+      - name: Install pinned official MCP client
+        working-directory: tools/mcp-client
+        run: npm ci --ignore-scripts --registry=https://registry.npmjs.org
+      - name: Verify official MCP client over real isolated HTTP
+        working-directory: backend
+        run: ./mvnw --batch-mode -Dtest=McpOfficialClientIntegrationTest -Dai.test.mcp-client=true test
       - name: Verify booking, knowledge and HTTP business journeys against MySQL 8.4
         working-directory: backend
         run: >-

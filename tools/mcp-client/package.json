@@ -1,0 +1,9 @@
+{
+  "name": "healthcare-mcp-client",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {"node": ">=20"},
+  "scripts": {"interop": "node interop.mjs"},
+  "dependencies": {"@modelcontextprotocol/sdk": "1.32.1"}
+}
