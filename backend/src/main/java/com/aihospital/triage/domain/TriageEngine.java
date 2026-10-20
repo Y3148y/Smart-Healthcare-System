@@ -27,10 +27,14 @@ public interface TriageEngine {
     /** A safe, non-diagnostic medical explanation plus the most relevant next question. */
     Guidance clarificationPrompt(String symptoms, List<NarrationModel.Turn> history);
     /** Server-side request classification; absent prefetch alone never implies SERVICE_ONLY. */
-    enum QueryPurpose { UNDETERMINED, SERVICE_ONLY }
+    enum QueryPurpose { UNDETERMINED, SERVICE_ONLY, NEEDS_INFORMATION, HUMAN_HELP }
     record PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
                             java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,
-                            List<NarrationModel.ServiceState> services, QueryPurpose purpose) {
+                            List<NarrationModel.ServiceState> services, QueryPurpose purpose, List<String> questions) {
+        public PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
+                java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,List<NarrationModel.ServiceState> services,QueryPurpose purpose) {
+            this(retrieval,trace,services,purpose,List.of());
+        }
         public PreparedEvidence(java.util.Optional<com.aihospital.knowledge.domain.KnowledgeCatalog.Retrieval> retrieval,
                 java.util.Optional<com.aihospital.shared.model.Models.ToolTrace> trace,
                 List<NarrationModel.ServiceState> services) {
@@ -49,6 +53,10 @@ public interface TriageEngine {
             trace = trace == null ? java.util.Optional.empty() : trace;
             services = services == null ? List.of() : List.copyOf(services);
             if (purpose == null) throw new IllegalArgumentException("Prepared query purpose required");
+            questions=questions==null?List.of():List.copyOf(questions);
+            if(questions.size()>2||questions.stream().anyMatch(q->q==null||q.isBlank()||q.length()>200))throw new IllegalArgumentException("Invalid prepared questions");
+            if(purpose==QueryPurpose.NEEDS_INFORMATION&&questions.isEmpty())throw new IllegalArgumentException("Clarification questions required");
+            if((purpose==QueryPurpose.HUMAN_HELP||purpose==QueryPurpose.NEEDS_INFORMATION)&&retrieval.isPresent())throw new IllegalArgumentException("Local route cannot carry medical evidence");
             if (retrieval.isPresent() != trace.isPresent())
                 throw new IllegalArgumentException("Prepared retrieval and trace must be present together");
             if (purpose == QueryPurpose.SERVICE_ONLY && retrieval.isPresent())

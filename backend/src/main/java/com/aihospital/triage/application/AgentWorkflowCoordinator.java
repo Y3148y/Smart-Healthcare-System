@@ -77,11 +77,17 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                             ?com.aihospital.shared.model.Models.TokenUsage.local()
                             :com.aihospital.shared.model.Models.TokenUsage.reported(extracted.inputTokens(),extracted.outputTokens()));
             if (extracted.status() != IntentExtractor.Status.ACCEPTED) return null;
+            SessionFacts previous=durableFacts.completed(patient,conversation.session().id());
             durableFacts.stage(patient,conversation,input,extracted.extraction());
             // Historical observations persist, but only this authorized source window feeds tools/model.
             SessionFacts facts = factReducer.merge(SessionFacts.empty(), extracted.extraction(), input,
                     conversation.messages().size());
             if (settings.mode() != AgentWorkflowSettings.Mode.ENABLED) return null;
+            var route=IntentRouting.decide(extracted.extraction(),previous==null?SessionFacts.empty():previous,input);
+            TurnTraceContext.record(new TurnTraceContext.Execution("COMPOSITE_ROUTE",route.routes().stream().map(Enum::name).sorted().collect(java.util.stream.Collectors.joining(",")),
+                    "TYPED_COMPOSITE_ROUTE",0,null,null,null,null,"AGENT"));
+            if(route.routes().contains(IntentRouting.Route.HUMAN_HELP))return new TriageEngine.PreparedEvidence(java.util.Optional.empty(),java.util.Optional.empty(),List.of(),TriageEngine.QueryPurpose.HUMAN_HELP,List.of());
+            if(route.routes().contains(IntentRouting.Route.CLARIFY))return new TriageEngine.PreparedEvidence(java.util.Optional.empty(),java.util.Optional.empty(),List.of(),TriageEngine.QueryPurpose.NEEDS_INFORMATION,route.questions());
             return plan(conversation, patient, current, input, extracted, facts);
         } catch (RuntimeException failure) {
             try { audit("Agent执行", "WORKFLOW_FALLBACK", null, null, 0, false); }
@@ -101,7 +107,7 @@ public final class AgentWorkflowCoordinator implements AutoCloseable {
                 && extracted.extraction().intents().stream().allMatch(intent -> Set.of(
                         IntentExtraction.Intent.FIND_DEPARTMENT, IntentExtraction.Intent.FIND_DOCTOR,
                         IntentExtraction.Intent.BOOKING_REQUEST).contains(intent));
-        var queries = new HashSet<>(facts.retrievalSymptoms());
+        var queries = new HashSet<>(TaskAwareQuery.candidates(facts.retrievalSymptoms(),current));
         // A raw user utterance is not automatically a safe retrieval query. If the
         // extractor found an event, only source-checked affirmative current-self
         // symptoms may reach the Agent tool allowlist. General educational questions

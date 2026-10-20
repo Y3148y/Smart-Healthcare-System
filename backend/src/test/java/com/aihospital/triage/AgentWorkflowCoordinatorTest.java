@@ -18,6 +18,31 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class AgentWorkflowCoordinatorTest {
+    @Test void explicitHumanHelpStopsAtLocalRouteWithoutPlanningOrTools(){
+        try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
+            var request=new IntentExtraction(1,List.of(IntentExtraction.Intent.HUMAN_HELP,IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,request,"test","",1,1,1));
+            var result=coordinator.prepare(conversation,"patient","合成测试问题");
+            assertNotNull(result);assertEquals(TriageEngine.QueryPurpose.HUMAN_HELP,result.purpose());
+            assertTrue(result.retrieval().isEmpty());verifyNoInteractions(model,executor);
+            verify(durableFacts).stage(eq("patient"),eq(conversation),any(),eq(request));
+        }
+    }
+    @Test void missingEventTimeUsesOnlyGenericHistoricalQuestionAndDoesNotForwardOldMedicalText(){
+        try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
+            var old=new IntentExtraction.SymptomEvent("SyntheticPrivateHistory",null,null,null,null,null,
+                    IntentExtraction.Subject.SELF,IntentExtraction.Temporality.CURRENT,IntentExtraction.Assertion.AFFIRMED,
+                    List.of(new IntentExtraction.SourceRef("outside-window","SyntheticPrivateHistory")));
+            when(durableFacts.completed("patient","session")).thenReturn(new SessionFacts(1,List.of(old),List.of()));
+            var request=new IntentExtraction(1,List.of(IntentExtraction.Intent.SYMPTOM_CONSULT),List.of(),List.of(IntentExtraction.Field.TEMPORALITY),List.of());
+            when(extractor.extract(any())).thenReturn(new IntentExtractor.Result(IntentExtractor.Status.ACCEPTED,request,"test","",1,1,1));
+            var result=coordinator.prepare(conversation,"patient","合成测试问题");
+            assertNotNull(result);assertEquals(TriageEngine.QueryPurpose.NEEDS_INFORMATION,result.purpose());
+            assertEquals(1,result.questions().size());assertTrue(result.questions().get(0).contains("不能判断现在"));
+            assertFalse(result.questions().get(0).contains("SyntheticPrivateHistory"));verifyNoInteractions(model,executor);
+            verify(extractor).extract(argThat(input->input.messages().size()==1&&!input.messages().toString().contains("SyntheticPrivateHistory")));
+        }
+    }
     @Test void localPlanningBudgetFailureIsNotRecordedAsAProviderRequest(){
         try(var gateway=new AgentToolGateway(executor);var coordinator=coordinator(AgentWorkflowSettings.Mode.ENABLED,gateway)){
             when(model.decide(any(),any(),anySet(),anySet(),anySet(),anyList(),anyInt())).thenReturn(

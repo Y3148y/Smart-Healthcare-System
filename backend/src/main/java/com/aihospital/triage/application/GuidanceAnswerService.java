@@ -35,6 +35,17 @@ public final class GuidanceAnswerService {
             List<NarrationModel.Turn> history, Consumer<TriageProgress> progress,
             TriageEngine.PreparedEvidence prepared, Function<List<Evidence>, String> fallback) {
         long started = System.nanoTime();
+        if(prepared!=null&&(prepared.purpose()==TriageEngine.QueryPurpose.HUMAN_HELP||prepared.purpose()==TriageEngine.QueryPurpose.NEEDS_INFORMATION)) {
+            String response=prepared.purpose()==TriageEngine.QueryPurpose.HUMAN_HELP
+                    ?"您可以使用本页的人工导诊申请入口提交请求。提交不代表已受理或能实时响应；如有急症请直接线下求助。"
+                    :String.join("\n",prepared.questions());
+            var diagnostics=new com.aihospital.triage.domain.AnswerEvidence.Diagnostics(
+                    com.aihospital.shared.diagnostics.TurnTraceContext.currentOrNewId(),"NOT_APPLICABLE","NOT_REQUIRED",List.of(),List.of(),List.of(),"NOT_APPLICABLE",null,
+                    Math.max(0,(System.nanoTime()-started)/1_000_000),new com.aihospital.triage.domain.AnswerEvidence.Generation("NOT_RUN",null,null,null,null));
+            var answer=new NarrationModel.Answer(response,prepared.purpose().name(),"",diagnostics);
+            AnswerCallAudit.records("预问诊引导","患者",answer,diagnostics.elapsedMs(),List.of()).forEach(calls::record);
+            return new TriageEngine.Guidance(response,prepared.purpose().name(),0,0,0,diagnostics);
+        }
         if (query == null || query.isBlank()
                 || prepared != null && prepared.purpose() == TriageEngine.QueryPurpose.SERVICE_ONLY) {
             progress.accept(TriageProgress.SERVICE_RESPONSE);

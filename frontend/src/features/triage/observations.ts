@@ -5,6 +5,7 @@ export interface Observation {
 export interface ObservationSnapshot {
   sessionId:string;stateVersion:number;status:string;clinicalReview:string;observations:Observation[];
   unresolvedConflicts:{field:string;sourceRefs:{messageId:string;quote:string}[]}[]
+  timeline?:{id:string;observation:Observation;corrects:string|null;state:string}[]
 }
 export function isObservationSnapshot(value:unknown,sessionId:string):value is ObservationSnapshot {
   if(!value||typeof value!=='object')return false
@@ -18,6 +19,10 @@ export function isObservationSnapshot(value:unknown,sessionId:string):value is O
       &&typeof event.assertion==='string'&&refs(event.sourceRefs)
       &&['bodySite','onset','duration','trigger','severity'].every(key=>{const field=event[key as keyof Observation];return field==null||typeof field==='string'}))
     &&Array.isArray(data.unresolvedConflicts)&&data.unresolvedConflicts.length<=100
+    &&(data.timeline===undefined||Array.isArray(data.timeline)&&data.timeline.length<=500
+      &&new Set(data.timeline.map(e=>e?.id)).size===data.timeline.length
+      &&data.timeline.every(e=>e&&/^[a-f0-9]{64}$/.test(e.id)&&['OBSERVED','SUPERSEDED','AMBIGUOUS_CORRECTION'].includes(e.state)
+        &&(e.corrects===null||/^[a-f0-9]{64}$/.test(e.corrects))&&e.observation&&typeof e.observation.symptom==='string'))
     &&data.unresolvedConflicts.every(conflict=>conflict&&typeof conflict.field==='string'&&refs(conflict.sourceRefs))
 }
 export function observationLabels(event:Observation){

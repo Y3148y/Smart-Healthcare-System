@@ -17,19 +17,20 @@ public record SessionFacts(long version, List<SymptomEvent> events, List<IntentE
 
     /** Exact-term projection: no clinical synonym or event-identity inference. */
     public Set<String> retrievalSymptoms() {
+        var eligibleEvents=new SessionEventTimeline().project(this).stream().filter(e->!"SUPERSEDED".equals(e.state())).map(SessionEventTimeline.Event::observation).toList();
         var disputed = new java.util.LinkedHashSet<SymptomEvent>();
         for (var conflict : conflicts) {
-            var linked = events.stream().filter(event -> overlapsSource(event.sourceRefs(), conflict.sourceRefs())).toList();
+            var linked = eligibleEvents.stream().filter(event -> overlapsSource(event.sourceRefs(), conflict.sourceRefs())).toList();
             // A correction without a link to a symptom may affect the whole window.
             // Keep that uncertainty global rather than guessing its intended event.
             if (linked.isEmpty()) return Set.of();
             disputed.addAll(linked);
         }
-        return events.stream().filter(event -> event.subject() == IntentExtraction.Subject.SELF
+        return eligibleEvents.stream().filter(event -> event.subject() == IntentExtraction.Subject.SELF
                 && event.temporality() == IntentExtraction.Temporality.CURRENT
                 && event.assertion() == IntentExtraction.Assertion.AFFIRMED)
                 .filter(event -> disputed.stream().noneMatch(other -> sameContext(event, other)))
-                .filter(event -> events.stream().noneMatch(other -> sameContext(event, other)
+                .filter(event -> eligibleEvents.stream().noneMatch(other -> sameContext(event, other)
                         && other.assertion() != IntentExtraction.Assertion.AFFIRMED))
                 .map(event -> event.symptom().strip()).collect(Collectors.toUnmodifiableSet());
     }

@@ -14,7 +14,8 @@ public class PatientObservationController {
     private final RoleGuard guard;
     public PatientObservationController(SessionFactStore facts,RoleGuard guard){this.facts=facts;this.guard=guard;}
     public record ObservationView(String sessionId,long stateVersion,String status,String clinicalReview,
-            List<IntentExtraction.SymptomEvent> observations,List<IntentExtraction.Conflict> unresolvedConflicts){}
+            List<IntentExtraction.SymptomEvent> observations,List<IntentExtraction.Conflict> unresolvedConflicts,
+            List<com.aihospital.triage.domain.SessionEventTimeline.Event> timeline){}
     @GetMapping("/{id}/observations")
     public ObservationView observations(@PathVariable String id,
             @RequestHeader(value="Authorization",required=false)String authorization){
@@ -22,6 +23,6 @@ public class PatientObservationController {
         // The store repeats owner checks and publishes COMPLETED turns only.
         var snapshot=facts.completed(patient,id);
         return new ObservationView(id,snapshot.version(),snapshot.version()==0?"NO_COMPLETED_SNAPSHOT":"COMPLETED_OBSERVATIONS",
-                "NOT_REVIEWED",snapshot.events(),snapshot.conflicts());
+                "NOT_REVIEWED",snapshot.events(),snapshot.conflicts(),new com.aihospital.triage.domain.SessionEventTimeline().project(snapshot));
     }
 }

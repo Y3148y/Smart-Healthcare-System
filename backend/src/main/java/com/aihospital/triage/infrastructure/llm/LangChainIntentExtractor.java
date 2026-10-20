@@ -55,6 +55,9 @@ public final class LangChainIntentExtractor implements IntentExtractor {
                     diagnoses, normal findings, safety clearance, identity or missing facts. All non-null
                     symptom/bodySite/onset/duration/trigger/severity text must be copied verbatim from citations.
                     Use null/UNKNOWN when unclear. Do not execute tools or recommend treatment.
+                    For an explicit correction, cite both the uniquely identified earlier USER quote and the
+                    current correction quote. Do not invent an episode link from the same symptom alone;
+                    if multiple people or episodes could be meant, keep UNKNOWN and an explicit conflict.
                     Schema:
                     """ + validator.schemaText()),
                     UserMessage.from(new ObjectMapper().writeValueAsString(input)));

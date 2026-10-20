@@ -47,6 +47,12 @@ function toggle(event:Event){
             <p v-for="(source,j) in conflict.sourceRefs" :key="j">原话：{{ source.quote }}</p>
           </li></ul>
         </details>
+        <details v-if="snapshot.timeline?.length"><summary>来源事件与显式更正关系</summary>
+          <p>只表示来源绑定的AI观察关系，不解除安全预警；无法唯一关联的更正仍待核对。</p>
+          <ul><li v-for="event in snapshot.timeline.slice(0,visible)" :key="event.id">{{event.observation.symptom}} · {{event.state}}
+            <small>事件 {{event.id}}<span v-if="event.corrects"> · 更正事件 {{event.corrects}}</span></small>
+          </li></ul>
+        </details>
       </template>
     </div>
   </details>

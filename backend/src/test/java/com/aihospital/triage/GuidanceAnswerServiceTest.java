@@ -17,6 +17,22 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 class GuidanceAnswerServiceTest {
+    @Test void humanAndMissingInformationRoutesNeverFallThroughToRagOrNarration() {
+        for(var purpose:List.of(TriageEngine.QueryPurpose.HUMAN_HELP,TriageEngine.QueryPurpose.NEEDS_INFORMATION)) {
+            var tools=mock(HospitalToolExecutor.class);var narration=mock(NarrationModel.class);var logs=mock(CallLogStore.class);
+            var questions=purpose==TriageEngine.QueryPurpose.NEEDS_INFORMATION?List.of("请说明本次情况的时间归属？"):List.<String>of();
+            var prepared=new TriageEngine.PreparedEvidence(java.util.Optional.empty(),java.util.Optional.empty(),List.of(),purpose,questions);
+            var result=new GuidanceAnswerService(tools,narration,logs).answer("synthetic","nonempty query","",List.of(),
+                    stage->fail("Local route must not start retrieval or generation"),prepared,
+                    evidence->{fail("Local route must not create a medical fallback");return "";});
+            assertEquals(purpose.name(),result.modelStatus());assertEquals(0,result.knowledgeHits());
+            assertEquals("NOT_APPLICABLE",result.answerEvidence().retrievalStatus());
+            assertEquals("NOT_RUN",result.answerEvidence().generation().phase());verifyNoInteractions(tools,narration);
+            if(purpose==TriageEngine.QueryPurpose.NEEDS_INFORMATION)assertEquals(questions.get(0),result.text());
+            else {assertTrue(result.text().contains("提交不代表已受理"));assertFalse(result.text().contains("已为您提交"));}
+            verify(logs).record(argThat(log->log.tools().isEmpty()&&log.usage().source().equals("NOT_APPLICABLE")));
+        }
+    }
     @Test void preparedRetrievalIsReusedWithoutExecutingAnotherToolOrBypassingNarrationChecks() {
         var tools = mock(HospitalToolExecutor.class);
         var narration = mock(NarrationModel.class);
