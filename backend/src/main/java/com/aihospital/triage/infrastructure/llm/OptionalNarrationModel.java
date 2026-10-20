@@ -66,7 +66,9 @@ public class OptionalNarrationModel implements NarrationModel {
             recordContextBudget(assembled);
             generation = new com.aihospital.triage.domain.AnswerEvidence.Generation("MODEL_CALL", null, null, null, null);
             Boolean thinking = thinkingSetting();
-            var response = thinking == null ? client(guidance).generate(messages)
+            var response = streamResponse ? configuredTransport().generateStreaming(baseUrl, apiKey, model,
+                            thinking, Math.max(256, maxTokens), Math.max(guidance ? 8 : 3, timeoutSeconds),
+                            messages, structuredJson, thinkingBudgetSetting()) : thinking == null ? client(guidance).generate(messages)
                     : configuredTransport().generate(baseUrl, apiKey, model, thinking, Math.max(256, maxTokens),
                             Math.max(guidance ? 8 : 3, timeoutSeconds), messages, structuredJson, thinkingBudgetSetting());
             String raw = response.content() == null ? null : response.content().text();
@@ -111,9 +113,9 @@ public class OptionalNarrationModel implements NarrationModel {
                         "CONTENT_BLOCKED", references, List.of(), List.of(), failure, started, generation);
             }
             var review = AnswerSupportReviewer.review(request, history, references, checked.draft(),
-                    thinking == null ? null : false, inputTokenBudget, turnInputBudget, reviewMessages -> thinking == null
+                    thinking == null ? null : false, inputTokenBudget, turnInputBudget, requireReviewProof, reviewMessages -> thinking == null
                             ? reviewClient().generate(reviewMessages)
-                            : configuredTransport().generate(baseUrl, apiKey, model, false, 1024,
+                            : configuredTransport().generate(baseUrl, apiKey, model, false, requireReviewProof?2048:1024,
                                     reviewTimeoutSeconds, reviewMessages, structuredJson));
             if (!"PASSED".equals(review.status())) {
                 var failure = new AnswerEvidence.Failure("REJECTED".equals(review.status())
@@ -201,7 +203,7 @@ public class OptionalNarrationModel implements NarrationModel {
             Boolean thinking = thinkingSetting();
             generation = new com.aihospital.triage.domain.AnswerEvidence.Generation(generation.phase(),
                     generation.finishReason(), generation.inputTokens(), generation.outputTokens(), generation.outputCharacters(),
-                    thinking, thinking == null ? "LANGCHAIN4J" : "CONFIGURED_HTTP", thinking == null ? null : structuredJson,
+                    thinking, streamResponse ? "CONFIGURED_HTTP_STREAM" : thinking == null ? "LANGCHAIN4J" : "CONFIGURED_HTTP", streamResponse || thinking != null ? structuredJson : null,
                     thinkingBudgetSetting());
         }
         if (failure != null) log.warn("Narration failed traceId={} code={} causeType={} httpStatus={} phase={} finishReason={} causeChain={} locations={}",
@@ -246,6 +248,8 @@ public class OptionalNarrationModel implements NarrationModel {
     @Value("${ai.structured-json:false}") private boolean structuredJson;
     @Value("${ai.context.estimated-input-token-budget:65536}") private int inputTokenBudget=ContextAssembler.DEFAULT_BUDGET;
     @Value("${ai.context.turn-input-estimate-budget:262144}") private int turnInputBudget=ContextAssembler.DEFAULT_TURN_BUDGET;
+    @Value("${ai.stream-response:false}") private boolean streamResponse;
+    @Value("${ai.answer-review.require-claim-proof:true}") private boolean requireReviewProof;
     private ConfiguredChatTransport configuredChatTransport;
 
     private Boolean thinkingSetting() {
@@ -272,7 +276,7 @@ public class OptionalNarrationModel implements NarrationModel {
     private synchronized OpenAiChatModel reviewClient() {
         if (supportReviewClient == null) {
             var builder = OpenAiChatModel.builder().apiKey(apiKey).modelName(model).temperature(0.0)
-                    .maxTokens(1024).timeout(Duration.ofSeconds(reviewTimeoutSeconds)).maxRetries(0);
+                    .maxTokens(requireReviewProof?2048:1024).timeout(Duration.ofSeconds(reviewTimeoutSeconds)).maxRetries(0);
             if (!baseUrl.isBlank()) builder.baseUrl(baseUrl);
             supportReviewClient = builder.build();
         }

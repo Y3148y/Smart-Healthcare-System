@@ -16,6 +16,7 @@ const props=defineProps<{sessions:ChatSession[],initialSymptom?:string,bookingRu
 const emit=defineEmits<{book:[doctor:Doctor,sessionId:string],updated:[],notify:[message:string]}>()
 const question=ref(''), activeConversation=ref<Conversation|null>(null), eligible=ref(false)
 const pendingMessage=ref(''), triage=ref<Result|null>(null), triageStatus=ref(''), triageRunning=ref(false)
+const checkedAnswer=ref('')
 const sessionList=ref<ChatSession[]>(props.sessions)
 const selection=selectionVersion()
 const elapsedSeconds=ref(0), replyDurations=ref<Record<string,number>>({})
@@ -81,7 +82,7 @@ async function startTriage(){
   if(!content)return
   selection.next()
   const previousUserCount=activeConversation.value?.messages.filter(message=>message.role==='USER').length||0
-  question.value='';triageRunning.value=true;triageStatus.value='正在提交请求…';pendingMessage.value=content
+  question.value='';triageRunning.value=true;triageStatus.value='正在提交请求…';pendingMessage.value=content;checkedAnswer.value=''
   const started=performance.now()
   let requestId:string|undefined
   elapsedSeconds.value=0
@@ -90,7 +91,12 @@ async function startTriage(){
     if(!activeConversation.value)activeConversation.value=await api<Conversation>('/triage/sessions',{method:'POST',body:JSON.stringify({adultConfirmed:eligible.value,forSelfConfirmed:eligible.value,notPregnantConfirmed:eligible.value})})
     const stages:Record<string,string>={ACCEPTED:'请求已接收',SAFETY_CHECK:'正在检查危险信号…',KNOWLEDGE_RETRIEVAL:'正在检索知识依据…',ANSWER_GENERATION:'正在生成并校验回答…',SERVICE_RESPONSE:'正在整理目录查询结果…',SCHEDULE_LOOKUP:'正在查询模拟号源…',SAVING:'正在保存本轮结果…'}
     requestId=await turnIdentity(activeConversation.value.session.id,content)
-    const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content,requestId},stage=>{triageStatus.value=stages[stage]||'正在处理…'})
+    let checkedMessageId:string|undefined
+    const result=await streamResult<Conversation>(`/triage/sessions/${activeConversation.value.session.id}/turns/stream`,{content,requestId},stage=>{triageStatus.value=stages[stage]||'正在处理…'},delta=>{
+      checkedMessageId=delta.messageId;checkedAnswer.value+=delta.text
+    })
+    if(checkedMessageId&&result.messages.find(message=>message.id===checkedMessageId&&message.role==='ASSISTANT')?.content!==checkedAnswer.value)
+      throw new Error('回答片段与已保存结果不一致，请刷新核对')
     clearTurnIdentity(activeConversation.value.session.id)
     applyConversation(result)
     const replies=result.messages.filter(message=>message.role==='ASSISTANT')
@@ -101,6 +107,7 @@ async function startTriage(){
     try{sessionList.value=await api<ChatSession[]>('/triage/sessions');emit('updated')}
     catch{emit('notify','本轮回答已保存，会话列表暂未刷新；已显示的结果仍可查看')}
   }catch(e:any){
+    checkedAnswer.value=''
     triageStatus.value='分诊请求失败'
     let saved=false,processing=false,completed=false
     if(activeConversation.value){
@@ -123,7 +130,7 @@ async function startTriage(){
     }
     if(!saved)question.value=content
     emit('notify',completed?'连接已恢复，本轮结果已加载':processing?'问题已保存，后台仍在处理；请稍后打开该会话查看，不要重复提交':saved?'问题已保存，但本轮未完成；可重新打开会话核对状态':`分诊失败：${e?.message||'请检查后端服务'}`)
-  }finally{if(elapsedTimer)clearInterval(elapsedTimer);elapsedTimer=undefined;pendingMessage.value='';triageRunning.value=false}
+  }finally{if(elapsedTimer)clearInterval(elapsedTimer);elapsedTimer=undefined;pendingMessage.value='';checkedAnswer.value='';triageRunning.value=false}
 }
 async function openConversation(id:string){
   if(triageRunning.value)return
@@ -172,7 +179,8 @@ async function requestHumanReview(sessionId:string,reason:string){
         <AssessmentCard v-for="anchor in assessmentsForMessage(message.id)" :key="anchor.version" :anchor="anchor" :assessments="activeConversation?.assessments || []" :booking-running="bookingRunning" :current-session-status="triageRunning ? '处理中' : activeConversation?.session.status" @book="(doctor,sessionId)=>emit('book',doctor,sessionId)" @review="requestHumanReview" />
       </template>
       <div v-if="pendingMessage" class="bubble user">{{ pendingMessage }}</div>
-      <div v-if="triageRunning" class="bubble ai loading" role="status">{{ triageStatus }}</div>
+      <div v-if="triageRunning && checkedAnswer" class="bubble ai">{{ checkedAnswer }}</div>
+      <div v-if="triageRunning && !checkedAnswer" class="bubble ai loading" role="status">{{ triageStatus }}</div>
       <small v-if="triageRunning" class="response-duration">已用时 {{ elapsedSeconds.toFixed(1) }} 秒</small>
     </div>
     <div class="chat-boundary">仅供挂号参考，不构成诊断；如有急症请立即线下就医。</div>

@@ -78,12 +78,15 @@ export async function api<T>(path:string, init:RequestInit = {}):Promise<T> {
   return value as T
 }
 
-export async function streamResult<T>(path:string, body:unknown, onStage:(stage:string)=>void):Promise<T> {
+export interface CheckedAnswerDelta {messageId:string;seq:number;text:string;checked:true}
+export async function streamResult<T>(path:string, body:unknown, onStage:(stage:string)=>void,
+  onDelta?:(delta:CheckedAnswerDelta)=>void):Promise<T> {
   const generation=authGeneration
   const response=await authenticatedResponse(path,{method:'POST',headers:{Accept:'text/event-stream'},body:JSON.stringify(body)})
   if(!response.headers.get('Content-Type')?.includes('text/event-stream')||!response.body)throw new Error('状态连接不可用，请刷新会话核对')
   const reader=response.body.getReader(),decoder=new TextDecoder('utf-8')
   let buffer='',result:T|undefined,received=false
+  let answerId:string|undefined,nextSeq=0,answerSize=0,answerText=''
   function consume(){
     requireSameSession(generation)
     buffer=buffer.replace(/\r\n/g,'\n')
@@ -97,7 +100,21 @@ export async function streamResult<T>(path:string, body:unknown, onStage:(stage:
       const value=JSON.parse(data)
       if(event==='failure')throw new Error(value.message||'处理未完成，请刷新会话核对')
       if(event==='status')onStage(value.stage)
-      if(event==='result'){result=value as T;received=true}
+      if(event==='answer_delta'){
+        if(received||value.checked!==true||typeof value.messageId!=='string'||!value.messageId
+          ||value.seq!==nextSeq||typeof value.text!=='string'||!value.text||value.text.length>128
+          ||(answerId!==undefined&&answerId!==value.messageId))throw new Error('回答片段异常，请刷新会话核对')
+        answerSize+=value.text.length
+        if(answerSize>100000)throw new Error('回答片段过大，请刷新会话核对')
+        answerId=value.messageId;nextSeq++;answerText+=value.text;onDelta?.(value as CheckedAnswerDelta)
+      }
+      if(event==='result'){
+        if(received)throw new Error('重复结果，请刷新会话核对')
+        if(answerId!==undefined&&(!Array.isArray(value.messages)||value.messages.filter((m:any)=>m.role==='ASSISTANT').at(-1)?.id!==answerId
+          ||value.messages.find((m:any)=>m.id===answerId&&m.role==='ASSISTANT')?.content!==answerText))
+          throw new Error('回答片段与已保存结果不一致，请刷新核对')
+        result=value as T;received=true
+      }
     }
   }
   try{

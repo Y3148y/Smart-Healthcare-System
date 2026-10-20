@@ -39,6 +39,41 @@ class TriageStreamDisconnectTest {
     @MockitoSpyBean TriageConversationService service;
     @Autowired ObjectMapper json;
 
+    @Test void checkedFragmentsReassembleExactlyThePersistedAnswerWithMonotonicSequence() throws Exception {
+        String patient="checked-stream-"+UUID.randomUUID();
+        String session=service.create(patient,new Eligibility(true,true,true)).session().id();
+        String auth="Bearer "+new JwtService().issue(patient,"PATIENT");
+        String path="/api/triage/sessions/"+session;
+        String requestId=UUID.randomUUID().toString();
+        var client=HttpClient.newHttpClient();
+        var response=client.send(request(path+"/turns/stream",auth).POST(HttpRequest.BodyPublishers.ofString(
+                json.writeValueAsString(java.util.Map.of("content","请给我开药","requestId",requestId)))).build(),HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(200,response.statusCode());
+        String event="",messageId=null;int sequence=0;boolean finalSeen=false;
+        var answer=new StringBuilder();com.fasterxml.jackson.databind.JsonNode result=null;
+        for(String line:response.body().split("\\r?\\n")) {
+            if(line.startsWith("event:"))event=line.substring(6).strip();
+            if(!line.startsWith("data:"))continue;
+            var data=json.readTree(line.substring(5).strip());
+            if(event.equals("answer_delta")) {
+                assertFalse(finalSeen);assertTrue(data.path("checked").asBoolean());
+                assertEquals(sequence++,data.path("seq").asInt(-1));
+                if(messageId==null)messageId=data.path("messageId").asText();
+                assertEquals(messageId,data.path("messageId").asText());
+                String fragment=data.path("text").asText();assertFalse(fragment.isEmpty());
+                assertTrue(fragment.codePointCount(0,fragment.length())<=32);answer.append(fragment);
+            } else if(event.equals("result")){assertFalse(finalSeen);finalSeen=true;result=data;}
+            else assertNotEquals("failure",event);
+        }
+        assertTrue(finalSeen);assertTrue(sequence>0);
+        var saved=client.send(request(path,auth).GET().build(),HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(200,saved.statusCode());assertEquals(json.readTree(saved.body()),result);
+        var messages=result.path("messages");var last=messages.get(messages.size()-1);
+        assertEquals("ASSISTANT",last.path("role").asText());assertEquals(messageId,last.path("id").asText());
+        assertEquals(last.path("content").asText(),answer.toString());
+        assertEquals("COMPLETED",json.readTree(client.send(request(path+"/turns/"+requestId,auth).GET().build(),HttpResponse.BodyHandlers.ofString()).body()).path("status").asText());
+    }
+
     @Test void disconnectedStreamStillCommitsExactlyOneTurnAndCanBeRecoveredByRequestId() throws Exception {
         String patient = "disconnect-" + UUID.randomUUID();
         String sessionId = service.create(patient, new Eligibility(true, true, true)).session().id();

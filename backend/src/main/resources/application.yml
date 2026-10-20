@@ -76,8 +76,8 @@ ai:
   model: ${AI_MODEL:qwen3.7-flash-2026-07-15}
   timeout-seconds: ${AI_TIMEOUT_SECONDS:35}
   max-tokens: ${AI_MAX_TOKENS:4096}
-  # Empty preserves the existing SDK/provider default. Explicit true/false opts into
-  # the bounded HTTP adapter for supported providers, without changing safety rules.
+  # Empty omits enable_thinking and preserves the provider default, including SSE.
+  # Explicit true/false is sent only to the configured provider, without changing safety rules.
   enable-thinking: ${AI_ENABLE_THINKING:}
   # Optional provider-supported thinking cap; blank preserves the provider default.
   # Requires explicit thinking=true; does not change the request timeout or max_tokens.
@@ -85,7 +85,10 @@ ai:
   # Opt-in JSON Object output for the configured HTTP structured narration path.
   # Default off: provider/model support must be checked; it is not a semantic validator.
   structured-json: ${AI_STRUCTURED_JSON:false}
+  # Provider SSE is buffered before citation/support checks; unchecked medical drafts are never released.
+  stream-response: ${AI_STREAM_RESPONSE:true}
   answer-review:
+    require-claim-proof: ${AI_ANSWER_REVIEW_REQUIRE_CLAIM_PROOF:true}
     timeout-seconds: ${AI_ANSWER_REVIEW_TIMEOUT_SECONDS:8}
   embedding-model: ${AI_EMBEDDING_MODEL:qwen3.7-text-embedding}
   embedding-batch-size: ${AI_EMBEDDING_BATCH_SIZE:10}

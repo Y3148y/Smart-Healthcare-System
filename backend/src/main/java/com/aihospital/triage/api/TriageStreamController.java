@@ -36,6 +36,16 @@ public class TriageStreamController {
             try{
                 event(emitter,disconnected,"status",Map.of("stage","ACCEPTED"));
                 var result=service.send(id,patient,text,request.requestId(),stage->event(emitter,disconnected,"status",Map.of("stage",stage.name())));
+                // Only the persisted, checked final answer is eligible for incremental display.
+                var reply=result.messages().stream().filter(message->"ASSISTANT".equals(message.role())).reduce((left,right)->right);
+                if(reply.isPresent()){
+                    var message=reply.get();String body=message.content();int seq=0;
+                    for(int offset=0;offset<body.length()&&!disconnected.get();){
+                        int end=body.offsetByCodePoints(offset,Math.min(32,body.codePointCount(offset,body.length())));
+                        event(emitter,disconnected,"answer_delta",Map.of("messageId",message.id(),"seq",seq++,
+                                "text",body.substring(offset,end),"checked",true));offset=end;
+                    }
+                }
                 event(emitter,disconnected,"result",result);emitter.complete();
             }catch(Exception ex){
                 String message=ex instanceof ResponseStatusException r&&r.getReason()!=null?r.getReason():"本次处理未完成，请刷新会话核对保存状态";

@@ -10,5 +10,8 @@ ai:
   retrieval:
     lexical-backend: memory
   mode: demo
+  stream-response: false
+  answer-review:
+    require-claim-proof: false
   agent:
     mode: OFF

@@ -9,11 +9,12 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.http.*;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 
-/** Bounded compatible HTTP transport with LangChain4j messages; no streaming or reasoning retention. */
+/** Bounded compatible HTTP transport. Streamed drafts remain private until the answer pipeline checks them. */
 final class ConfiguredChatTransport {
     private static final ObjectMapper JSON = new ObjectMapper();
     enum ResponseIssue {
@@ -85,7 +86,18 @@ final class ConfiguredChatTransport {
     Response<AiMessage> generate(String base, String key, String model, boolean thinking, int maxTokens,
             int seconds, List<ChatMessage> messages, boolean jsonObject, Integer thinkingBudget,
             List<Map<String,Object>> tools, boolean forbidToolCalls) throws Exception {
-        if (thinkingBudget != null && (!thinking || thinkingBudget < 1 || thinkingBudget > 32768))
+        return generateInternal(base,key,model,thinking,maxTokens,seconds,messages,jsonObject,thinkingBudget,tools,forbidToolCalls,false);
+    }
+
+    Response<AiMessage> generateStreaming(String base, String key, String model, Boolean thinking, int maxTokens,
+            int seconds, List<ChatMessage> messages, boolean jsonObject, Integer thinkingBudget) throws Exception {
+        return generateInternal(base,key,model,thinking,maxTokens,seconds,messages,jsonObject,thinkingBudget,List.of(),true,true);
+    }
+
+    private Response<AiMessage> generateInternal(String base, String key, String model, Boolean thinking, int maxTokens,
+            int seconds, List<ChatMessage> messages, boolean jsonObject, Integer thinkingBudget,
+            List<Map<String,Object>> tools, boolean forbidToolCalls, boolean streaming) throws Exception {
+        if (thinkingBudget != null && (!Boolean.TRUE.equals(thinking) || thinkingBudget < 1 || thinkingBudget > 32768))
             throw new IllegalArgumentException("Invalid thinking budget");
         URI endpoint = URI.create(base.replaceAll("/+$", "") + "/chat/completions");
         if (!Set.of("http", "https").contains(endpoint.getScheme()) || endpoint.getHost() == null
@@ -94,8 +106,9 @@ final class ConfiguredChatTransport {
         var turns=wireMessages(messages);
         var body = new LinkedHashMap<String,Object>();
         body.put("model", model); body.put("messages", turns); body.put("temperature", .1);
-        body.put("max_tokens", maxTokens); body.put("stream", false);
-        body.put("enable_thinking", thinking);
+        body.put("max_tokens", maxTokens); body.put("stream", streaming);
+        if (streaming) body.put("stream_options", Map.of("include_usage", true));
+        if(thinking!=null)body.put("enable_thinking", thinking);
         if (thinkingBudget != null) body.put("thinking_budget", thinkingBudget);
         if (jsonObject) body.put("response_format", Map.of("type", "json_object"));
         if (!tools.isEmpty()) {
@@ -114,7 +127,7 @@ final class ConfiguredChatTransport {
             var response = pending.get(seconds, TimeUnit.SECONDS);
             if (response.statusCode() != 200) throw new OpenAiHttpException(response.statusCode(), "");
             com.fasterxml.jackson.databind.JsonNode root;
-            try { root = JSON.readTree(response.body()); }
+            try { root = streaming ? decodeStream(response.body()) : JSON.readTree(response.body()); }
             catch (com.fasterxml.jackson.core.JsonProcessingException invalid) {
                 throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_JSON_INVALID);
             }
@@ -164,6 +177,63 @@ final class ConfiguredChatTransport {
             }
             return Response.from(AiMessage.from(message.path("content").textValue()), tokens, finish);
         } finally { pending.cancel(true); }
+    }
+
+    /** No callback releases provider deltas: structured JSON and medical review require the complete draft. */
+    static com.fasterxml.jackson.databind.JsonNode decodeStream(byte[] bytes) throws IOException {
+        String text;
+        try { text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString(); }
+        catch (java.nio.charset.CharacterCodingException invalid) { throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CONTENT_INVALID); }
+        StringBuilder content = new StringBuilder();
+        StringBuilder data = new StringBuilder();
+        String finish = null;
+        boolean done = false;
+        com.fasterxml.jackson.databind.JsonNode usage = null;
+        for (String line : (text.replace("\r\n", "\n") + "\n\n").split("\n", -1)) {
+            if (!line.isEmpty()) {
+                if (done && !line.startsWith(":")) throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CONTENT_INVALID);
+                if (line.startsWith("data:")) {
+                    if (!data.isEmpty()) data.append('\n');
+                    data.append(line.substring(5).stripLeading());
+                }
+                continue;
+            }
+            if (data.isEmpty()) continue;
+            String frame = data.toString(); data.setLength(0);
+            if (frame.equals("[DONE]")) { done = true; continue; }
+            var item = JSON.readTree(frame);
+            if (item == null || !item.isObject() || item.has("error") || !item.path("choices").isArray())
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CHOICES_INVALID);
+            var choices = item.path("choices");
+            if (item.hasNonNull("usage")) {
+                if (usage != null || !item.path("usage").isObject()) throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CONTENT_INVALID);
+                usage = item.path("usage");
+            }
+            if (choices.isEmpty()) continue;
+            if (choices.size() != 1 || !choices.get(0).path("index").isIntegralNumber() || !choices.get(0).path("index").canConvertToInt() || choices.get(0).path("index").asInt(-1) != 0)
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CHOICES_INVALID);
+            var choice = choices.get(0);
+            var delta = choice.path("delta");
+            if (!delta.isObject() || delta.hasNonNull("tool_calls"))
+                throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_UNEXPECTED_TOOL_CALLS);
+            if (delta.hasNonNull("content")) {
+                if (!delta.path("content").isTextual() || (finish != null && !delta.path("content").asText().isEmpty()))
+                    throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_CONTENT_INVALID);
+                content.append(delta.path("content").asText());
+            }
+            // reasoning_content is deliberately never copied into the returned model message.
+            if (choice.hasNonNull("finish_reason")) {
+                if (finish != null || !choice.path("finish_reason").isTextual())
+                    throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_FINISH_REASON_INVALID);
+                finish = choice.path("finish_reason").asText();
+            }
+        }
+        if (!done || finish == null) throw new InvalidResponse(ResponseIssue.MODEL_RESPONSE_FINISH_REASON_INVALID);
+        var root = JSON.createObjectNode();
+        root.putArray("choices").addObject().put("finish_reason", finish)
+                .putObject("message").put("content", content.toString());
+        if (usage != null) root.set("usage", usage);
+        return root;
     }
 
     private static final class LimitedBodySubscriber implements HttpResponse.BodySubscriber<byte[]> {

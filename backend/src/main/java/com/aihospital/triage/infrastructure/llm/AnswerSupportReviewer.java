@@ -36,6 +36,12 @@ final class AnswerSupportReviewer {
             "noServiceClaims", "referencesCorrect", "questionsJustified");
     private static final List<String> CODES = List.of("UNSUPPORTED_CLAIM", "CONDITION_NOT_ESTABLISHED",
             "OFF_TOPIC", "SERVICE_CONTENT", "WRONG_REFERENCE", "QUESTION_NOT_JUSTIFIED");
+    static final String PROOF_INSTRUCTIONS="本次输出格式扩展为上述六个布尔字段加paragraphChecks，取代前文仅六字段的格式限制。paragraphChecks数组只覆盖GENERAL_INFORMATION段落。每项含paragraphIndex(从0起)和claims数组。"
+            +"每条claim必须含text、referenceId、evidenceQuote、supported、conditionsPreserved。按原段落顺序切分所有断言，text逐项拼接须与该段原文完全相同，不能省略无依据的词或建议。"
+            +"referenceId须为该段实际采用ID，evidenceQuote须逐字摘自该引用正文，不能从其他段、标题或自己的医学知识补证据。"
+            +"逐条判断阶段、主体、时间、否定、病程和建议：来源的前一阶段现象不能改写为后一阶段；描述可能诱因不等于来源建议识别或避免它。"
+            +"没有直接支持或无法确认时supported=false；条件改变时conditionsPreserved=false。可用六项false并返回空paragraphChecks表达拒绝。"
+            +"LIMITATION不生成医学证明；禁止额外字段、思考链或说明。示例结构：paragraphChecks:[{paragraphIndex:0,claims:[{text:'原段落全文',referenceId:'E1',evidenceQuote:'引用中的原句',supported:true,conditionsPreserved:true}]}]。";
     record Decision(String status, List<String> issues) {}
     @FunctionalInterface interface Caller { Response<AiMessage> call(List<ChatMessage> messages) throws Exception; }
 
@@ -49,6 +55,10 @@ final class AnswerSupportReviewer {
     }
     static SupportReview review(String request,List<Turn> history,List<Reference> references,
                                 Draft draft,Boolean thinking,int inputBudget,int turnBudget,Caller caller){
+        return review(request,history,references,draft,thinking,inputBudget,turnBudget,false,caller);
+    }
+    static SupportReview review(String request,List<Turn> history,List<Reference> references,
+                                Draft draft,Boolean thinking,int inputBudget,int turnBudget,boolean requireProof,Caller caller){
         long started = System.nanoTime();
         Integer input = null, output = null;
         try {
@@ -62,7 +72,7 @@ final class AnswerSupportReviewer {
             }
             String payload = JSON.writeValueAsString(Map.of("currentRequest", request, "patientStatements", patient,
                     "references", references, "draft", draft));
-            var messages=List.<ChatMessage>of(new SystemMessage(INSTRUCTIONS+MedicalAnswerInstructions.task(request)),
+            var messages=List.<ChatMessage>of(new SystemMessage(INSTRUCTIONS+(requireProof?PROOF_INSTRUCTIONS:"")+MedicalAnswerInstructions.task(request)),
                     new UserMessage("<review_data>"+payload+"</review_data>"));
             ContextAssembler.reserveMessages(messages,"ANSWER_REVIEW",inputBudget,turnBudget);
             var response=caller.call(messages);
@@ -74,7 +84,7 @@ final class AnswerSupportReviewer {
                 throw new InvalidReview(response.finishReason() == FinishReason.LENGTH ? "REVIEW_TRUNCATED"
                         : response.finishReason() == FinishReason.CONTENT_FILTER ? "REVIEW_PROVIDER_FILTERED" : "REVIEW_FINISH_INVALID");
             if (response.content() == null) throw new InvalidReview("REVIEW_EMPTY_RESPONSE");
-            Decision decision = parse(response.content().text(), draft);
+            Decision decision = requireProof?parseWithProof(response.content().text(),draft,references):parse(response.content().text(), draft);
             return new SupportReview(decision.status(), decision.issues(),
                     elapsed(started), null, thinking, input, output);
         } catch (Exception error) {
@@ -108,6 +118,38 @@ final class AnswerSupportReviewer {
             if (!value.booleanValue()) issues.add(CODES.get(i));
         }
         return new Decision(issues.isEmpty() ? "PASSED" : "REJECTED", List.copyOf(issues));
+    }
+    static Decision parseWithProof(String raw,Draft draft,List<Reference> references) throws Exception {
+        if(raw==null||raw.length()>8000)throw new InvalidReview("REVIEW_SIZE_INVALID");
+        var root=JSON.readTree(raw);
+        if(root==null||!root.isObject())throw new InvalidReview("REVIEW_DECISION_INVALID");
+        var proofs=((com.fasterxml.jackson.databind.node.ObjectNode)root).remove("paragraphChecks");
+        if(proofs==null||!proofs.isArray()||proofs.size()>8)throw new InvalidReview("REVIEW_PROOF_MISSING");
+        var base=parse(JSON.writeValueAsString(root),draft);
+        if(!base.issues().isEmpty())return base;
+        var byId=new HashMap<String,Reference>();references.forEach(r->byId.put(r.id(),r));
+        var covered=new HashSet<Integer>();var issues=new LinkedHashSet<String>();int total=0;
+        for(var proof:proofs) {
+            if(!proof.isObject()||proof.size()!=2||!proof.path("paragraphIndex").isIntegralNumber()||!proof.path("paragraphIndex").canConvertToInt()||!proof.path("claims").isArray())throw new InvalidReview("REVIEW_PROOF_INVALID");
+            int index=proof.path("paragraphIndex").asInt(-1);
+            if(index<0||index>=draft.paragraphs().size()||!covered.add(index))throw new InvalidReview("REVIEW_PROOF_INVALID");
+            var paragraph=draft.paragraphs().get(index);
+            if(!"GENERAL_INFORMATION".equals(paragraph.kind())||proof.path("claims").isEmpty())throw new InvalidReview("REVIEW_PROOF_INVALID");
+            var joined=new StringBuilder();
+            for(var claim:proof.path("claims")) {
+                if(++total>24||!claim.isObject()||claim.size()!=5||!claim.path("text").isTextual()||claim.path("text").asText().isEmpty()
+                        ||!claim.path("referenceId").isTextual()||!claim.path("evidenceQuote").isTextual()
+                        ||!claim.path("supported").isBoolean()||!claim.path("conditionsPreserved").isBoolean())throw new InvalidReview("REVIEW_PROOF_INVALID");
+                joined.append(claim.path("text").asText());
+                String id=claim.path("referenceId").asText(),quote=claim.path("evidenceQuote").asText();var reference=byId.get(id);
+                if(reference==null||!paragraph.referenceIds().contains(id)||quote.isBlank()||quote.length()>1000||!reference.excerpt().contains(quote))issues.add("WRONG_REFERENCE");
+                if(!claim.path("supported").booleanValue())issues.add("UNSUPPORTED_CLAIM");
+                if(!claim.path("conditionsPreserved").booleanValue())issues.add("CONDITION_NOT_ESTABLISHED");
+            }
+            if(!joined.toString().equals(paragraph.text()))throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
+        }
+        for(int i=0;i<draft.paragraphs().size();i++)if("GENERAL_INFORMATION".equals(draft.paragraphs().get(i).kind())&&!covered.contains(i))throw new InvalidReview("REVIEW_CLAIM_COVERAGE_INCOMPLETE");
+        return new Decision(issues.isEmpty()?"PASSED":"REJECTED",List.copyOf(issues));
     }
     private static final class InvalidReview extends IllegalArgumentException {
         final String code;
