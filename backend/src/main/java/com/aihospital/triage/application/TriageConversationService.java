@@ -137,7 +137,9 @@ public class TriageConversationService {
         String userMessageId = turn.userMessageId();
         try (var invocation = com.aihospital.shared.diagnostics.InvocationContext.open(com.aihospital.shared.diagnostics.InvocationContext.Origin.WORKFLOW);
              var trace = com.aihospital.shared.diagnostics.TurnTraceContext.open(userMessageId,
-                com.aihospital.triage.domain.TriageSafetyPolicy.POLICY_VERSION)) {
+                com.aihospital.triage.domain.TriageSafetyPolicy.POLICY_VERSION);
+             var diagnostic = com.aihospital.shared.diagnostics.SyntheticReviewDiagnostics.open(id,patient,key,userMessageId,
+                     () -> store.messages(id).stream().filter(m -> "USER".equals(m.role())).map(Message::content).toList())) {
             try {
                 Conversation result = processTurn(id, patient, content, session, updates, progress, trace,turn);
                 var provenance = result.messages().stream().filter(m -> "ASSISTANT".equals(m.role()))

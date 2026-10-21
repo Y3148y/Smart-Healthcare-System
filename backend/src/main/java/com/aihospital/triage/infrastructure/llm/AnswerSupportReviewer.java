@@ -185,4 +185,42 @@ final class AnswerSupportReviewer {
         InvalidReview(String code) { super(code); this.code = code; }
     }
     private static long elapsed(long started) { return Math.max(0, (System.nanoTime() - started) / 1_000_000); }
+
+    /** Only the declared decision fields, never raw provider replies, unknown fields or reasoning. */
+    static com.fasterxml.jackson.databind.JsonNode diagnosticDecision(String raw,List<Reference> references) {
+        var safe=JSON.createObjectNode();
+        try {
+            if(raw==null||raw.length()>8000)return safe;
+            var root=JSON.readTree(raw);if(root==null||!root.isObject())return safe;
+            for(String field:FIELDS)if(root.path(field).isBoolean())safe.set(field,root.get(field));
+            var checks=root.path("paragraphChecks");
+            if(!checks.isArray()||checks.size()>8)return safe;
+            var paragraphs=safe.putArray("paragraphChecks");
+            for(var check:checks) {
+                if(!check.isObject())continue;
+                var paragraph=paragraphs.addObject();
+                if(check.path("paragraphIndex").isInt())paragraph.set("paragraphIndex",check.get("paragraphIndex"));
+                var claims=check.path("claims");if(!claims.isArray()||claims.size()>24)continue;
+                var selected=paragraph.putArray("claims");
+                for(var claim:claims) {
+                    var kept=selected.addObject();
+                    String claimId=claim.path("claimId").asText();
+                    if(claimId.matches("P[0-7]S(?:[0-9]|1[0-9]|2[0-3])"))kept.put("claimId",claimId);
+                    String referenceId=claim.path("referenceId").asText();
+                    if(referenceId.matches("E[1-9][0-9]?"))kept.put("referenceId",referenceId);
+                    var quote=claim.path("evidenceQuote");
+                    if(quote.isTextual()) {
+                        String text=quote.asText();
+                        boolean bound=!text.isBlank()&&text.length()<=1000&&references.stream()
+                                .anyMatch(ref->ref.id().equals(referenceId)&&ref.excerpt().contains(text));
+                        if(bound)kept.put("evidenceQuote",text);
+                        else {kept.put("evidenceQuoteStatus","NOT_BOUND");kept.put("evidenceQuoteLength",text.length());
+                            kept.put("evidenceQuoteHash",com.aihospital.shared.diagnostics.SyntheticReviewDiagnostics.sha256(text));}
+                    }
+                    for(String field:List.of("supported","conditionsPreserved"))if(claim.path(field).isBoolean())kept.set(field,claim.get(field));
+                }
+            }
+        } catch(Exception invalid) {return JSON.createObjectNode();}
+        return safe;
+    }
 }

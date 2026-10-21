@@ -112,11 +112,21 @@ public class OptionalNarrationModel implements NarrationModel {
                 return diagnosed(new Answer(ModelFailureDiagnostics.patientMessage(failure), "VALIDATION_BLOCKED", model), traceId, retrievalStatus,
                         "CONTENT_BLOCKED", references, List.of(), List.of(), failure, started, generation);
             }
+            boolean diagnostic = com.aihospital.shared.diagnostics.SyntheticReviewDiagnostics.enabled();
+            var reviewDecision = new java.util.concurrent.atomic.AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
+            var diagnosticReferences = references;
             var review = AnswerSupportReviewer.review(request, history, references, checked.draft(),
                     thinking == null ? null : false, inputTokenBudget, turnInputBudget, requireReviewProof, reviewMessages -> thinking == null
-                            ? reviewClient().generate(reviewMessages)
-                            : configuredTransport().generate(baseUrl, apiKey, model, false, requireReviewProof?2048:1024,
-                                    reviewTimeoutSeconds, reviewMessages, structuredJson));
+                            ? captureReviewDecision(reviewClient().generate(reviewMessages),diagnostic,reviewDecision,diagnosticReferences)
+                            : captureReviewDecision(configuredTransport().generate(baseUrl, apiKey, model, false, requireReviewProof?2048:1024,
+                                    reviewTimeoutSeconds, reviewMessages, structuredJson),diagnostic,reviewDecision,diagnosticReferences));
+            if(diagnostic&&!"PASSED".equals(review.status())) {
+                try {
+                    var json=new ObjectMapper();
+                    com.aihospital.shared.diagnostics.SyntheticReviewDiagnostics.record(json.valueToTree(checked.draft()),
+                            json.valueToTree(references),reviewDecision.get(),json.valueToTree(review));
+                } catch(RuntimeException unavailable) { /* Consent-bound diagnostic failure must not change the answer. */ }
+            }
             if (!"PASSED".equals(review.status())) {
                 var failure = new AnswerEvidence.Failure("REJECTED".equals(review.status())
                         ? "OUTPUT_SUPPORT_REJECTED" : "REVIEW_UNAVAILABLE", "SupportReviewer", null);
@@ -411,6 +421,15 @@ public class OptionalNarrationModel implements NarrationModel {
                 com.aihospital.shared.diagnostics.TurnTraceContext.currentOrNewId(),"UNKNOWN","CONTEXT_BLOCKED",
                 List.of(),List.of(),List.of(),new AnswerEvidence.Failure(exceeded.code,"ContextAssembler",null),
                 System.nanoTime(),new AnswerEvidence.Generation("PROMPT_PREPARATION",null,null,null,null));
+    }
+
+    private dev.langchain4j.model.output.Response<AiMessage> captureReviewDecision(
+            dev.langchain4j.model.output.Response<AiMessage> response, boolean enabled,
+            java.util.concurrent.atomic.AtomicReference<com.fasterxml.jackson.databind.JsonNode> captured,
+            List<AnswerEvidence.Reference> references) {
+        if(enabled&&response!=null&&response.content()!=null)
+            captured.set(AnswerSupportReviewer.diagnosticDecision(response.content().text(),references));
+        return response;
     }
 
     private String removeMedicationDirections(String response) {
