@@ -12,6 +12,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class SyntheticReviewDiagnosticsTest {
     @TempDir Path directory;
     final ObjectMapper json=new ObjectMapper();
+    final String patient=authenticatedSyntheticSubject();
+    private static String authenticatedSyntheticSubject() {
+        var login=new com.aihospital.identity.application.DemoLoginService();
+        org.springframework.test.util.ReflectionTestUtils.setField(login,"demoAuthEnabled",true);
+        var response=login.login(new com.aihospital.shared.model.Models.LoginRequest("lisi","synthetic-password"));
+        var claims=new com.aihospital.shared.security.JwtService().verifyBearer("Bearer "+response.token());
+        assertEquals("PATIENT",claims.role());
+        return claims.subject();
+    }
     final String session=UUID.randomUUID().toString(),request=UUID.randomUUID().toString(),second=UUID.randomUUID().toString();
     final String user=UUID.randomUUID().toString();
     final Instant now=Instant.now();
@@ -24,13 +33,13 @@ class SyntheticReviewDiagnosticsTest {
     void save(Map<String,Object> permit) throws Exception {Files.writeString(directory.resolve("permit.json"),json.writeValueAsString(permit));}
     @Test void defaultAbsentDoesNotReadPatientHistory() {
         var reads=new AtomicInteger();
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->{reads.incrementAndGet();return List.of("合成甲");},now)){
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->{reads.incrementAndGet();return List.of("合成甲");},now)){
             assertFalse(SyntheticReviewDiagnostics.enabled());assertEquals(0,reads.get());
         }
     }
     @Test void exactPermitCapturesOnceAndDetachedWorkerUsesSameTraceWithoutLeakingAfterClose() throws Exception {
         save(permit());
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
             assertTrue(SyntheticReviewDiagnostics.enabled());
             var metadata=TurnTraceContext.metadata();
             java.util.concurrent.CompletableFuture.runAsync(()->{
@@ -46,7 +55,7 @@ class SyntheticReviewDiagnosticsTest {
             assertTrue(packet.path("finalAdoptedReferenceIds").isEmpty());
         }
         try(var trace=TurnTraceContext.open(user,"TEST")) {assertFalse(SyntheticReviewDiagnostics.enabled());}
-        try(var trace=TurnTraceContext.open(user,"TEST");var again=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+        try(var trace=TurnTraceContext.open(user,"TEST");var again=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
             assertFalse(SyntheticReviewDiagnostics.enabled());
         }
     }
@@ -54,18 +63,19 @@ class SyntheticReviewDiagnosticsTest {
         save(permit());
         try(var trace=TurnTraceContext.open(user,"TEST")) {
             var histories=List.of(List.of("合成甲","真实额外自述"),List.of("不同内容"),List.<String>of());
-            for(var history:histories)try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->history,now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+            for(var history:histories)try(var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->history,now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
             try(var scope=SyntheticReviewDiagnostics.open(directory,session,"zhangsan",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
-            try(var scope=SyntheticReviewDiagnostics.open(directory,UUID.randomUUID().toString(),"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
-            try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",UUID.randomUUID().toString(),user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+            try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled(),"An account name is not the authenticated subject");}
+            try(var scope=SyntheticReviewDiagnostics.open(directory,UUID.randomUUID().toString(),patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+            try(var scope=SyntheticReviewDiagnostics.open(directory,session,patient,UUID.randomUUID().toString(),user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
             assertFalse(Files.exists(directory.resolve(request+".claimed")));
         }
     }
     @Test void secondTurnRequiresBothExactOrderedStatements() throws Exception {
         save(permit());
         try(var trace=TurnTraceContext.open(user,"TEST")) {
-            try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",second,user,()->List.of("合成乙","合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
-            try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",second,user,()->List.of("合成甲","合成乙"),now)){assertTrue(SyntheticReviewDiagnostics.enabled());}
+            try(var scope=SyntheticReviewDiagnostics.open(directory,session,patient,second,user,()->List.of("合成乙","合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+            try(var scope=SyntheticReviewDiagnostics.open(directory,session,patient,second,user,()->List.of("合成甲","合成乙"),now)){assertTrue(SyntheticReviewDiagnostics.enabled());}
         }
     }
     @Test void expiredFutureIssuedOverlongAndUnknownFieldPermitsFailClosed() throws Exception {
@@ -79,20 +89,20 @@ class SyntheticReviewDiagnosticsTest {
                 case "duplicate" -> permit.put("turns",List.of(Map.of("requestId",request,"patientHashes",List.of(SyntheticReviewDiagnostics.sha256("合成甲"))),Map.of("requestId",request,"patientHashes",List.of(SyntheticReviewDiagnostics.sha256("合成甲"),SyntheticReviewDiagnostics.sha256("合成乙")))));
             }
             save(permit);
-            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled(),failure);}
+            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled(),failure);}
         }
     }
     @Test void corruptOversizedAndPathLikeIdsDoNotCapture() throws Exception {
         for(String raw:List.of("not-json","{} {}","x".repeat(8193))) {
             Files.writeString(directory.resolve("permit.json"),raw);
-            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
         }
         save(permit());
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi","../escape",user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,"../escape",user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
     }
     @Test void outputFailureDoesNotThrowAndPermitStillConsumed() throws Exception {
         save(permit());Files.createDirectory(directory.resolve(request+".json"));
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
             assertTrue(SyntheticReviewDiagnostics.enabled());
             assertDoesNotThrow(()->SyntheticReviewDiagnostics.record(json.createObjectNode(),null,null,json.createObjectNode().put("status","REJECTED")));
         }
@@ -100,16 +110,16 @@ class SyntheticReviewDiagnosticsTest {
     }
     @Test void passedOutcomeCannotBeWrittenEvenThroughDirectSink() throws Exception {
         save(permit());
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
             SyntheticReviewDiagnostics.record(json.createObjectNode(),null,null,json.createObjectNode().put("status","PASSED"));
             assertFalse(Files.exists(directory.resolve(request+".json")));
         }
     }
     @Test void missingTraceDifferentTraceAndClosedRestorationCannotCapture() throws Exception {
         save(permit());
-        try(var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+        try(var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
         TurnTraceContext.Metadata snapshot;
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
             assertTrue(SyntheticReviewDiagnostics.enabled());snapshot=TurnTraceContext.metadata();
             try(var other=TurnTraceContext.open(user,"TEST")){assertFalse(SyntheticReviewDiagnostics.enabled());}
             assertTrue(SyntheticReviewDiagnostics.enabled());
@@ -122,9 +132,9 @@ class SyntheticReviewDiagnosticsTest {
         catch(java.io.IOException|UnsupportedOperationException|SecurityException unavailable) {
             org.junit.jupiter.api.Assumptions.assumeTrue(false,"Host cannot create symbolic links");
         }
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
         Path link=directory.resolve("linked");Files.createSymbolicLink(link,directory);
-        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(link,session,"lisi",request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
+        try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(link,session,patient,request,user,()->List.of("合成甲"),now)){assertFalse(SyntheticReviewDiagnostics.enabled());}
     }
     @Test void realNarrationAdapterStoresRejectedOnlyAndKeepsPatientFallback() throws Exception {
         save(permit());
@@ -150,7 +160,7 @@ class SyntheticReviewDiagnosticsTest {
             org.springframework.test.util.ReflectionTestUtils.setField(model,"baseUrl","http://127.0.0.1:"+server.getAddress().getPort()+"/v1");
             org.springframework.test.util.ReflectionTestUtils.setField(model,"timeoutSeconds",3);
             var evidence=List.of(new com.aihospital.shared.model.Models.Evidence("fixture","https://example.test","合成资料内容。",1.0));
-            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",request,user,()->List.of("合成甲"),now)) {
+            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,request,user,()->List.of("合成甲"),now)) {
                 var answer=model.answerWithEvidence("合成甲","","",evidence,"fallback",List.of(),null,false,"READY");
                 assertEquals("VALIDATION_BLOCKED",answer.status());assertEquals("REJECTED",answer.diagnostics().supportReview().status());
                 assertFalse(answer.text().contains("合成资料内容"));assertTrue(answer.diagnostics().adoptedReferenceIds().isEmpty());
@@ -158,7 +168,7 @@ class SyntheticReviewDiagnosticsTest {
                 assertTrue(packet.contains("合成资料内容"));assertFalse(packet.contains("synthetic-test-key"));assertFalse(packet.contains("hidden thoughts"));
             }
             rejected.set(false);
-            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,"lisi",second,user,()->List.of("合成甲","合成乙"),now)) {
+            try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,second,user,()->List.of("合成甲","合成乙"),now)) {
                 var answer=model.answerWithEvidence("合成乙","","",evidence,"fallback",List.of(),null,false,"READY");
                 assertEquals("LIVE",answer.status());assertFalse(Files.exists(directory.resolve(second+".json")));
             }

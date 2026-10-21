@@ -35,7 +35,8 @@ public final class SyntheticReviewDiagnostics implements AutoCloseable {
     static SyntheticReviewDiagnostics open(Path root,String sessionId,String patient,String requestId,
             String userMessageId,Supplier<List<String>> patientStatements,Instant now) {
         try {
-            if(root==null||!safeDirectory(root)||!"lisi".equals(patient)||!uuid(sessionId)||!uuid(requestId)||!uuid(userMessageId))return NONE;
+            // Controllers pass the authenticated JWT subject, not the login account name.
+            if(root==null||!safeDirectory(root)||!"李四".equals(patient)||!uuid(sessionId)||!uuid(requestId)||!uuid(userMessageId))return NONE;
             Path permit=root.resolve("permit.json");
             if(Files.isSymbolicLink(root)||Files.isSymbolicLink(permit)||!Files.isRegularFile(permit,LinkOption.NOFOLLOW_LINKS)
                     ||Files.size(permit)>8192)return NONE;

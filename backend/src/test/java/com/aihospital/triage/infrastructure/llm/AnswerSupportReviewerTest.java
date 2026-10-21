@@ -30,6 +30,9 @@ class AnswerSupportReviewerTest {
         assertTrue(MedicalAnswerInstructions.generation("一般问题",true)
                 .contains(MedicalAnswerInstructions.APPLICABILITY));
         assertTrue(AnswerSupportReviewer.INSTRUCTIONS.contains(MedicalAnswerInstructions.APPLICABILITY));
+        assertTrue(MedicalAnswerInstructions.generation("合成问题",true).contains(MedicalAnswerInstructions.SOURCE_RELATIONS));
+        assertTrue(AnswerSupportReviewer.INSTRUCTIONS.contains(MedicalAnswerInstructions.SOURCE_RELATIONS));
+        assertTrue(MedicalAnswerInstructions.SOURCE_RELATIONS.contains("不等于A导致B、A有助于B或A用于实现B"));
         assertTrue(MedicalAnswerInstructions.APPLICABILITY.contains("病程、护理、病因和就医条件"));
         assertTrue(MedicalAnswerInstructions.APPLICABILITY.contains("不能证明患者"));
     }
