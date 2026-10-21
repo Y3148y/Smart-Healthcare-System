@@ -11,6 +11,7 @@ const traceExpanded=ref(false)
 const shown=computed(()=>props.assessments.find(item=>item.version===selectedVersion.value)||props.anchor)
 const latestVersion=computed(()=>props.assessments[props.assessments.length-1]?.version)
 const isBookable=computed(()=>shown.value.version===latestVersion.value && shown.value.result.grounded
+  && shown.value.result.modelStatus!=='SOURCE_EXCERPT'
   && props.currentSessionStatus==='已完成分诊'
   && ['普通','多科室参考'].includes(shown.value.result.riskLevel))
 const serviceNotices=computed(()=>shown.value.result.answerEvidence?.serviceNotice?.messages || [])
@@ -18,6 +19,7 @@ const serviceMessage=computed(()=>{
   const result=shown.value.result
   if(result.riskLevel==='紧急')return '请立即寻求急诊帮助，不等待普通号源'
   if(result.riskLevel==='尽快就医')return '当前已停止普通模拟预约，请尽快线下评估或申请人工导诊'
+  if(result.modelStatus==='SOURCE_EXCERPT')return '当前仅展示资料原文，未据此提供模拟预约'
   if(!result.grounded)return '医学依据不足，尚未提供具体模拟预约'
   const lookup=result.tools.find(t=>t.tool==='department_search')
   if(lookup && !lookup.success)return '科室查询失败，暂无法确认服务状态'
@@ -50,7 +52,7 @@ function sourceLabel(source:string){try{return new URL(source).hostname}catch{re
          for a refusal today; the invariant is documented on
          RuleBasedTriageEngine.prescriptionRefusalResult. Kept so that relaxing that invariant
          cannot make a refusal display as 「本地规则回答」. -->
-    <div class="result-title">智能分诊建议 · 第 {{ shown.version }} 版 <small class="model-badge" :class="shown.result.modelStatus==='LIVE'?'live':'fallback'">{{ shown.result.modelStatus==='LIVE' ? `大模型已回答 · ${shown.result.modelName}` : shown.result.modelStatus==='SAFETY_RULE' ? '安全规则已接管' : shown.result.modelStatus==='POLICY_REFUSAL' ? '合规拒答 · 未生成诊断或处方' : shown.result.modelStatus==='EVIDENCE_BLOCKED' ? '知识依据不足 · 已停止生成' : shown.result.modelStatus==='VALIDATION_BLOCKED' ? '模型回答未通过安全校验' : shown.result.modelStatus==='FALLBACK' ? '模型暂不可用 · 已使用规则回答' : '本地规则回答' }}</small> <label :class="shown.result.riskLevel==='紧急'?'danger':''">风险等级：{{ shown.result.riskLevel }}</label><label title="当前分值尚未通过独立标注数据校准，不代表诊断准确率或真实概率">分诊参考分值：未校准</label></div>
+    <div class="result-title">智能分诊建议 · 第 {{ shown.version }} 版 <small class="model-badge" :class="shown.result.modelStatus==='LIVE'?'live':'fallback'">{{ shown.result.modelStatus==='LIVE' ? `大模型已回答 · ${shown.result.modelName}` : shown.result.modelStatus==='SOURCE_EXCERPT' ? '资料原文摘录 · 非个人结论' : shown.result.modelStatus==='SAFETY_RULE' ? '安全规则已接管' : shown.result.modelStatus==='POLICY_REFUSAL' ? '合规拒答 · 未生成诊断或处方' : shown.result.modelStatus==='EVIDENCE_BLOCKED' ? '知识依据不足 · 已停止生成' : shown.result.modelStatus==='VALIDATION_BLOCKED' ? '模型回答未通过安全校验' : shown.result.modelStatus==='FALLBACK' ? '模型暂不可用 · 已使用规则回答' : '本地规则回答' }}</small> <label :class="shown.result.riskLevel==='紧急'?'danger':''">风险等级：{{ shown.result.riskLevel }}</label><label title="当前分值尚未通过独立标注数据校准，不代表诊断准确率或真实概率">分诊参考分值：未校准</label></div>
     <div class="recommend"><div><small>建议就医方向</small><b>{{ shown.result.department }}</b></div><div><small>模拟可约医生</small><b>{{ shown.result.doctor?.name || '未提供模拟可约医生' }}</b><span>{{ serviceMessage }}</span></div></div>
     <div v-if="shown.result.riskLevel!=='紧急' && serviceNotices.length" class="historic-note"><b>本版本科室服务查询</b><p v-for="(notice,index) in serviceNotices" :key="index">{{ notice }}</p></div>
     <div v-if="shown.result.riskLevel==='紧急'" class="emergency-alert" role="alert"><strong>⚠ 紧急就医提醒</strong><span>{{ shown.result.safetyTip }}</span><div v-if="shown.result.safetyAssessment?.signals?.length" class="safety-signals"><span v-for="signal in shown.result.safetyAssessment.signals" :key="signal.ruleCode"><b>{{ signal.category }}</b>：{{ signal.evidence }}（{{ signal.ruleCode }}）</span></div><small>规则版本：{{ shown.result.safetyAssessment?.policyVersion }}。系统已停止普通号源推荐。</small><div class="emergency-actions"><a href="tel:120" class="primary">拨打 120</a><button type="button" class="review-button" @click="emit('review',shown.result.sessionId,'危险信号触发后申请人工复核')">申请人工导诊复核</button></div></div>

@@ -63,6 +63,7 @@ public final class GuidanceAnswerService {
         var answer = narration.answerWithEvidence(text, "", departments, evidence, fallbackText, history,
                 new NarrationModel.ServiceContext(prepared == null ? List.of() : prepared.services(), false), true,
                 retrievalStatus(retrieval, execution.trace().success()));
+        answer=SourceExcerptFallback.apply(knowledge,narration,evidence,retrieval.grounded(),answer);
         var checked = AnswerEvidenceFreshness.check(knowledge, evidence, answer);
         answer = checked.answer();
         long elapsed = (System.nanoTime() - started) / 1_000_000;

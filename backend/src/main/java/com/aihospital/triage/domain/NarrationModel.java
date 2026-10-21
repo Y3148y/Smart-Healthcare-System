@@ -3,6 +3,8 @@ package com.aihospital.triage.domain;
 import java.util.List;
 
 public interface NarrationModel {
+    /** Extracted text must pass the same output gates without filtering or rewriting it. */
+    default boolean sourceExcerptAllowed(String text) { return false; }
     record Turn(String role, String content) {}
     record Answer(String text, String status, String modelName, AnswerEvidence.Diagnostics diagnostics) {
         public Answer(String text, String status, String modelName) { this(text, status, modelName, null); }

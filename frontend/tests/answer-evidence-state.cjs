@@ -23,6 +23,13 @@ test('non-medical service intent is not reported as an empty RAG search', () => 
   assert.match(context.evidenceMethod(state),/未执行 RAG.*与检索未命中不同/)
   assert.match(context.answerMethod(state),/未调用回答生成模型/)
 })
+
+test('source excerpt is distinct from passed generation and never says the question was resolved',()=>{
+  const state={...meta,modelStatus:'SOURCE_EXCERPT',answerEvidence:{retrievalStatus:'MATCHED',validationStatus:'SOURCE_EXCERPT_VERIFIED',supportReview:{status:'REJECTED'},adoptedReferenceIds:['E1']}}
+  assert.match(context.evidenceMethod(state),/1 份资料原文.*不代表问题已被完整回答/)
+  assert.match(context.answerMethod(state),/资料原文摘录.*未采用被拒绝/)
+  assert.doesNotMatch(context.answerMethod(state),/^AI 模型已参与回答/)
+})
 test('blocked answer does not claim validated adoption', () => assert.match(context.evidenceMethod({ ...meta, answerEvidence: { retrievalStatus: 'MATCHED', validationStatus: 'CONTENT_BLOCKED' } }), /未采用/))
 test('safety takeover remains independent', () => assert.equal(context.evidenceMethod({ ...meta, modelStatus: 'SAFETY_RULE' }), '危险提醒优先于知识检索'))
 test('new operational failure is not presented as a medical fallback', () => assert.match(context.answerMethod({ ...meta, modelStatus: 'FALLBACK', answerEvidence: { failure: { code: 'MODEL_TIMEOUT' } } }), /失败提示，未采用模型生成内容/))

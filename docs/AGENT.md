@@ -89,6 +89,8 @@ cd ../../backend
 
 ## 配置、失败与验证
 
+普通咨询及非URGENT/EMERGENCY分诊的支持核对拒绝，可由 `SourceExcerptFallback` 展示经过来源/完整段落/输出检查的原文；这是后端降级，不是Agent追加规划或模型核对通过。原 `REJECTED`、失败码、模型及用量继续显示，最终来源检查、保存后checked展示协议不变。摘录回答不授予预约资格，也不代表已经回答患者问题；详见 [RAG摘录边界](RAG.md#核对拒绝后的来源摘录)。`SourceExcerptFallbackTest`、`SourceExcerptBookingTest` 与浏览器组件探针分别覆盖来源/内容闸门、真实会话保存后预约阻断及前端展示；均为工程测试，不冒充真实供应商效果验收。
+
 ### 离线意图与工具评分
 
 `node tools/rag-eval/agent-quality-cli.mjs <run.json> <reviewed-labels.json>` 不联网、不调用模型，仅输出技术计数。运行文件 `schemaVersion:1` 包含 `dataset`（同版本、id、DEVELOPMENT/HOLDOUT、cases）、`configuration`（model、promptVersion、policyVersion）与 `results`。每个数据项保存id和input.messages（id/role/content，最多5轮/4000字符）；结果保存id、唯一traceId、inputSha256、COMPLETED/UNAVAILABLE/INVALID、intents、tools（name/success）、elapsedMs、可空inputTokens/outputTokens和tokenUsageSource。工具名仍限现有三个只读工具。指纹采用工具导出的 `agentFingerprint` 对排序键后的JSON作SHA-256，绑定输入、完整数据集和完整运行。

@@ -264,12 +264,18 @@ public class RuleBasedTriageEngine implements TriageEngine {
                         new NarrationModel.ServiceContext(services, bookable), false,
                         retrievalStatus(retrieval, retrievalExecution.trace().success()));
         if (!emergency) {
+            if (!Disposition.URGENT.equals(risk))
+                answer=com.aihospital.triage.application.SourceExcerptFallback.apply(knowledge,narration,evidence,retrieval.grounded(),answer);
             var checked = com.aihospital.triage.application.AnswerEvidenceFreshness.check(knowledge, evidence, answer);
             answer = checked.answer();
             if (checked.blocked()) {
                 evidence = List.of(); grounded = false; bookable = false;
                 candidates = candidates.stream().map(candidate -> new DepartmentCandidate(
                         candidate.department(), candidate.reason(), null)).toList();
+            }
+            if("SOURCE_EXCERPT".equals(answer.status())) {
+                bookable=false;
+                candidates=candidates.stream().map(candidate->new DepartmentCandidate(candidate.department(),candidate.reason(),null)).toList();
             }
         }
         TriageResult result = new TriageResult(sessionId, risk, confidence, department, bookable ? doctor : null, answer.text(),

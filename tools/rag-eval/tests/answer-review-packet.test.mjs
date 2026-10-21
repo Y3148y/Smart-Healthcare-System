@@ -129,3 +129,16 @@ test('changing patient context or sources cannot borrow a review from the same a
     assert.throws(()=>scoreAnswerReviewPacket(packet),/context and source snapshot changed/);
   }
 });
+
+test('source quotations have their own denominator and cannot inflate generated answer quality',()=>{
+  const source=fixture();source.messages.at(-1).provenance.modelStatus='SOURCE_EXCERPT';
+  const packet=answerReviewPacket(source),item=packet.cases.at(-1);
+  assert.equal(item.answerMode,'SOURCE_EXCERPT');
+  item.answerReview={...item.answerReview,correctness:'UNREVIEWED',claimsExhaustive:true,
+    claims:[{text:'Quoted source claim.',support:'SUPPORTED',referenceIds:['E1']}]};
+  const result=scoreAnswerReviewPacket(packet);
+  assert.deepEqual(result.faithfulness,{value:null,evaluated:0});
+  assert.deepEqual(result.sourceExcerptFaithfulness,{value:1,evaluated:1});
+  assert.equal(result.answerCorrectness.value,null);
+  item.answerMode='OTHER';assert.throws(()=>scoreAnswerReviewPacket(packet),/context and source snapshot changed/);
+})

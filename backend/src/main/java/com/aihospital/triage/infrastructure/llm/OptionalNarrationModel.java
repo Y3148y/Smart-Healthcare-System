@@ -29,6 +29,10 @@ import java.util.regex.Pattern;
  */
 @Component
 public class OptionalNarrationModel implements NarrationModel {
+    @Override public boolean sourceExcerptAllowed(String text) {
+        return text!=null&&!text.isBlank()&&!INTERNAL_SERVICE_FIELD.matcher(text).find()
+                &&structuredContentFailure(text)==null;
+    }
     @Override public Answer answerWithEvidence(String symptom, String department, String candidates,
             List<com.aihospital.shared.model.Models.Evidence> evidence, String fallback, List<Turn> history,
             ServiceContext services, boolean guidance, String retrievalStatus) {

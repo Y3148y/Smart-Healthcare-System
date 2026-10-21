@@ -22,6 +22,21 @@ public final class MarkdownChunker {
             throw new IllegalArgumentException("Chunk input is incomplete");
         String version = sha256(title + "\u0000" + source + "\u0000" + body);
         List<KnowledgeChunk> result = new ArrayList<>();
+        Block packed = null;
+        for (Block block : blocks(body)) {
+            if (packed != null && packed.headings().equals(block.headings())
+                    && body.codePointCount(packed.start(), block.end()) <= MAX_LENGTH) {
+                packed = new Block(packed.start(), block.end(), packed.headings());
+            } else {
+                if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
+                packed = block;
+            }
+        }
+        if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
+        return List.copyOf(result);
+    }
+
+    private static List<Block> blocks(String body) {
         List<Block> blocks = new ArrayList<>();
         List<String> headings = new ArrayList<>();
         List<Integer> headingLevels = new ArrayList<>();
@@ -57,18 +72,24 @@ public final class MarkdownChunker {
             offset = newline < 0 ? body.length() : newline + 1;
         }
         if (paragraph >= 0) blocks.add(new Block(paragraph, body.length(), List.copyOf(headings)));
-        Block packed = null;
-        for (Block block : blocks) {
-            if (packed != null && packed.headings().equals(block.headings())
-                    && body.codePointCount(packed.start(), block.end()) <= MAX_LENGTH) {
-                packed = new Block(packed.start(), block.end(), packed.headings());
-            } else {
-                if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
-                packed = block;
-            }
+        return blocks;
+    }
+
+    /** Reuse the splitter's source boundaries; a long paragraph's overlapping slices are not whole paragraphs. */
+    public static boolean completeParagraphRange(String body, KnowledgeChunk chunk) {
+        if(body==null||chunk==null||!"unicode_code_point".equals(chunk.positionUnit())||chunk.start()<0
+                ||chunk.end()<=chunk.start()||chunk.end()>body.codePointCount(0,body.length()))return false;
+        int start=body.offsetByCodePoints(0,chunk.start()),end=body.offsetByCodePoints(0,chunk.end());
+        if(!body.substring(start,end).replace('\r',' ').equals(chunk.text())||!sha256(chunk.text()).equals(chunk.contentSha256()))return false;
+        boolean starts=false,ends=false;
+        for(var block:blocks(body)) {
+            int from=block.start(),to=block.end();
+            while(from<to&&Character.isWhitespace(body.charAt(from)))from++;
+            while(to>from&&Character.isWhitespace(body.charAt(to-1)))to--;
+            if(from==start)starts=true;
+            if(to==end)ends=true;
         }
-        if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
-        return List.copyOf(result);
+        return starts&&ends;
     }
 
     private void append(List<KnowledgeChunk> result, String id, String version, String source,

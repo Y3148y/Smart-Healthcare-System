@@ -33,3 +33,12 @@ test('reference content is escaped and links reject invalid protocols and embedd
   assert.ok(!html.includes('user:secret'));assert.ok(!html.includes('javascript:'));assert.ok(!html.includes('httpx:'))
   assert.ok(html.includes('href="https://example.org/source"'))
 })
+
+test('source excerpts show distinct sources while retaining rejected model review',async()=>{
+  const state={...valid,retrievalStatus:'MATCHED',validationStatus:'SOURCE_EXCERPT_VERIFIED',supportReview:{status:'REJECTED'},failure:{code:'OUTPUT_SUPPORT_REJECTED'}}
+  const html=await render(state)
+  assert.ok(html.includes('原文摘录的来源'));assert.ok(html.includes('不是模型核对通过'))
+  assert.ok(html.includes('Adopted fixture'));assert.ok(!html.includes('Unadopted fixture'))
+  for(const invalid of [{...state,validationStatus:'BLOCKED'},{...state,supportReview:{status:'UNAVAILABLE'}},{...state,failure:{code:'ANSWER_SOURCE_CHANGED'}}])
+    assert.ok(!(await render(invalid)).includes('Adopted fixture'))
+})

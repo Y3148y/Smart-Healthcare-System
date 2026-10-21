@@ -3,9 +3,13 @@ import {computed} from 'vue'
 import type {ResponseProvenance} from '../types'
 import {sourceLinks} from '../sourceLinks'
 const props=defineProps<{evidence?:ResponseProvenance['answerEvidence']}>()
+const excerpt=computed(()=>props.evidence?.validationStatus==='SOURCE_EXCERPT_VERIFIED'
+  &&props.evidence.supportReview?.status==='REJECTED'&&props.evidence.failure?.code==='OUTPUT_SUPPORT_REJECTED'
+  &&props.evidence.retrievalStatus==='MATCHED')
 const references=computed(()=>{
   const evidence=props.evidence
-  if(evidence?.validationStatus!=='REFERENCE_INTEGRITY_PASSED' || evidence.supportReview?.status!=='PASSED')return []
+  if(!evidence)return []
+  if(!excerpt.value&&(evidence?.validationStatus!=='REFERENCE_INTEGRITY_PASSED' || evidence.supportReview?.status!=='PASSED'))return []
   const ids=new Set(evidence.adoptedReferenceIds||[])
   const refs=evidence.retrievedReferences||[]
   // Ambiguous identities cannot be presented as a single adopted source.
@@ -14,7 +18,7 @@ const references=computed(()=>{
 </script>
 <template>
   <details v-if="references.length" class="answer-sources">
-    <summary>本次回答引用的资料（{{ references.length }}）</summary>
+    <summary>{{ excerpt ? '原文摘录的来源（不是模型核对通过的结论）' : '本次回答引用的资料' }}（{{ references.length }}）</summary>
     <article v-for="reference in references" :key="reference.id">
       <strong>{{ reference.title }}</strong>
       <small v-if="reference.sectionPath?.length">{{ reference.sectionPath.join(' / ') }}</small>

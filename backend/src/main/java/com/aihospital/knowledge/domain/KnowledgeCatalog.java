@@ -9,6 +9,23 @@ public interface KnowledgeCatalog {
     enum EvidenceState { CURRENT, CHANGED, UNAVAILABLE, UNTRACKED }
     /** Exact approved-source membership, not a clinical support judgement or save-time lock. */
     default EvidenceState evidenceState(List<Evidence> evidence) { return EvidenceState.UNTRACKED; }
+    /** Fail closed unless a unique approved source chunk covers complete original paragraphs. */
+    enum ExcerptState { COMPLETE_PARAGRAPHS, PARTIAL_PARAGRAPH, UNVERIFIABLE }
+    default ExcerptState sourceExcerptState(Evidence evidence) {
+        try {
+            if(evidenceState(List.of(evidence))!=EvidenceState.CURRENT)return ExcerptState.UNVERIFIABLE;
+            int matches=0;boolean complete=false;
+            for(var document:documents()) {
+                if(!"READY".equals(document.status())||!document.title().equals(evidence.title()))continue;
+                for(var chunk:documentChunks(document.id())) {
+                    if(!chunk.source().equals(evidence.source())||!chunk.text().equals(evidence.excerpt())
+                            ||!chunk.sectionPath().equals(evidence.sectionPath()))continue;
+                    matches++;complete=MarkdownChunker.completeParagraphRange(document.body(),chunk);
+                }
+            }
+            return matches!=1?ExcerptState.UNVERIFIABLE:complete?ExcerptState.COMPLETE_PARAGRAPHS:ExcerptState.PARTIAL_PARAGRAPH;
+        } catch(RuntimeException unavailable){return ExcerptState.UNVERIFIABLE;}
+    }
     static boolean sameSource(Evidence a, Evidence b) {
         return java.util.Objects.equals(a.title(), b.title()) && java.util.Objects.equals(a.source(), b.source())
                 && java.util.Objects.equals(a.excerpt(), b.excerpt()) && a.sectionPath().equals(b.sectionPath());

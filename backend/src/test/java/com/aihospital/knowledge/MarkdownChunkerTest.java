@@ -6,6 +6,14 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class MarkdownChunkerTest {
+    @Test void wholeParagraphCheckReusesHeadingAndUnicodeBoundariesWithoutChangingChunks() {
+        String body="# Root\r\nComplete 🧠 condition.\r\n\r\nSecond paragraph.\r\n## Next\r\nOther context.";
+        var split=chunker.split("doc","Title","source",body);
+        assertEquals(2,split.size());
+        for(var chunk:split)assertTrue(MarkdownChunker.completeParagraphRange(body,chunk));
+        var longSplit=chunker.split("doc","Title","source","🧠".repeat(800));
+        assertTrue(longSplit.stream().noneMatch(c->MarkdownChunker.completeParagraphRange("🧠".repeat(800),c)));
+    }
     private final MarkdownChunker chunker = new MarkdownChunker();
 
     @Test void headingsWithoutBlankLinesKeepParagraphsInTheirOwnSections() {

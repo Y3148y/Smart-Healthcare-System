@@ -65,6 +65,10 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 生成侧安全边界
 
+`SourceExcerptFallback` 是支持核对拒绝后的确定性原文展示，不采用被拒草稿的任何段落。`KnowledgeCatalog.sourceExcerptState` 核验来源唯一性及当前获准正文，`MarkdownChunker.completeParagraphRange` 复用切分器检查完整段落边界；`OptionalNarrationModel.sourceExcerptAllowed` 复用原不安全内容、药品及内部服务字段检查，失败整片跳过，不删句改写。最后仍执行 `AnswerEvidenceFreshness`，来源变化即停止展示。
+
+摘录终态为 `SOURCE_EXCERPT`，保留原 `REJECTED` 和失败码；`serviceNotice.bookingAllowed=false`。引擎清空医生，会话保存前目录刷新不得补回医生，`SimulationBookingService.validateEligibility` 再次阻断新预约和待确认动作；既有幂等回执重放语义不变，独立 `walk-in` 是另一显式业务路径。EMERGENCY固定安全路径及URGENT分诊不启用摘录，风险、就医提示和原规则不改变。边界与验证见 [RAG](RAG.md#核对拒绝后的来源摘录)。
+
 以下检查用于限制输出，不代表医学正确性已经得到证明：
 
 | 边界 | 实现位置 |

@@ -9,12 +9,20 @@ const harness=`import {createApp,h,ref} from 'vue';
 import Observations from '/src/features/triage/components/ConversationObservations.vue';
 import Execution from '/src/features/triage/components/AnswerExecution.vue';
 import Runtime from '/src/features/admin/RuntimeObservePage.vue';
-createApp({setup(){const session=ref('one');return()=>h('main',[
+import Sources from '/src/features/triage/components/AnswerSources.vue';
+import Assessment from '/src/features/triage/components/AssessmentCard.vue';
+const source={id:'E1',title:'Synthetic excerpt source',source:'https://example.invalid/source',excerpt:'Only when fixture condition holds. <script>window.EXCERPT_POISONED=true</script>',contentHash:'a'.repeat(64),applicability:'UNKNOWN',sectionPath:['Fixture','Only when fixture condition holds']};
+const excerptEvidence={retrievalStatus:'MATCHED',validationStatus:'SOURCE_EXCERPT_VERIFIED',supportReview:{status:'REJECTED',issueCodes:['WRONG_REFERENCE'],elapsedMs:1},failure:{code:'OUTPUT_SUPPORT_REJECTED',causeType:'fixture',httpStatus:null},adoptedReferenceIds:['E1'],retrievedReferences:[source]};
+const assessment={version:1,assistantMessageId:'fixture-answer',createdAt:'2026-10-21',result:{sessionId:'fixture',modelStatus:'SOURCE_EXCERPT',modelName:'fixture',riskLevel:'普通',grounded:true,confidence:70,summary:'Synthetic quotation only.',safetyTip:'Fixture',evidence:[],tools:[],candidates:[],safetyAssessment:null,answerEvidence:excerptEvidence,doctor:{id:'fixture-doctor',name:'Fixture Doctor',department:'Fixture',title:'Fixture',date:'2026-10-21',period:'AM',remaining:1,total:1,fee:0}}};
+createApp({setup(){const session=ref('one'),withdrawn=ref(false);return()=>h('main',[
  h('button',{onClick:()=>session.value=session.value==='one'?'two':'one'},'Switch synthetic session'),
  h(Observations,{sessionId:session.value}),
  h(Execution,{meta:{modelStatus:'LIVE',knowledgeHits:0,localToolCalls:0,toolFailures:0,turnTrace:{executions:[
  {kind:'ROUTE',name:'GUIDANCE',status:'NEEDS_INFORMATION',elapsedMs:0,initiator:'WORKFLOW'},
  {kind:'INTENT_ROUTE',name:'FIND_DOCTOR',status:'department_search',elapsedMs:0,initiator:'AGENT'}]}}}),
+ h('button',{onClick:()=>withdrawn.value=!withdrawn.value},'Toggle synthetic source validity'),
+ h('section',{id:'source-excerpt-fixture'},[h(Sources,{evidence:withdrawn.value?{...excerptEvidence,validationStatus:'BLOCKED',failure:{code:'ANSWER_SOURCE_CHANGED'}}:excerptEvidence})]),
+ h(Assessment,{anchor:assessment,assessments:[assessment],currentSessionStatus:'已完成分诊',bookingRunning:false}),
  h(Runtime)])}}).mount('#app');`
 
 async function main(){
@@ -66,6 +74,15 @@ async function main(){
   await page.getByRole('region',{name:'本轮调用详情'}).getByText('后端工作流分流：',{exact:false}).waitFor()
   const patientExecution=page.getByRole('region',{name:'本轮调用详情'})
   await patientExecution.getByText(/Agent 结构化意图：FIND_DOCTOR；本轮授权工具：department_search/).waitFor()
+  const excerpt=page.locator('#source-excerpt-fixture')
+  await excerpt.getByText(/原文摘录的来源/).click()
+  assert.match(await excerpt.innerText(),/不是模型核对通过.*结论/)
+  assert.match(await excerpt.innerText(),/Only when fixture condition holds/)
+  assert.equal(await excerpt.locator('script').count(),0)
+  assert.equal(await page.evaluate(()=>window.EXCERPT_POISONED),undefined)
+  assert.equal(await page.locator('.result-card').getByRole('button',{name:/模拟预约/}).count(),0)
+  await page.getByRole('button',{name:'Toggle synthetic source validity'}).click()
+  assert.equal(await excerpt.locator('details.answer-sources').count(),0)
   await page.getByRole('button',{name:'Switch synthetic session'}).click()
   await page.waitForFunction(()=>!document.querySelector('details.observation-records').open)
   assert.equal(observationRequests,1)
@@ -87,7 +104,7 @@ async function main(){
   malformedCalls=false;await page.getByRole('button',{name:'刷新状态与记录',exact:true}).click()
   await page.getByRole('button',{name:'查看本轮链路',exact:true}).waitFor()
   assert.deepEqual(errors,[]);assert.deepEqual(unexpected,[])
-  console.log('PASS: Chromium actual components; lazy owner view, historical labels, text-only quotes, session reset, bounded layout, failure/retry, workflow and Agent intent/tool-allowlist disclosure, trace load/failure, malformed-call rejection/recovery; synthetic GET APIs only')
+  console.log('PASS: Chromium actual components; owner/history, text-only sources, session reset, source-excerpt label/context/escaping/withdrawal and no booking, workflow/Agent disclosure, trace failure/recovery; synthetic GET APIs only')
  }finally{if(browser)await browser.close();await server.close()}
 }
 main().catch(error=>{console.error('Component browser probe failed:',error.name);process.exitCode=1})

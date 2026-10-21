@@ -51,6 +51,7 @@ function evidenceMethod(meta:ResponseProvenance):string{
   if(evidence?.retrievalStatus==='NOT_APPLICABLE')return '本轮没有医学检索内容，未执行 RAG；这与检索未命中不同'
   if(!meta.knowledgeHits)return '未找到可引用的医学知识片段'
   if(!evidence)return `检索到 ${meta.knowledgeHits} 条资料；旧记录未采集回答实际引用情况`
+  if(meta.modelStatus==='SOURCE_EXCERPT'&&evidence.validationStatus==='SOURCE_EXCERPT_VERIFIED'&&evidence.supportReview?.status==='REJECTED')return `生成草稿未采用；当前展示 ${evidence.adoptedReferenceIds.length} 份资料原文，不是对您个人情况的判断，也不代表问题已被完整回答`
   if(evidence.supportReview?.status==='REJECTED')return `检索到 ${meta.knowledgeHits} 条资料，但生成内容未通过本轮问题与资料依据核对，未采用`
   if(evidence.supportReview?.status==='UNAVAILABLE')return `检索到 ${meta.knowledgeHits} 条资料；回答依据核对暂未完成，未采用生成内容`
   if(evidence.validationStatus==='REFERENCE_INTEGRITY_PASSED')return `检索到 ${meta.knowledgeHits} 条资料，本次回答引用 ${evidence.adoptedReferenceIds.length} 条。引用不等于已确认您的个人病情`
@@ -67,6 +68,7 @@ function answerMethod(meta:ResponseProvenance):string{
   const sourceState=meta.answerEvidence?.failure?.code||meta.answerEvidence?.retrievalStatus
   if(meta.modelStatus==='VALIDATION_BLOCKED'&&(sourceState==='ANSWER_SOURCE_CHANGED'||sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED'))return '回答因参考资料有效性未确认而暂不展示；这不是模型额度耗尽或模型能力不足的判断'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
+  if(meta.modelStatus==='SOURCE_EXCERPT')return '资料原文摘录：未采用被拒绝的模型草稿，不是模型核对通过的个人结论'
   if(meta.modelStatus==='LIVE_UNGROUNDED')return 'AI 模型回答一般问题；本次无可引用知识资料'
   if(meta.modelStatus.startsWith('DEMO'))return '演示规则回答，未调用外部 AI 模型'
   if(meta.modelStatus.startsWith('FALLBACK'))return meta.answerEvidence?.failure?'AI 本次调用未完成，已显示失败提示，未采用模型生成内容':'模型暂不可用，已使用保守回答'

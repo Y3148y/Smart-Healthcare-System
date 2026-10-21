@@ -8,7 +8,8 @@ const ROLES=new Set(['USER','ASSISTANT']);
 const reviewIdentity=item=>sha256(JSON.stringify({messageId:item.messageId,traceId:item.traceId,
   answerSnapshot:item.answerSnapshot,currentUserMessageId:item.currentUserMessageId,
   context:item.context,contextOrigin:item.contextOrigin,retrieval:item.retrieval,
-  disposition:item.disposition,triageDecisionSnapshot:item.triageDecisionSnapshot,serviceNotice:item.serviceNotice}));
+    disposition:item.disposition,triageDecisionSnapshot:item.triageDecisionSnapshot,serviceNotice:item.serviceNotice,
+    answerMode:item.answerMode}));
 
 function boundedHistory(messages, assistantIndex, turn) {
   const source=messages.slice(0,assistantIndex).filter(m=>m&&ROLES.has(m.role)
@@ -72,6 +73,7 @@ function answerCase(message,index,messages,assessments) {
   const decision=assessment?.result;
   const decisionConfidence=Number.isFinite(decision?.confidence)?decision.confidence:null;
   const result={messageId:message.id,traceId:diagnostics?.traceId??null,
+    answerMode:message.provenance?.modelStatus==='SOURCE_EXCERPT'?'SOURCE_EXCERPT':'OTHER',
     answerSnapshot:{text:message.content,contentSha256:typeof message.content==='string'?sha256(message.content):null},
     currentUserMessageId:userMessageId??null,context:history.messages,contextOrigin:history.origin,
     disposition:safety?{riskLevel:assessment.result.riskLevel??null,grounded:assessment.result.grounded??null,
@@ -120,7 +122,7 @@ export function scoreAnswerReviewPacket(packet) {
   if(packet?.schemaVersion!==1||packet.kind!=='PERSISTED_ANSWER_REVIEW'||!Array.isArray(packet.cases))
     throw new Error('Invalid persisted-answer review packet');
   const provenance=reviewProvenance(packet);
-  const seen=new Set(),scored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
+  const seen=new Set(),scored=[],excerptScored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
   for(const item of packet.cases) {
     if(typeof item.messageId!=='string'||!item.messageId||seen.has(item.messageId)) throw new Error('Invalid or duplicate answer message identity');
     seen.add(item.messageId);
@@ -140,8 +142,10 @@ export function scoreAnswerReviewPacket(packet) {
         throw new Error('Supported claims must reference material actually adopted for this answer');
       const quality=answerQuality(review);
       if(quality.correct===null)unreviewed++;
-      if(quality.correct!==null||typeof quality.faithfulness==='number')scored.push(quality);
-      rows.push({messageId:item.messageId,status:review.correctness==='UNREVIEWED'?'UNREVIEWED':'REVIEWED',quality});
+      if(quality.correct!==null||typeof quality.faithfulness==='number')
+        (item.answerMode==='SOURCE_EXCERPT'?excerptScored:scored).push(quality);
+      rows.push({messageId:item.messageId,status:review.correctness==='UNREVIEWED'?'UNREVIEWED':'REVIEWED',quality,
+        ...(item.answerMode?{answerMode:item.answerMode}:{})});
     }
     const decision=item.triageDecisionSnapshot,decisionReview=item.dispositionReview;
     if(decisionReview&&decisionReview.correctness!=='UNREVIEWED') {
@@ -161,7 +165,12 @@ export function scoreAnswerReviewPacket(packet) {
     clinicalReview:packet.clinicalReview??'UNSPECIFIED',reviewedAnswers:correctness.length,unreviewed,unreviewable,
     answerCorrectness:{value:ratio(correctness.filter(q=>q.correct===true).length,correctness.length),evaluated:correctness.length},
     faithfulness:{value:ratio(faithfulness.reduce((n,q)=>n+q.faithfulness,0),faithfulness.length),
-      evaluated:faithfulness.length},confidenceCalibration:confidenceCalibration(dispositionCases),cases:rows,
+      evaluated:faithfulness.length},
+    ...(packet.cases.some(item=>item.answerMode==='SOURCE_EXCERPT')?{sourceExcerptFaithfulness:{
+      value:ratio(excerptScored.filter(q=>typeof q.faithfulness==='number').reduce((n,q)=>n+q.faithfulness,0),excerptScored.filter(q=>typeof q.faithfulness==='number').length),
+      evaluated:excerptScored.filter(q=>typeof q.faithfulness==='number').length},
+      sourceExcerptNotice:'Source quotation only; excluded from generated-answer quality, not proof of relevance, resolution, clinical correctness or model-review success.'}:{}),
+    confidenceCalibration:confidenceCalibration(dispositionCases),cases:rows,
     interpretation:'Reviewer-supplied labels only; reviewer identity and clinical competence are not authenticated. Confidence calibration requires representative independent disposition labels and is not a clinical accuracy claim.'};
 }
 
