@@ -13,6 +13,28 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AgentFunctionCallingTransportTest {
+    @Test void compoundQueryEnumAndPlannerInstructionsShareOneContract() throws Exception {
+        var json=new ObjectMapper();var sent=new java.util.concurrent.atomic.AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
+        String query="合成症状 平时可以怎么做";
+        var server=HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/v1/chat/completions",exchange->{
+            sent.set(json.readTree(exchange.getRequestBody()));
+            var call=Map.of("id","c1","type","function","function",Map.of("name","medical_knowledge_retrieve","arguments",json.writeValueAsString(Map.of("query",query))));
+            byte[] response=json.writeValueAsBytes(Map.of("choices",List.of(Map.of("finish_reason","tool_calls","message",Map.of("tool_calls",List.of(call))))));
+            exchange.sendResponseHeaders(200,response.length);try(var body=exchange.getResponseBody()){body.write(response);}
+        });server.start();
+        try {
+            var model=new LangChainAgentModel("openai-compatible","synthetic-only","http://127.0.0.1:"+server.getAddress().getPort()+"/v1","fixture",false);
+            var input=new IntentInput(List.of(new IntentInput.SourceMessage("u1","USER","暂时不预约，平时可以怎么做？")));
+            var intent=new IntentExtraction(1,List.of(IntentExtraction.Intent.GENERAL_HEALTH),List.of(),List.of(),List.of());
+            var response=model.decide(input,intent,Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),Set.of(query),List.of(),3);
+            assertEquals(AgentModel.Status.TOOLS,response.status());assertEquals(query,json.readTree(response.calls().get(0).arguments()).path("query").asText());
+            var request=sent.get();assertEquals(query,request.path("tools").get(0).path("function").path("parameters").path("properties").path("query").path("enum").get(0).asText());
+            String instructions=request.path("messages").get(0).path("content").asText();
+            assertTrue(instructions.contains("exactly from the server-supplied enum"));
+            assertTrue(instructions.contains("literal nonclinical"));assertFalse(instructions.contains("latest USER message verbatim or"));
+        } finally {server.stop(0);}
+    }
     @Test void freeTextAfterToolResultIsNotAcceptedAsAgentCompletion() throws Exception {
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
         server.createContext("/v1/chat/completions", exchange -> {

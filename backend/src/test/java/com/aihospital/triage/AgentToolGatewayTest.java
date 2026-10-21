@@ -19,6 +19,19 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class AgentToolGatewayTest {
+    @Test void literalTaskEnumIsAcceptedButLosingItsTaskOrAddingSymptomsIsBlocked() {
+        var executor=mock(HospitalToolExecutor.class);
+        when(executor.execute(anyString(),anyMap())).thenReturn(success(Map.of("status","NO_MATCH")));
+        var queries=com.aihospital.triage.application.TaskAwareQuery.candidates(Set.of("合成症状"),"暂时不预约，平时可以怎么做？");
+        var scope=new AgentToolRun(new AgentToolRun.Scope("p","s","t",1,"v",Set.of(AgentTool.MEDICAL_KNOWLEDGE),Set.of(),queries),4,Duration.ofSeconds(3),Duration.ofSeconds(1));
+        try(var gateway=new AgentToolGateway(executor)) {
+            for(String query:java.util.List.of("合成症状","其他症状 平时可以怎么做"))
+                assertEquals(AgentToolGateway.Status.BLOCKED,gateway.execute(scope,"blocked"+query.length(),"medical_knowledge_retrieve","{\"query\":\""+query+"\"}").status());
+            verifyNoInteractions(executor);
+            assertEquals(AgentToolGateway.Status.SUCCESS,gateway.execute(scope,"authorized","medical_knowledge_retrieve","{\"query\":\"合成症状 平时可以怎么做\"}").status());
+            verify(executor).execute("medical_knowledge_retrieve",Map.of("query","合成症状 平时可以怎么做"));
+        }
+    }
     @Test void modelSelectedToolsAreTaggedOnWorkerButDoNotOverwriteWorkflowOrigin(){
         var executor=mock(HospitalToolExecutor.class);
         when(executor.execute(anyString(),anyMap())).thenAnswer(call->{
