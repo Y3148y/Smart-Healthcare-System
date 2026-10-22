@@ -1,141 +1,184 @@
 # LangChain4j 医疗导诊助手
 
+**面向学习与二次开发的 Agent + Workflow 医疗导诊示例。**
+
 [![构建与测试](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg)](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml)
 [![Java 17](https://img.shields.io/badge/Java-17-ED8B00?logo=openjdk&logoColor=white)](backend/pom.xml)
-[![Docker Compose](https://img.shields.io/badge/Docker%20Compose-MySQL%20%2B%20Qdrant%20%2B%20ES-2496ED?logo=docker&logoColor=white)](docker-compose.yml)
+[![LangChain4j](https://img.shields.io/badge/LangChain4j-0.35.0-2563EB)](backend/pom.xml)
+[![Vue 3](https://img.shields.io/badge/Vue-3-4FC08D?logo=vuedotjs&logoColor=white)](frontend/package.json)
+[![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](compose.app.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-基于 **LangChain4j、Spring Boot 与 Vue 3** 的多轮导诊示例应用，覆盖症状咨询、资料检索、就诊方向、模拟预约和管理员知识运营。目标是让开发者复现有业务约束的 LLM 工作流、受控只读工具调用、混合检索与回答溯源。
+基于 **Java 17、Spring Boot、LangChain4j 与 Vue 3**，将多轮咨询、混合检索、受控工具调用、来源核对和模拟预约连接为一个可运行的应用。项目同时提供患者页面、管理员后台、知识导入工具和评估工具，便于理解模型能力与业务约束如何协作。
 
-患者流程由后端工作流编排；LangChain4j 负责模型消息与兼容客户端接入，安全策略、检索与预约权限由应用控制。项目尚未接入真实 HIS，医学规则与资料未经专业临床审核，预约使用模拟号源。
+[快速开始](#快速开始) · [界面预览](#界面预览) · [系统架构](#系统架构) · [技术文档](#技术文档) · [参与贡献](#参与贡献)
 
-## 当前状态
+> 本项目是开源示例，不是诊断、处方或医院上线方案。医学资料与安全规则未经专业临床审核，预约使用模拟号源，尚未接入真实 HIS。请勿将演示认证或开发服务暴露到公网，也不要录入真实患者信息。
 
-患者主回答链采用**来源原文＋受控对话引导**：模型选择最多两份资料、衔接类型与通用追问项；后端组装完整医学原文，不接受模型改写的医学正文或任意自由问句。相关性、适用条件和追问必要性仍由单次核对检查，不能保证判断正确；安全与模拟预约权限继续由工作流控制。成功选择原文与核对拒绝后的摘录降级分开显示和评估，详见 [回答契约](docs/RAG.md#来源原文与受控对话引导)。2026-10-22两条固定合成问答已通过真实百炼选材核对及独立AI辅助来源复核；两轮重复展示相同资料，不能据两例推断总体质量或临床正确率。
+## 目录
 
-生成内容因支持关系或错引用被拒绝时，可降级展示最多两段可核验的完整来源摘录，明确标记“非个人结论”；不恢复被拒草稿，不增加模型调用，不提供本轮预约。原核对失败与用量记录保留，摘录不计为模型成功。超时、无资料、来源失效及急症不走此路径，详见 [摘录边界](docs/RAG.md#核对拒绝后的来源摘录)。
+- [项目亮点](#项目亮点)
+- [界面预览](#界面预览)
+- [功能与角色](#功能与角色)
+- [系统架构](#系统架构)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [Docker 运行](#docker-运行)
+- [知识库与评估](#知识库与评估)
+- [开发与测试](#开发与测试)
+- [项目结构](#项目结构)
+- [技术文档](#技术文档)
+- [常见问题](#常见问题)
+- [已知限制与安全](#已知限制与安全)
+- [参与贡献](#参与贡献)
+- [许可证](#许可证)
 
-回答上下文按完整消息和证据片段组装，可配置保守输入预算（`AI_CONTEXT_INPUT_TOKEN_BUDGET`）；预算不足不会截掉医学条件或冒称检索为空。调用明细中的估算与供应商实际Token分开，详见 [上下文与失败边界](docs/AGENT.md#配置失败与验证)。
+## 项目亮点
 
-| 方向 | 已有可复现能力 | 范围与已知限制 |
-| --- | --- | --- |
-| Agent + Workflow | 普通咨询可由模型在白名单内选择只读工具；安全分流和预约提交由工作流控制 | 一次合成闭环不代表多场景稳定或医学正确 |
-| RAG | BM25、Qdrant、RRF 与可选重排；11篇示例资料可离线校验并在隔离本机测试库准入 | 示例资料仍待医学审核；测试准入不等于患者端发布或线上召回率 |
-| 业务演示 | 患者会话、模拟预约、管理员知识与目录管理 | 没有真实 HIS、医生工作台或正式病历 |
-| 工程验证 | JDK17/Node测试与构建，隔离MySQL预约/知识权限、合成Qdrant入索引，以及部分浏览器写路径和组件故障回归 | 不是全部场景、真实模型质量或临床验收；当前分支远端CI须另核对 |
+| 设计 | 实现方式 |
+| --- | --- |
+| Agent + Workflow | 普通咨询由模型在白名单内选择只读工具；安全分流、权限与预约状态由后端工作流控制 |
+| 混合 RAG | Elasticsearch/Lucene BM25 与 embedding/Qdrant 多路召回，RRF 融合，可选 rerank |
+| 来源约束回答 | 模型选择引用与对话项，后端插入完整来源原文；严格校验引用身份、内容哈希、当前授权与完整段落 |
+| 多轮上下文 | 最近最多5轮、累计≤4000字符；完整消息与证据按预算裁剪，结构化观察保留原话来源和版本 |
+| 知识版本治理 | Markdown 元数据与来源绑定、待审导入、追加式审批历史、冻结快照、索引核验与CAS活动版本切换 |
+| 业务可靠性 | 请求幂等、数据库事务、并发扣号约束、预约二次确认、过期轮次对账和断连后结果回读 |
+| 调用可观测性 | 按 session / turn / trace 关联意图、工具、检索、模型用量、耗时、失败码和最终状态 |
+| 可复现验证 | 离线测试、隔离数据库/索引集成、浏览器交互测试、检索与答案评分工具及 GitHub Actions |
 
-人工金标、临床审核与真实HIS对接不列入当前开发TODO或验收前置；相关描述仅说明现有能力边界。
-
-CI 徽章只表示自动化检查结果，不是临床认证或数据质量证明；代码许可证与医学资料的使用边界分别见文末说明。
+这些是有明确边界的工程能力，不代表医学正确性、一般化质量或真实医院业务验收。
 
 ## 界面预览
 
-以下为本地演示账号的实际页面截图，不包含真实患者记录；界面展示不代表已完成临床审核或医院系统对接。
+下图来自本地演示账号，不包含真实患者数据。
 
-| 患者端：智能预问诊 | 管理员端：业务与知识管理 |
+| 患者端 · 智能预问诊 | 管理员端 · 业务与知识管理 |
 | --- | --- |
-| <img src="docs/images/patient-triage.png" alt="患者端智能预问诊页面，显示新会话和输入框" width="640"> | <img src="docs/images/admin-dashboard.png" alt="管理员端首页，显示科室、知识库及运行观测入口" width="640"> |
+| <img src="docs/images/patient-triage.png" alt="患者端：多轮预问诊与输入区域" width="640"> | <img src="docs/images/admin-dashboard.png" alt="管理员端：目录、知识管理与运行观测入口" width="640"> |
 
-## 功能
+## 功能与角色
 
-| 模块 | 能力 |
+| 角色 | 已有功能 |
 | --- | --- |
-| 多轮咨询 | 有界对话上下文、按需追问、一般知识回答、历史会话与分诊版本 |
-| 会话观察 | 原话引用、版本与哈希绑定的模型观察快照；仅已完成轮次可见，不作为临床事实或风险解除依据 |
-| 混合检索 | Markdown 章节切分、BM25 + embedding/Qdrant、RRF 融合、可选百炼 rerank |
-| 回答溯源 | 片段身份与内容哈希校验、实际引用展示、独立模型支持核对、失败状态区分 |
-| 分诊与预约 | 危险信号优先处理、科室/医生/排班查询、模拟号源事务扣减与同键并发回执 |
-| 患者端 | 本人资料、会话记录、已完成轮次的AI观察回看（非病历）、模拟就诊记录、人工导诊申请 |
-| 管理员端 | 科室与医生管理、知识导入/审批/撤回、检索调试、调用观测、人工申请处理 |
-| 知识一致性 | 追加式审批历史、冻结发布快照、远端索引校验、CAS活动版本及授权复查回滚；不是跨存储原子事务 |
-| 工程评估 | 冻结语料快照、分阶段Recall/精度/MRR、AI辅助与人工标签来源区分、逐断言答案评分 |
+| 患者 | 多轮咨询、来源查看、本人资料、会话历史、AI观察回看、模拟预约及就诊记录、人工导诊申请 |
+| 系统管理员 | 科室/医生/排班管理、知识上传与审批/撤回、版本发布、检索调试、调用观测、人工申请处理 |
+| 开发者 | 模型兼容接口适配、受控工具扩展、语料校验与导入、离线/集成测试、RAG评估与调用定位 |
 
-运行观测按条区分“供应商返回值、未取得用量、非模型调用、旧记录来源未核实”；真实返回0不会显示成未知，缺失值也不会当作0。历史占位和旧记录不回填，Token数不是供应商计费回执。
+AI观察记录不是正式病历；人工导诊申请不保证实时响应。当前没有独立医生工作台、医院SSO或真实HIS适配器。
 
-调用记录及患者工具明细还区分后端流程、Agent选择、管理员试运行和MCP工具入口；发起方由服务器标记，不能由模型赋予权限。旧记录来源未知；“Agent选择”不表示工具由模型直接执行。
+## 系统架构
 
-SSE 推送处理阶段和核对后正文分段。供应商流在服务端有界缓存，只有回答检查及数据库保存完成后，才发送带消息ID和连续序号的展示片段；不是供应商逐token直出，也不降低首段等待时间。日常默认启用有界只读 Agent（`AI_AGENT_MODE=ENABLED`）；模型可选择医学检索、科室和模拟排班查询，但不能创建预约。急症和预约仍由工作流控制，模型或工具失败时回退工作流。`/mcp` 提供管理员认证的2025-11-25无状态工具服务，已用官方SDK验证初始化、发现、调用及权限负例；不实现OAuth，也不是患者Agent的传输通道。既有百炼合成咨询曾完成选工具、医学检索、引用校验和独立模型支持核对，另一咨询仍发生35秒生成超时；这些旧实测不验证本次新增流接收及逐断言核对的供应商兼容性。具体预算、失败条件与验证边界见 [Agent 与工作流](docs/AGENT.md)。
+```mermaid
+flowchart TD
+    P[患者 Vue 页面] --> W[身份校验与安全 Workflow]
+    W -->|危险信号| S[固定就医提示与预约阻断]
+    W -->|普通咨询| I[Schema 意图抽取与上下文治理]
+    I --> A[受控只读 Agent]
+    A --> T[白名单工具网关]
+    T --> R[医学资料检索]
+    T --> C[科室与模拟排班查询]
+    R --> B[BM25 + Qdrant]
+    B --> F[RRF + 可选 rerank]
+    F --> G[来源选择与受控对话计划]
+    C --> G
+    G --> V[原文组装与选材核对]
+    V --> D[来源复查与数据库保存]
+    D --> E[SSE 阶段通知与核对后正文分段]
+    W -->|明确预约| K[资格复查与二次确认]
+    K --> M[事务扣号与幂等回执]
+    N[管理员后台] --> Q[待审导入与审批历史]
+    Q --> U[冻结快照与索引核验]
+    U --> B
+```
 
-AI辅助评估已完成13题开发集及12题排序未见验证集的1950个片段判断。验证集最终Recall@3为87.88%、返回片段精度48.48%（均非人工金标）；旧两答案44断言的来源忠实度宏平均92.27%。后续两答案21断言按直接来源支持复核为81.25%，仍有3项关系扩写，即使自动核对PASSED也会漏检。文本和断言划分不同，不作为改进或退化的因果结论。分母、分阶段结果与限制见 [RAG评估](docs/RAG.md)，不能据此宣称临床正确、独立人工验收或质量达标。
+- **模型不直接执行业务写入。** Agent最多3次规划、4次只读工具执行；失败时工作流接管，不能由模型创建预约。
+- **医学正文不自由改写。** 当前患者回答采用“来源原文＋受控对话引导”；相关性、适用条件和追问仍需一次模型核对，来源身份由代码校验。
+- **正文先核对、后展示。** 供应商SSE在服务端有界缓存，完成检查和保存后才发送正文片段；不是逐token直出，也不承诺提前首字。
+- **MCP与患者工具路径分开。** `/mcp`是管理员认证的2025-11-25无状态工具服务，已验证官方SDK互操作；患者Agent使用本地工具网关，不经MCP客户端，不实现OAuth。
 
-## 技术架构
+### 技术栈
 
 | 层 | 技术 |
 | --- | --- |
-| 模型接入 | LangChain4j 0.35.0、OpenAI-compatible API；特定请求参数使用有界 HTTP 适配器 |
-| 后端 | Java 17、Spring Boot 3.5.16、MyBatis |
-| 存储与检索 | MySQL、Elasticsearch BM25、Qdrant；内存 BM25 用于轻量模式与测试 |
-| 前端 | Vue 3、TypeScript、Vite |
-| 验证 | JUnit 5、Node.js Test Runner、独立 RAG 评估 CLI |
+| 后端 | Java 17、Spring Boot 3.5.16、MyBatis、Maven Wrapper |
+| 模型 | LangChain4j 0.35.0、OpenAI-compatible API、有界HTTP/SSE适配器 |
+| 数据与检索 | MySQL、Elasticsearch 8.17.6、Qdrant 1.12.1；H2仅供测试 |
+| 前端 | Vue 3、TypeScript、Vite、Nginx |
+| 测试与交付 | JUnit 5、Node.js Test Runner、浏览器测试、Docker Compose、GitHub Actions |
 
-```text
-患者消息 → 身份/输入校验 → 安全与流程判断
-                              ├─ 危险信号 → 就医提示与预约阻断
-                              └─ 普通咨询 → 结构化意图 → 受控 Agent 选择只读工具
-                                          → 医学检索：BM25 + Qdrant → RRF → 可选 rerank
-                                          → 证据判定 → 模型生成与核对
-                                          → 保存回答/来源/调用详情 → 返回患者
-                                 Agent 失败 → 原工作流接管；安全与预约权限仍由后端控制
-
-明确预约 → 科室/医生/号源校验 → 数据库事务与幂等回执
-管理员   → 知识导入 → 待审 → 审批历史 → 冻结快照/索引校验 → CAS发布
-```
-
-后端按业务模块分层组织，保留领域端口与外部适配器。会话服务负责身份和保存，工作流负责协调，路由返回类型化结果，普通咨询回答链复用既有证据检查。实现细节见 [架构说明](docs/ARCHITECTURE.md)、[Agent与工作流](docs/AGENT.md) 和 [RAG 设计与评估](docs/RAG.md)。
-
-默认词法检索使用 Elasticsearch，由 Lucene 建倒排索引并执行 BM25；使用内置 CJK 分析器、标题/正文独立字段，未安装 IK 或医学词典，不保证完整医学术语保留。已审批语料指纹绑定索引快照，具体同步和故障边界见 [RAG](docs/RAG.md)。`AI_LEXICAL_BACKEND=memory` 可显式选择原内存 BM25（中文2/3字符gram），自动化测试使用该实现。两种实现的分数和排名不保证相同，尚无质量收益结论。回答依据核对仍是生成后的另一次模型请求，通过不代表医学审核通过。
-
-可复现的11篇医学示例资料位于 [knowledge/corpus](knowledge/corpus)，包含中文正文、来源元数据及必要文本快照；[资料说明](knowledge/README.md)和[来源许可](knowledge/LICENSE.md)说明导入方式及使用边界。公开资料不等于临床审核通过，也不会随启动自动导入或批准。
+默认BM25使用ES内置CJK分析器和标题/正文字段，未配置IK或医学词典；轻量/离线测试可显式使用内存BM25。两种实现不保证相同排序。详细职责与一致性边界见[架构说明](docs/ARCHITECTURE.md)。
 
 ## 快速开始
 
-需要 JDK 17、Maven、Node.js 20+ 与 MySQL。默认检索依赖 Elasticsearch 和 Qdrant，可通过项目 Compose 启动。
+### 1. 环境准备
 
-### 1. 准备数据库
+| 依赖 | 要求 |
+| --- | --- |
+| JDK | 17，运行前检查 `JAVA_HOME` |
+| Node.js | 20+，使用 `npm ci` 安装锁定依赖 |
+| Docker Compose | 用于本机MySQL、Qdrant与ES；也可使用已有服务 |
+| 模型服务 | 真实模式需兼容聊天接口与有效凭据；向量检索另需embedding能力 |
 
-以下 PowerShell 命令将密码读取到当前进程环境：
-
-```powershell
-$secret = Read-Host 'MySQL password' -AsSecureString
-$pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secret)
-try { $env:AI_DB_PASSWORD = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
-finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer); $secret.Dispose() }
-$env:AI_DB_USER = 'root'
+```shell
+git clone https://github.com/Y3148y/Smart-Healthcare-System.git
+cd Smart-Healthcare-System
 ```
 
-使用已有 MySQL 时，先创建 `ai_hospital` 数据库：
+以下启动示例使用PowerShell；Linux/macOS使用对应环境变量语法与 `./mvnw`。密钥只通过进程环境注入，不写入仓库、前端变量或含凭据的IDE配置文件。
+
+### 2. 配置数据库与模型
+
+在同一终端安全读取数据库密码与模型密钥：
+
+```powershell
+function Read-ProcessSecret([string]$Prompt) {
+    $value = Read-Host $Prompt -AsSecureString
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($value)
+    try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer); $value.Dispose() }
+}
+
+$env:AI_DB_USER = 'root'
+$env:AI_DB_PASSWORD = Read-ProcessSecret 'MySQL password'
+$env:AI_BASE_URL = Read-Host 'OpenAI-compatible base URL'
+$env:AI_API_KEY = Read-ProcessSecret 'Model API key'
+$env:MYSQL_ROOT_PASSWORD = $env:AI_DB_PASSWORD
+```
+
+聊天模型默认 `qwen3.7-flash-2026-07-15`，embedding默认 `qwen3.7-text-embedding`；这是项目配置，不保证你的供应商或账户支持。按实际服务设置 `AI_MODEL`、`AI_EMBEDDING_MODEL`，embedding地址和密钥默认继承聊天配置。更换向量模型/维度后须重建索引，不能直接复用旧向量。
+
+只想查看界面和确定性演示流程时，可跳过模型变量并显式设置 `$env:AI_MODE='demo'`。demo不调用外部LLM，不能用于真实模型或语义检索质量验收。日常默认是真实模式，缺少必要配置会报错，不自动退为demo。
+
+### 3. 启动开发依赖
+
+```powershell
+docker compose up -d mysql qdrant elasticsearch
+docker compose ps
+```
+
+Compose创建 `ai_hospital` 数据库并保留数据卷。已有MySQL时只启动 `qdrant elasticsearch`，另在已有数据库服务执行：
 
 ```sql
-CREATE DATABASE IF NOT EXISTS ai_hospital CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS ai_hospital
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-也可从项目根目录启动本机开发依赖；Compose 会创建数据库并保留数据卷：
+应用启动会初始化表，不自动迁移历史H2数据。ES关闭认证仅用于本机开发；这些服务的发布端口绑定回环地址，不要暴露公网。
 
-```powershell
-$env:MYSQL_ROOT_PASSWORD = $env:AI_DB_PASSWORD
-docker compose up -d mysql qdrant elasticsearch
-```
+### 4. 启动后端
 
-已有 MySQL 时无需再启动 Compose MySQL。应用启动时初始化数据表；旧 H2 数据不会自动迁移。应用运行依赖仅含 MySQL 驱动，H2 保留为自动化测试依赖。
-
-基础 Compose 运行 MySQL、Qdrant 和 Elasticsearch；可按下面步骤用 IDEA/Vite 启动应用，或使用后文的可选全栈容器方案。ES 8.17.6 绑定本机9201（容器内9200），单节点、512MB堆、关闭认证仅供本机开发，不能直接暴露公网。ES 使用 `unless-stopped`，Docker 引擎重启时会恢复此前运行的服务；若操作者显式停止了容器，则需再次运行 `docker compose up -d elasticsearch`。容器健康检查等待 ES 集群进入 yellow/green；全栈 Compose 会等待 ES healthy 后再启动后端。IDEA 启动时可用 `docker compose ps` 确认健康状态。已有 MySQL 时可只启动 `docker compose up -d qdrant elasticsearch`。
-
-### 2. 启动后端
-
-在设置了数据库环境变量的终端运行：
+在已设置上述环境变量的终端：
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-默认后端为 `http://127.0.0.1:8081`。本机有多个 JDK 时先设置 `JAVA_HOME` 为 JDK 17；IDEA 运行配置选择 JDK 17，并保存数据库和模型环境变量一次，之后直接点击运行，不需要重复添加模式、端口或 profile 参数。
+IDEA可直接运行 `HospitalApplication`，选择JDK17并在运行配置中一次性设置相同环境变量。无需每天切换profile、模式或端口；IDE变量不会自动传给另开的终端。默认后端地址为 `http://127.0.0.1:8081`。
 
-没有模型凭据而只验证界面与确定性演示流程时，可在启动前显式设置 `$env:AI_MODE='demo'`；该模式不调用外部 LLM，不可拿来验收真实 Agent 或 RAG 回答。恢复真实模式需移除此覆盖并提供下一节的模型配置。默认模式仍要求真实模型凭据，缺失时启动报错。
+### 5. 启动前端
 
-### 3. 启动前端
-
-另开终端：
+另开终端，从仓库根目录执行：
 
 ```powershell
 cd frontend
@@ -143,44 +186,46 @@ npm ci
 npm run dev
 ```
 
-打开 `http://127.0.0.1:5188`，前端默认代理后端8081，端口占用时明确报错而不自动换端口。本地演示账号为 `zhangsan`、`lisi` 和 `admin`，密码为任意非空字符串。演示登录与模型调用模式独立：URL 中的 `demo=patient` 表示演示身份入口，实际模型调用由后端配置与本轮处理路径决定。
+打开 [本机页面](http://127.0.0.1:5188)。前端默认代理8081，端口占用会报错，不自动换端口。
 
-日常启动无需端口参数。仅自定义部署时才覆盖 `SERVER_PORT` 和 `VITE_API_PROXY_TARGET`；旧 IDEA VM options、环境变量和 profile 的显式设置仍会覆盖默认值，请在首次整理时移除不再需要的旧覆盖项。
-
-### 4. 接入真实模型与检索
-
-日常默认真实模型与只读Agent、关闭rerank，无需选模式或启用 `rag-live`。在 IDEA 的后端运行环境中一次性保存 `AI_DB_USER`、`AI_DB_PASSWORD`、`AI_BASE_URL`、`AI_API_KEY`；模型默认 `qwen3.7-flash-2026-07-15`、embedding默认 `qwen3.7-text-embedding`。模型名取自本项目既有配置，不保证其他账户可用；需要更换时只覆盖对应环境变量。embedding地址/密钥可继承聊天配置，也可单独设置。API密钥缺失/不合法或模型地址为空时启动报错，不悄悄切到demo。启动校验不证明远端服务或额度可用。
-
-IDEA保存的环境变量只供该启动进程及其子进程使用，不提交含凭据的运行配置文件；从新终端运行仍需该终端拥有相同环境变量。纯离线演示显式设置 `AI_MODE=demo`，自动化测试已有独立离线配置。
-
-| 环境变量 | 用途 / 默认值 |
+| 服务 | 本机默认地址 |
 | --- | --- |
-| `AI_DB_URL` | 默认连接本机 `ai_hospital` MySQL 数据库 |
-| `AI_DB_USER`、`AI_DB_PASSWORD` | 数据库凭据，必填 |
-| `AI_MODE`、`AI_AGENT_MODE` | 默认 `openai-compatible` / `ENABLED`，日常无需设置 |
-| `AI_BASE_URL`、`AI_MODEL`、`AI_API_KEY` | 模型兼容接口、模型 ID 与密钥 |
-| `AI_EMBEDDING_BASE_URL`、`AI_EMBEDDING_MODEL`、`AI_EMBEDDING_API_KEY` | embedding 接口；地址和密钥可继承聊天配置 |
-| `AI_QDRANT_URL`、`AI_QDRANT_COLLECTION` | 默认 `http://127.0.0.1:6333`、`ai_hospital_knowledge_v2`；使用其他既有集合时显式覆盖，不自动迁移数据 |
-| `AI_RERANK_ENABLED` | 默认 `false`；有服务和额度后显式启用 |
-| `AI_STREAM_RESPONSE` | 默认 `true`；供应商SSE接收，医学正文仍先核对和保存 |
-| `AI_ANSWER_REVIEW_REQUIRE_CLAIM_PROOF` | 保留的旧自由草稿证明选项，默认 `true`；主患者原文选择使用专用强制核对，不用此开关跳过引用绑定或语义检查；现也影响核对输出预算 |
-| `AI_LEXICAL_BACKEND` | 默认 `elasticsearch`；`memory` 为显式轻量选项 |
-| `AI_ELASTICSEARCH_URL`、`AI_ELASTICSEARCH_API_KEY` | 默认 `http://127.0.0.1:9201`；远端须 HTTPS，API Key 仅从环境注入 |
-| `AI_ELASTICSEARCH_MIN_SCORE`、`AI_ELASTICSEARCH_TITLE_BOOST` | 默认0 / 2；ES专用阈值与标题权重，尚未调优，不沿用内存0.28 |
-| `AI_RERANK_URL`、`AI_RERANK_MODEL`、`AI_RERANK_API_KEY` | 可选百炼重排接口与凭据 |
-| `SPRING_PROFILES_ACTIVE=rag-live` | 可选严格向量配置；默认不要求rerank，不是日常启动必选项 |
-| `AI_RETRIEVAL_REQUIRE_SEMANTIC`、`AI_RETRIEVAL_REQUIRE_RERANK` | 普通配置均默认 `false`；`rag-live` 仅前者默认 `true` |
-| `SERVER_PORT`、`VITE_API_PROXY_TARGET` | 默认8081及 `http://127.0.0.1:8081`，日常无需设置 |
+| 前端 | `http://127.0.0.1:5188` |
+| 后端 | `http://127.0.0.1:8081` |
+| 存活 / 就绪检查 | `/api/health/live` / `/api/health/ready`（后端端口） |
+| Elasticsearch | `http://127.0.0.1:9201` |
+| Qdrant | `http://127.0.0.1:6333` |
+| MySQL | `127.0.0.1:3306` |
 
-临时跳过重排时同时设置 `AI_RERANK_ENABLED=false`、`AI_RETRIEVAL_REQUIRE_RERANK=false`。检索会记录未重排状态，已有重排模式评测结果不能直接沿用。
+演示账号：患者 `zhangsan`、`lisi`，管理员 `admin`；密码接受任意非空字符串。**这不是正式身份认证。** URL里的 `demo=patient` 是演示身份入口，不决定后端是否调用模型。
 
-完整参数以 [应用配置](backend/src/main/resources/application.yml) 为准。密钥通过后端进程环境注入，不写入仓库或 `VITE_*` 变量。
+## 配置说明
 
-## 可选：本机全栈容器
+配置事实源为 [application.yml](backend/src/main/resources/application.yml)。默认真实模型、启用只读Agent、关闭rerank；不需要额外启用 `rag-live` profile。
 
-前后端分别采用多阶段构建，运行镜像只包含JRE/应用产物或Nginx/静态文件，不复制本机缓存、密钥、资料包或患者数据。Compose覆盖文件不改变日常IDEA/Vite启动方式，不能与占用8081/5188的宿主机服务同时运行。
+| 环境变量 | 说明 |
+| --- | --- |
+| `AI_DB_USER` / `AI_DB_PASSWORD` | 必填数据库凭据；`AI_DB_URL`可覆盖默认本机数据库 |
+| `AI_BASE_URL` / `AI_API_KEY` / `AI_MODEL` | 模型兼容接口、密钥、模型ID |
+| `AI_EMBEDDING_BASE_URL` / `AI_EMBEDDING_API_KEY` / `AI_EMBEDDING_MODEL` | 向量模型配置，地址/密钥可继承聊天配置 |
+| `AI_QDRANT_URL` / `AI_QDRANT_COLLECTION` | 默认6333 / `ai_hospital_knowledge_v2`，不自动迁移旧集合 |
+| `AI_LEXICAL_BACKEND` | 默认 `elasticsearch`；显式 `memory`用于轻量模式 |
+| `AI_ELASTICSEARCH_URL` / `AI_ELASTICSEARCH_API_KEY` | 默认本机9201；远端接口须HTTPS |
+| `AI_AGENT_MODE` | `ENABLED`、`SHADOW`或`OFF`；关闭不取消安全工作流 |
+| `AI_RERANK_ENABLED` | 默认 `false`；启用需配置 `AI_RERANK_URL` / `MODEL` / `API_KEY` |
+| `AI_RETRIEVAL_REQUIRE_SEMANTIC` / `AI_RETRIEVAL_REQUIRE_RERANK` | 普通配置默认均false；可选 `rag-live`仅前者默认true |
+| `AI_CONTEXT_INPUT_TOKEN_BUDGET` / `AI_TURN_INPUT_ESTIMATE_BUDGET` | 单次/本轮输入估算预算，不是供应商实际Token或计费配额 |
+| `AI_STREAM_RESPONSE` | 默认true，接收供应商SSE；正文仍先核对、保存 |
+| `AI_MODE` | 默认 `openai-compatible`；显式 `demo`为离线演示 |
+| `SERVER_PORT` / `VITE_API_PROXY_TARGET` | 默认8081 / `http://127.0.0.1:8081` |
 
-在已设置数据库及模型环境变量的终端，从项目根目录运行：
+临时跳过重排时同时确保 `AI_RERANK_ENABLED=false`、`AI_RETRIEVAL_REQUIRE_RERANK=false`。未开启、未执行和执行失败会分别记录，不能沿用开启重排时的评分。
+
+旧 `AI_ANSWER_REVIEW_REQUIRE_CLAIM_PROOF` 默认true，保留自由草稿证明路径并影响核对输出预算；主患者原文计划使用专用强制选材核对，此开关不能跳过引用绑定或语义检查。超时、思考参数、阈值及预算边界见[Agent文档](docs/AGENT.md)与[RAG文档](docs/RAG.md)。密钥不得设置为 `VITE_*`，后者可能进入浏览器产物。
+
+## Docker 运行
+
+已有上面的数据库和模型环境变量时，可从根目录运行全栈：
 
 ```powershell
 $env:MYSQL_ROOT_PASSWORD = $env:AI_DB_PASSWORD
@@ -188,102 +233,157 @@ $env:AI_DEMO_LOCAL_CONTAINER = 'true'
 docker compose -f docker-compose.yml -f compose.app.yml up -d --build --wait
 ```
 
-`AI_DEMO_LOCAL_CONTAINER` 默认关闭，上述命令是显式接受本机演示边界：Docker内部允许后端监听0.0.0.0，所有发布端口仍绑定127.0.0.1。应用只验证Docker标记，无法验证宿主机实际端口/代理暴露；不得改为公网发布或外网反向代理。关闭演示认证并不自动提供医院SSO。开关不改变LLM模式，纯离线容器测试须另显式设置 `AI_MODE=demo`；不能把demo测试当真实模型验收。模型与数据库凭据仅经运行环境注入，不进入镜像；有Docker管理权限的操作者仍可读取容器环境。
+不要与占用8081/5188的IDEA/Vite同时运行。前后端采用多阶段构建；运行镜像分别为JRE应用和Nginx静态站点，不复制本机密钥、缓存或患者数据。
 
-后端以非root用户运行，`/api/health/live` 检查进程，`/api/health/ready` 检查数据库连接；不探测LLM、Qdrant或ES。Nginx提供静态页面和API代理，关闭阶段SSE缓冲，正文仍非逐token流。Compose配置 `unless-stopped`，人工停止后不会自动恢复；健康状态不会自动重启容器，不宣称已做OOM恢复或Kubernetes探针。启动依赖顺序见 [Docker官方说明](https://docs.docker.com/compose/how-tos/startup-order/)。
-
-本机已用独立MySQL及随机回环端口验证demo启动、页面/API代理、演示登录和合成会话重启回读；2026-10-16补过Nginx的主要合成HTTP业务链路，见下方探针说明。未调用外部LLM，真实模型、完整浏览器写入体验及OOM恢复仍未验收。c799309镜像实测后端145608418字节、前端21047403字节，不保证后续构建或其他架构相同。Docker Hub认证端点曾超时，后端使用 `--build-arg MAVEN_IMAGE=docker.m.daocloud.io/library/maven:3.9.9-eclipse-temurin-17` 的既有同版本镜像验证，未改默认官方镜像地址或全局代理。前端锁文件现已升级Vite 6.4.4及source-map-js 1.2.2，2026-10-15官方npm审计零告警；不代表后端、基础镜像或整个应用已经完成安全审核。
-
-容器冒烟脚本 `scripts/test-container-smoke.cjs --apply` 必须设置 `CONTAINER_TEST_BASE_URL` 为显式本机HTTP origin、`CONTAINER_TEST_PASSWORD` 为演示登录密码；它会创建一个空的合成会话。重启测试实例后用 `--resume <sessionId>` 验证持久化回读，不自动重放聊天或预约。请只对隔离实例运行。切回同终端的宿主机启动时移除 `AI_DEMO_LOCAL_CONTAINER`，不得把Docker例外当成宿主机绑定许可。
-
-`scripts/test-container-journey.cjs --apply` 提供更完整的合成HTTP回归：本人资料版本冲突、知识待审/审批/撤回与ES检索、目录停用、预约幂等单次扣号、急症预约阻断、阶段SSE最终结果与历史一致、患者隔离、人工导诊受理/关闭及默认摘要拒绝。它必须设置同样的测试地址/密码，并在启动脚本的环境确认 `AI_MODE=demo`、`AI_AGENT_MODE=OFF`；环境确认不是服务端证明，操作者必须使用自己启动的隔离无模型凭据实例。探针在写入前还检查embedding未配置、rerank关闭，人工摘要需保持默认拒绝；会留下合成资料/预约/会话，不提供写入回滚或真实模型/向量质量验收。CI仅在一次性容器栈执行，失败直接终止，不自动重试业务写入。
+- `AI_DEMO_LOCAL_CONTAINER`是本机Docker演示绑定例外，不改变LLM模式，也不是公网部署许可；切回宿主机启动时移除该覆盖。
+- 容器发布端口绑定127.0.0.1。ES仅本机开发关闭认证；有Docker管理权限的人员仍可能读取容器环境。
+- 后端非root运行；存活检查检查进程，就绪检查仅探测数据库，不证明模型、ES和Qdrant可用。
+- 应用容器配置 `unless-stopped`，健康检查失败本身不会触发重启；未实现Kubernetes或OOM恢复验收。
 
 ## 知识库与评估
 
-公开仓库提供采集、校验、导入和评估工具，以及11篇有单独来源许可说明的示例正文和必要来源文本；不附带患者数据或未经核实许可的其他资料。空知识库可以启动；11篇原件仍为 `permissionStatus=pending`，不可直接审批。维护者已允许在**隔离本机测试库**用 [测试准入命令](tools/knowledge-sync/README.md) 导入并审批这11篇，原件不变，数据库许可依据明确标为仅测试。该命令不表示医学审核或真实患者服务的发布许可；患者端发布仍需独立核查。URL 是来源标识，在线回答不会通过 URL 临时抓取网页。
+### 知识生命周期
 
-知识资产统一放在 `knowledge/`，采集状态和评估报告放在被忽略的 `reports/`。参见 [知识目录](knowledge/README.md) 与 [采集导入工具](tools/knowledge-sync/README.md)。
-
-```powershell
-cd tools/knowledge-sync
-npm ci
-npm test
-cd ../rag-eval
-npm test
-# 仅在逐篇解决权限状态并审批为 READY 后，设置 RAG_EVAL_PASSWORD
-npm run evaluate:public
+```text
+登记来源与许可 → 采集/清洗 → Markdown正文 + 来源元数据/哈希
+→ 校验与待审导入 → 审批历史 → 冻结发布快照
+→ 按章节/段落切分 → ES倒排与embedding/Qdrant索引 → 核验并激活
 ```
 
-评估区分候选召回、最终片段选择和答案质量。公开11篇原件仍待审；经维护者授权，可在本机测试库按上述命令准入后运行在线检索评估，不得把测试分数宣称为临床或真实患者表现。关闭 rerank 时，`passed` 按当前显式配置口径计数，`strictRerankedPasses` 单独保留严格重排口径，不能混报。公开主题开发集含13个查询、11个目标文档标题，并有明确否定症状的排除标签；它不是独立留出集或穷举相关片段标签。旧评估集对应历史批准资料，标题与当前语料不符时评估器会拒绝而非记为召回失败。工程答案评分使用绑定快照且声明AI或人工来源的标签；AI来源一致性不等于临床正确率。处置校准另需独立处置标签，缺所需标签时保持未知，不列为当前开发前置。
+11篇公开示例位于 [knowledge/corpus](knowledge/corpus)，按症状主题分目录，每篇含正文、元数据与必要来源文本。当前资料可由实际切分器得到78个片段；不会为展示overlap而人为扩充正文。在线问答检索数据库中的获准资料，不通过来源URL临时抓网页。
 
-公开语料可独立校验：`node tools/knowledge-sync/validate-document.mjs --corpus` 一次验证全部11篇正文与来源指纹，单篇也可传入具体MD路径；JDK17编译后，`java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus` 用实际切分器检查原文覆盖、段落不跨片段、章节路径、边界与哈希。当前78个片段中26个短于80码点，实际没有触发长段重叠；这些机械检查不能证明医学条件完整、答案质量或召回率。
+公开原件的 `permissionStatus=pending` 不因开源自动获批，也不会随启动导入。维护者授权的**隔离本机测试准入**见[导入工具](tools/knowledge-sync/README.md)；测试库READY不表示临床审核或真实患者发布许可。管理员上传及资产格式见[知识目录说明](knowledge/README.md)。
+
+```powershell
+# 仓库根目录：离线校验正文与来源指纹，不调用模型
+node tools/knowledge-sync/validate-document.mjs --corpus
+
+# backend已编译且使用JDK17：通过应用实际切分器检查片段
+java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+```
+
+### 如何衡量质量
+
+评估分别记录候选召回、最终片段排序、来源引用、答案支持、处置与用量/耗时；不把检索相似度当作模型置信概率，也不把工具测试当作医学成绩。
+
+| 已有记录 | 结果与边界 |
+| --- | --- |
+| AI辅助检索基线 | 13题开发集＋12题排序未见验证集，共1950个片段判断；验证集Recall@3为87.88%、返回片段精度48.48%，不是人工金标或临床指标 |
+| 当前原文契约实测 | 两条固定合成问答各一次均通过百炼选材核对及独立AI辅助来源复核；约20.76秒/14.32秒，展示与落库一致；不作为性能收益实验 |
+| 原文一致性评分 | 两答案共4个完整引文块，`sourceQuotedFaithfulness=1`；自由生成分母0、忠实度null，不代表选材在其他问题上正确 |
+| 历史自由生成评估 | 保留支持关系扩写和核对漏检记录，不与当前原文复制指标混算，不追认为误杀 |
+
+两轮原文回答重复相同资料，表达仍有限。临床正确性和置信度校准未知；完整分母、冻结快照与历史限制见[RAG设计与评估](docs/RAG.md)。
 
 ## 开发与测试
 
-Maven Wrapper 固定 Maven 3.9.16，并校验发行包 SHA-256；首次运行需要访问 Maven Central。Windows 使用 `backend/mvnw.cmd`，Linux/macOS 使用 `backend/mvnw`，均要求 Java 17。CI 使用同一 Wrapper；容器构建的 Maven 镜像版本单独由 Dockerfile 管理。
-
-可选运行依赖公告核对（仅发送依赖名称与版本到 OSV，不发送会话或医学正文）：在 `backend` 执行 `.\mvnw.cmd org.apache.maven.plugins:maven-dependency-plugin:3.8.1:list -DincludeScope=runtime -DoutputFile=../reports/security/runtime.txt`，然后在仓库根执行 `node scripts/audit-maven-runtime.mjs reports/security/runtime.txt reports/security/new-audit.json --online`。输出文件必须是新的本机报告；命中公告退出1，查询失败退出2，不把服务失败当作零告警。报告不提交公开仓库。
-
-2026-10-16 的运行依赖版本核对仍命中 Spring MVC 6.2.19 的两条公告：`GHSA-pc63-qcmh-9cmg`（XSLT 视图）、`GHSA-j9f9-w8pj-32f8`（SSE 视图片段）。当前应用不使用这些视图路径，`ServerRenderingBoundaryTest` 锁定当前使用边界，但不消除公告或代替安全复核。此检查不覆盖构建插件、测试依赖、容器基础镜像或操作系统，也不代表安全认证。
-
-患者问答支持可选 `requestId`：同一会话中，同键同内容的已完成请求返回当前会话而不再生成，换内容返回409。轮次与消息保存在MySQL，处理期限默认180秒，过期记录在读取/新请求时对账，旧任务不能写回。浏览器断连后按轮次身份回读；这是结果恢复，没有SSE事件补发。旧客户端不传requestId时不能保证重试幂等。协议与升级边界见 [存储与一致性](docs/ARCHITECTURE.md#存储与一致性)。
-
-CI 的 MySQL 业务步骤还启用 `DurableTurnProcessIntegrationTest`：登记轮次后强制停止一个子JVM，由第二个JVM读取同一数据库并恢复。测试通过修改合成轮次的存储期限加速到期，不调用外部模型，不操作本机8081；本机需显式设置 `-Dai.test.turn-process-restart=true` 并使用隔离的本机MySQL测试库。
-
-`BookingConfirmationProcessIntegrationTest` 用两个真正的JDK17子JVM和同一隔离MySQL验证重复确认单回执/单扣号，以及不同动作竞争最后一号。子进程强制demo/OFF、不启动Web端口，默认跳过；本机显式设置 `-Dai.test.booking-process-race=true` 并提供带端口的loopback MySQL测试库才执行。CI MySQL步骤已配置启用，配置不等于远端已运行。这验证事务一致性，不是预约吞吐或真实模型性能测试。
-
-测试入口及其作用见 [贡献说明的测试矩阵](CONTRIBUTING.md#测试入口)。保留的写入/真实模型探针必须显式设置脚本使用的本机测试地址并传入 `--apply`；它们可能留下合成记录或消耗模型额度，不能针对共用患者数据库运行。浏览器探针另需在 `NODE_PATH` 中提供 Playwright。日常只读检查使用 `test-ui-readonly.cjs`；离线 SSE 检查使用 `test-progress-client.cjs`，不需要后端或模型。过时的固定科室、强制重排模式及旧页面断言探针已删除，不再维护两套相互冲突的验收口径。
+默认测试不需要外部模型密钥；运行前使用JDK17，并移除当前测试终端的 `AI_*` 覆盖，避免把日常真实模型配置带入测试。测试资源使用内存测试库和模型桩，不操作日常8081。
 
 ```powershell
 cd backend
 .\mvnw.cmd test
 cd ../frontend
+npm ci
 npm test
 npm run build
-npm audit --registry=https://registry.npmjs.org --audit-level=moderate
 cd ..
 node scripts/check-public-files.cjs
 node scripts/check-public-content.cjs
 ```
 
-后端常规测试使用内存测试库和模型桩，无需模型密钥。外部集成测试必须显式启用，具体入口见 [RAG 文档](docs/RAG.md)。
-
-前端与知识工具的锁文件使用官方npm HTTPS下载地址并保留完整性哈希，使用`npm ci`按锁文件安装；不要求全局切换第三方镜像。离线安装仍要求包已缓存，不能把现有`node_modules`或本机缓存当作公开仓库自带依赖。
-
-已有前端依赖、Chrome和`NODE_PATH`中的Playwright时，可运行`node scripts/test-observation-trace-ui.cjs`。它在随机回环端口用实际Vue组件验证观察回看和调用链的加载/失败/恢复，仅拦截合成GET接口，不需要启动后端，不调用模型。它不是后端鉴权或真实医学数据的验收；配置与边界见 [Agent 文档](docs/AGENT.md)。
-
-患者页面的模拟预约先创建服务端待确认动作，再显示服务器保存的医生、排班与费用供患者确认；准备动作不占号。确认接口只接受动作ID和确认意愿，重新核对期限、会话/分诊版本、目录及余号，事务提交动作与预约回执。默认有效期300秒，可通过 `AI_BOOKING_ACTION_TTL_SECONDS` 设置30–1800秒。确认响应丢失后，本页显式重试复用同一动作；刷新后应先检查就诊记录，不自动重发。旧 `POST /api/appointments` 保留兼容并仍执行原风险/推荐与幂等校验，不能声称所有API客户端都强制走新确认协议。
-
-`RuntimeJourneyTest` 使用真实随机 HTTP 端口验证合成目录新增、预约幂等重放、容量冲突、停用保留历史、知识审批/撤回与患者会话隔离；CI 同时在隔离 MySQL 8.4 上执行。它不连接本机8081，不调用外部模型，不代表浏览器完整写流程或医学质量验收。
-离线检查、Compose配置检查及独立ES合成语料集成测试已配置在 [GitHub Actions](.github/workflows/verify.yml)。配置检查本身不启动依赖；远端运行结果以实际工作流记录为准，不能用本机通过代替。
-
-前后端已在本机启动时，可选用 Node.js 22 和 Chromium 运行只读页面检查：
-
 ```powershell
-node scripts/test-ui-readonly.cjs
+# 独立工具测试
+cd tools/knowledge-sync
+npm ci
+npm test
+cd ../rag-eval
+npm test
 ```
 
-默认使用本机 Chrome；其他 Chromium 路径通过 `UI_TEST_BROWSER` 指定。脚本只访问本机地址，用演示账号打开患者预问诊、就诊记录、管理员知识库和运行观测；患者历史会话、知识库 503 与待审资料均为浏览器内合成数据，用于验证历史读取/重置、错误恢复、许可状态对应的审批按钮及审批后详情刷新。合成审批 POST 在浏览器内截获，不修改后端，不提交真实资料、审批或预约。这仍不能替代完整端到端验收。
+Maven Wrapper固定3.9.16并校验发行包SHA-256，首次运行需下载依赖。Node锁文件使用官方npm HTTPS地址和完整性哈希；离线运行仍需已缓存依赖。
 
-独立测试栈可进一步执行 `node scripts/test-knowledge-approval-ui.cjs --apply`：需要 `NODE_PATH` 中提供 Playwright、本机 Chrome、明确的 `ADMIN_TEST_BASE_URL`、`AI_MODE=demo` 和 `AI_AGENT_MODE=OFF`。该脚本真实录入、审批并撤回一份自有非医学夹具，检查原文/片段、待审排除和实际词法检索；不调用模型、不代表医学资料获批。不要对共用或患者数据库运行。
+[GitHub Actions](.github/workflows/verify.yml)覆盖常规测试、隔离MySQL/ES/Qdrant集成、官方MCP客户端及部分容器/浏览器业务链。详细命令和数据边界见[测试入口矩阵](CONTRIBUTING.md#测试入口)。真实模型、写入探针和ANN对照需显式启用；会消耗额度或留下合成数据的脚本只能在明确隔离的测试实例执行，不针对共用患者库。
 
-人工导诊恢复场景同样使用浏览器内合成申请，验证状态更新响应丢失后锁定操作、清除旧摘要、刷新不重发，以及成功受理后重新读取摘要。独立写入脚本 `test-human-review-ui.cjs` 按申请编号定位管理员记录，并按实际摘要授权决定验证读取或403；运行前仍须满足上述 `--apply`、隔离实例与Playwright要求。
+断连恢复是按requestId/turn回读已保存结果，不是SSE事件队列补发。预约准备不占号，确认时重新验证并事务扣号；并发与跨进程测试验证数据库一致性，不是吞吐量或真实HIS性能报告。
+
+## 项目结构
 
 ```text
-backend/             分层业务、模型/检索适配器、数据库与后端测试
-frontend/            患者端、管理员端及组件测试
-tools/knowledge-sync 来源登记、采集清洗、资料校验与待审导入
-tools/rag-eval/      检索评估、人工审核包与质量评分
-knowledge/           11篇公开示例资料、许可说明及本机忽略的发布回执
-scripts/             端到端与运行验证脚本
-docs/                架构说明、RAG 设计与评估方法
-docker-compose.yml   本机 MySQL/Qdrant 开发依赖
+.
+├── backend/                  Spring Boot后端、领域端口、适配器与JUnit测试
+├── frontend/                 Vue患者端、管理员后台与组件测试
+├── knowledge/                示例语料、来源元数据与独立许可
+│   └── corpus/               按症状主题组织的11篇公开示例
+├── tools/
+│   ├── knowledge-sync/       来源登记、采集清洗、校验与待审导入
+│   ├── rag-eval/             检索评估、答案审核包与评分
+│   └── mcp-client/           官方MCP客户端互操作验证
+├── scripts/                  维护、公开范围及集成/浏览器验证入口
+├── docs/                     架构、Agent、RAG说明与演示截图
+├── .github/workflows/        CI工作流
+├── docker-compose.yml        本机MySQL、Qdrant、Elasticsearch
+├── compose.app.yml           可选前后端容器覆盖
+├── CONTRIBUTING.md           贡献规范与测试矩阵
+└── LICENSE                   Apache-2.0代码许可证
 ```
 
-## 使用边界与贡献
+后端按 `identity / triage / knowledge / catalog / booking / patient / review / observation / tools` 划分业务模块，采用 `api → application → domain` 与 `infrastructure` 适配层；不是多个独立微服务。
 
-当前只有本地演示认证，没有医生工作台、正式电子病历、医院 SSO 或 HIS 适配。人工导诊申请不保证实时响应。项目不以医院上线为当前目标；涉及患者真实使用前仍需医学资料与安全规则的专业审核、身份与隐私治理以及独立质量验收。
+## 技术文档
 
-贡献代码前请阅读 [贡献说明](CONTRIBUTING.md)。保留可复现的源码、测试、已核实许可的示例语料与必要文档；患者数据、其他未经核实许可的医学全文、密钥、生成报告和个人调试文件均不进入公开仓库。
+| 文档 | 适合阅读的内容 |
+| --- | --- |
+| [架构与业务边界](docs/ARCHITECTURE.md) | 模块职责、事务、预约与轮次一致性、安全边界 |
+| [Agent与工作流](docs/AGENT.md) | Schema抽取、受控工具、上下文、MCP、失败与观测 |
+| [RAG设计与评估](docs/RAG.md) | 切分、索引、BM25/Qdrant、RRF、选材核对、质量分母 |
+| [知识资产](knowledge/README.md) | 目录与元数据格式、管理员上传、审核状态 |
+| [来源采集与导入](tools/knowledge-sync/README.md) | 来源许可、清洗校验、待审导入和测试准入 |
+| [贡献指南](CONTRIBUTING.md) | 测试入口、分支规范、公开范围与提交要求 |
 
-项目原创代码与技术文档按 [Apache License 2.0](LICENSE) 发布。`knowledge/corpus/` 中的医学正文、来源文本和来源记录适用单独的 [资料许可与署名说明](knowledge/LICENSE.md)，不因代码许可证而改为 Apache-2.0；第三方依赖仍按各自许可证使用。代码开源不代表医学审核、患者端使用许可或医院上线授权。
+## 常见问题
+
+**URL有 `demo=patient`，是否就没有调用模型？** 不是。它指定演示身份入口；后端 `AI_MODE` 和本轮路径决定是否调用LLM。调用详情区分模型、工具与后端流程。
+
+**没有rerank还能检索吗？** 可以。BM25与向量候选仍可经RRF融合，重排默认关闭；故障与当前是否强制依赖分别记录，不能伪称已重排。
+
+**检索不到资料是否让LLM自行补医学答案？** 当前主患者医学回答不会。无资料、未选用资料、核对失败与来源失效分别处理；特定支持拒绝可展示已核验原文摘录，但不恢复被拒草稿或本轮预约权限。
+
+**为什么模型流已经开启，正文仍要等待？** 未核对的医学草稿不直接外发；先显示处理阶段，核对及保存后发送正文分段。这是当前安全取舍，不是逐token流式体验。
+
+**管理员是否能直接批准仓库里的资料？** 公开原件待审，需先解决使用权限并按工具/后台流程核验。隔离测试准入与临床审核、真实患者发布是三件不同的事。
+
+## 已知限制与安全
+
+- 当前为开源开发示例，没有正式病历、医生工作台、医院SSO或真实HIS连接；人工导诊无实时响应保证。
+- 安全规则和中文映射未经临床审核；非标准表达、主体和时间归属仍有已记录缺口，未命中不能排除急症。
+- 模型核对来自同一已配置供应商的另一次请求，不是独立临床审核，仍可能误判。原文复制一致也不证明医学内容正确或适用。
+- 模型、embedding和可选重排分别受供应商权限、额度、接口与超时影响。就绪检查成功不代表这些外部服务正常。
+- 密钥、患者数据、运行日志、来源缓存和本机评估报告不公开；路径与凭据形态检查不能替代完整安全审计。
+
+<details>
+<summary>依赖公告与安全核查边界</summary>
+
+2026-10-16的运行依赖版本核对记录了Spring MVC 6.2.19的 `GHSA-pc63-qcmh-9cmg`（XSLT视图）与 `GHSA-j9f9-w8pj-32f8`（SSE视图片段）两条公告。应用当前不使用相应视图路径，并用 `ServerRenderingBoundaryTest` 约束这一边界；这不消除公告或代替安全复核。
+
+可选OSV检查仅发送依赖名称/版本，需显式 `--online`；不可将查询失败当作零告警。前端可运行 `npm audit --registry=https://registry.npmjs.org --audit-level=moderate`。这些检查不覆盖所有插件、容器基础镜像、操作系统或业务漏洞，也不是安全认证。
+
+发现可能涉及密钥或患者数据的问题时，请勿在公开Issue粘贴原始日志、凭据、对话或数据库导出；先移除敏感内容，再提供最小复现。
+
+</details>
+
+## 参与贡献
+
+欢迎提交可复现的问题、测试、文档改进与范围明确的PR。提交前阅读[贡献指南](CONTRIBUTING.md)，先确认现有设计和对应模块，再说明修改目的、验证方式及已知限制。
+
+1. 使用功能或修复分支，保持一次PR聚焦一个明确问题。
+2. 补充对应测试并同步文档；不要将demo、夹具或框架能力包装为真实模型成绩。
+3. 运行相关测试与公开范围检查，仅提交必要路径。
+4. 医学语料另行核实许可和来源，不因代码PR获准就视为医学发布获批。
+
+问题反馈请使用[Issues](https://github.com/Y3148y/Smart-Healthcare-System/issues)，包含环境、复现步骤、期望/实际行为与脱敏信息。CI徽章只反映自动化检查，不是医学或安全认证。
+
+## 许可证
+
+原创代码与技术文档按 [Apache License 2.0](LICENSE) 发布。医学正文、来源快照及来源记录适用独立的[资料许可与署名说明](knowledge/LICENSE.md)，不因根目录许可证变为Apache-2.0；第三方依赖保留各自许可。
+
+代码开源不代表医学审核通过、患者端使用许可或医院上线授权。
