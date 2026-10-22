@@ -29,7 +29,24 @@ final class SourceAnswerPlan {
             "NONE","", "NOT_COVERED","现有资料未覆盖您问到的具体内容。",
             "APPLICABILITY_UNKNOWN","目前还不能确认这些资料是否适用于您的具体情况。");
 
-    static AnswerDraftValidator.Checked check(String raw,List<Reference> references) throws Exception {
+    static final class VerifiedPlan {
+        private final AnswerDraftValidator.Checked checked;
+        private final List<Reference> references;
+        private VerifiedPlan(AnswerDraftValidator.Checked checked,List<Reference> references) {
+            var draft=checked.draft();
+            var immutable=new Draft(draft.paragraphs().stream().map(p->new Paragraph(p.text(),p.kind(),List.copyOf(p.referenceIds()))).toList(),
+                    List.copyOf(draft.questions()),List.copyOf(draft.uncovered()));
+            this.checked=new AnswerDraftValidator.Checked(checked.text(),List.copyOf(checked.adopted()),List.copyOf(checked.uncovered()),immutable);
+            this.references=List.copyOf(references);
+        }
+        AnswerDraftValidator.Checked checked(){return checked;}
+        String text(){return checked.text();}
+        Draft draft(){return checked.draft();}
+        List<String> adopted(){return checked.adopted();}
+        List<Reference> references(){return references;}
+    }
+
+    static VerifiedPlan check(String raw,List<Reference> references) throws Exception {
         if(raw==null||raw.length()>4000)throw new AnswerDraftValidator.InvalidDraftException("SIZE_INVALID");
         Plan plan=JSON.readValue(raw,Plan.class);
         if(plan==null||plan.sourceIds()==null||plan.sourceIds().size()>2||plan.questionKeys()==null||plan.questionKeys().size()>2
@@ -58,7 +75,7 @@ final class SourceAnswerPlan {
         var checked=AnswerDraftValidator.check(JSON.writeValueAsString(draft),references);
         String text=String.join("\n\n",display);
         if(text.length()>1200)throw new AnswerDraftValidator.InvalidDraftException("TEXT_SIZE_INVALID");
-        return new AnswerDraftValidator.Checked(text,checked.adopted(),checked.uncovered(),checked.draft());
+        return new VerifiedPlan(new AnswerDraftValidator.Checked(text,checked.adopted(),checked.uncovered(),checked.draft()),references);
     }
     private SourceAnswerPlan() {}
 }

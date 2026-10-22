@@ -65,6 +65,8 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 生成侧安全边界
 
+`AnswerSupportReviewer.reviewSelection` 只接受 `SourceAnswerPlan` 私有工厂产出的不可变计划，不能凭用户/模型标记切到新模式；确定性引用身份与选材语义分别负责。逐选中ID覆盖、相关性/适用性、整体条件/缺口/追问/服务检查仍强制，任何否定或格式/供应商异常都不通过；旧自由草稿的六项及逐句proof保持原路径与配置。该类型不是审批或医学认证，来源/完整原段仍在展示前由 `AnswerEvidenceFreshness` 检查。
+
 患者主回答契约由 `triage.infrastructure.llm.SourceAnswerPlan` 限定：模型只选资料及对话项，后端逐字绑定引用原文与通用对话模板，拒绝自由医学正文或问题文本。`OptionalNarrationModel` 复用原内容过滤及一次核对，`AnswerEvidenceFreshness` 对成功 `SOURCE_QUOTED` 再核当前来源及完整原段；不增加模型调用，也不增加风险/目录/预约授权。来源或完整原段核验失败不放行原文，成功仍有选材/条件判定局限。没有选用资料的SOURCE_LIMITED与拒绝摘录均不允许普通预约，统一由Disposition.answerAllowsBooking控制。SOURCE_QUOTED、拒绝后SOURCE_EXCERPT及旧生成文本分开观测与评分，见[RAG契约](RAG.md#来源原文与受控对话引导)。
 
 `SourceExcerptFallback` 是支持核对拒绝后的确定性原文展示，不采用被拒草稿的任何段落。`KnowledgeCatalog.sourceExcerptState` 核验来源唯一性及当前获准正文，`MarkdownChunker.completeParagraphRange` 复用切分器检查完整段落边界；`OptionalNarrationModel.sourceExcerptAllowed` 复用原不安全内容、药品及内部服务字段检查，失败整片跳过，不删句改写。最后仍执行 `AnswerEvidenceFreshness`，来源变化即停止展示。

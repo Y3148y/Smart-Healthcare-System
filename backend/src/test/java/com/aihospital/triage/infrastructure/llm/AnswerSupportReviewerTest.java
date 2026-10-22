@@ -18,6 +18,12 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Contract/fault tests with a synthetic reviewer; does not measure model judgement accuracy. */
 class AnswerSupportReviewerTest {
     static final String PASS = "{\"claimsSupported\":true,\"conditionsPreserved\":true,\"onTopic\":true,\"noServiceClaims\":true,\"referencesCorrect\":true,\"questionsJustified\":true}";
+    static String selectionDecision(String code,List<String> ids) {
+        String checks=ids.stream().map(id->"{\"referenceId\":\""+id+"\",\"onTopic\":"+!"OFF_TOPIC".equals(code)
+                +",\"applicabilityPreserved\":"+!"CONDITION_NOT_ESTABLISHED".equals(code)+"}").collect(java.util.stream.Collectors.joining(","));
+        return "{\"sourceChecks\":["+checks+"],\"conditionsPreserved\":true,\"gapAccurate\":"+!"GAP_INACCURATE".equals(code)
+                +",\"questionsJustified\":"+!"QUESTION_NOT_JUSTIFIED".equals(code)+",\"noServiceClaims\":"+!"SERVICE_CONTENT".equals(code)+"}";
+    }
     static String decision(String code) {
         if (code == null) return PASS;
         var fields = Map.of("UNSUPPORTED_CLAIM", "claimsSupported", "CONDITION_NOT_ESTABLISHED", "conditionsPreserved",
@@ -120,7 +126,7 @@ class AnswerSupportReviewerTest {
             String sent=new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8); requests.add(sent);
             boolean reviewing=sent.contains("<review_data>");
             if(reviewing)reviewCalls.incrementAndGet();else generationCalls.incrementAndGet();
-            String content=reviewing ? decision(issue.get())
+            String content=reviewing ? selectionDecision(issue.get(),List.of("E1"))
                     : "{\"sourceIds\":[\"E1\"],\"transition\":\"REFERENCE\",\"questionKeys\":[],\"gap\":\"NONE\"}";
             byte[] bytes=json.writeValueAsBytes(Map.of("choices",List.of(Map.of("finish_reason","stop","message",Map.of("content",content))),"usage",Map.of("prompt_tokens",12,"completion_tokens",14)));
             exchange.sendResponseHeaders(reviewing?reviewStatus.get():200,bytes.length);
@@ -136,7 +142,7 @@ class AnswerSupportReviewerTest {
             ReflectionTestUtils.setField(model,"structuredJson",true);
             ReflectionTestUtils.setField(model,"timeoutSeconds",3);
             var services=new NarrationModel.ServiceContext(List.of(new NarrationModel.ServiceState("测试目录","AVAILABLE","synthetic-backend-slot-fact")),true);
-            for(String code:List.of("CONDITION_NOT_ESTABLISHED","UNSUPPORTED_CLAIM","OFF_TOPIC","SERVICE_CONTENT","WRONG_REFERENCE")) {
+            for(String code:List.of("CONDITION_NOT_ESTABLISHED","GAP_INACCURATE","OFF_TOPIC","SERVICE_CONTENT","QUESTION_NOT_JUSTIFIED")) {
                 issue.set(code);
                 var answer=model.answerWithEvidence("想预约","","",List.of(new Evidence("资料","source","条件性资料。",.8)),"fallback",List.of(),services,false,"MATCHED");
                 assertEquals("VALIDATION_BLOCKED",answer.status());
@@ -152,7 +158,7 @@ class AnswerSupportReviewerTest {
             issue.set(null);generated.set("资料中的一般信息。");
             var accepted=model.answerWithEvidence("只问一般问题","","",List.of(new Evidence("资料","source","资料中的一般信息。",.8)),"fallback",List.of(),services,true,"MATCHED");
             assertEquals("SOURCE_QUOTED",accepted.status()); assertNull(accepted.diagnostics().serviceNotice());
-            assertEquals("MODEL_REVIEW_PASSED",accepted.diagnostics().semanticSupport());
+            assertEquals("SOURCE_SELECTION_REVIEW_PASSED",accepted.diagnostics().semanticSupport());
             reviewStatus.set(429);
             var unavailable=model.answerWithEvidence("question","","",List.of(new Evidence("资料","source","资料中的一般信息。",.8)),"fallback",List.of(),null,true,"MATCHED");
             assertEquals("REVIEW_UNAVAILABLE",unavailable.diagnostics().failure().code());

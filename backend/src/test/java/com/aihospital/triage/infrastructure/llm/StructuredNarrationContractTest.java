@@ -64,7 +64,7 @@ class StructuredNarrationContractTest {
                     "model", "synthetic", "usage", Map.of("prompt_tokens",11,"completion_tokens",13,"total_tokens",24),
                     "choices", List.of(Map.of("index", 0, "finish_reason", finish.get(),
                             "message", Map.of("role", "assistant", "content", reviewing
-                                    ? AnswerSupportReviewerTest.PASS : response.get())))));
+                                    ? AnswerSupportReviewerTest.selectionDecision(null,List.of("E1")) : response.get())))));
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             if (status.get() != 200) bytes = "{\"error\":{\"message\":\"synthetic-secret-response\",\"type\":\"rate_limit_error\"}}".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.get(), bytes.length);
@@ -86,7 +86,7 @@ class StructuredNarrationContractTest {
             assertEquals("SOURCE_QUOTED", accepted.status());
             assertTrue(accepted.text().contains(evidence.get(0).excerpt()));
             assertEquals(List.of("E1"), accepted.diagnostics().adoptedReferenceIds());
-            assertEquals("MODEL_REVIEW_PASSED", accepted.diagnostics().semanticSupport());
+            assertEquals("SOURCE_SELECTION_REVIEW_PASSED", accepted.diagnostics().semanticSupport());
             assertEquals("STOP", accepted.diagnostics().generation().finishReason());
             assertEquals(11, accepted.diagnostics().generation().inputTokens());
             assertEquals(13, accepted.diagnostics().generation().outputTokens());

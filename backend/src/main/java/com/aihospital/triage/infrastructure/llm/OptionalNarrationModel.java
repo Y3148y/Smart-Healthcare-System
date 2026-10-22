@@ -93,7 +93,8 @@ public class OptionalNarrationModel implements NarrationModel {
                         traceId, retrievalStatus, "SCHEMA_OR_REFERENCE_BLOCKED", references, List.of(), List.of(), failure, started, generation);
             }
             AnswerDraftValidator.Checked checked;
-            try { checked = SourceAnswerPlan.check(raw, references); }
+            SourceAnswerPlan.VerifiedPlan selectedPlan;
+            try { selectedPlan=SourceAnswerPlan.check(raw,references);checked=selectedPlan.checked(); }
             catch (Exception invalid) {
                 var failure = new com.aihospital.triage.domain.AnswerEvidence.Failure(
                         invalid instanceof AnswerDraftValidator.InvalidDraftException known ? known.code()
@@ -121,8 +122,8 @@ public class OptionalNarrationModel implements NarrationModel {
             boolean diagnostic = com.aihospital.shared.diagnostics.SyntheticReviewDiagnostics.enabled();
             var reviewDecision = new java.util.concurrent.atomic.AtomicReference<com.fasterxml.jackson.databind.JsonNode>();
             var diagnosticReferences = references;
-            var review = AnswerSupportReviewer.review(request, history, references, checked.draft(),
-                    thinking == null ? null : false, inputTokenBudget, turnInputBudget, requireReviewProof, reviewMessages -> thinking == null
+            var review = AnswerSupportReviewer.reviewSelection(request, history, selectedPlan,
+                    thinking == null ? null : false, inputTokenBudget, turnInputBudget, reviewMessages -> thinking == null
                             ? captureReviewDecision(reviewClient().generate(reviewMessages),diagnostic,reviewDecision,diagnosticReferences)
                             : captureReviewDecision(configuredTransport().generate(baseUrl, apiKey, model, false, requireReviewProof?2048:1024,
                                     reviewTimeoutSeconds, reviewMessages, structuredJson),diagnostic,reviewDecision,diagnosticReferences));
@@ -194,7 +195,7 @@ public class OptionalNarrationModel implements NarrationModel {
                 d.traceId(), review.status(), review.issueCodes(), review.elapsedMs());
         return new Answer(answer.text(), answer.status(), answer.modelName(), new AnswerEvidence.Diagnostics(
                 d.traceId(), d.retrievalStatus(), d.validationStatus(), d.retrievedReferences(), d.adoptedReferenceIds(),
-                d.uncovered(), "PASSED".equals(review.status()) ? "MODEL_REVIEW_PASSED" : "NOT_CONFIRMED",
+                d.uncovered(), "PASSED".equals(review.status()) ? "SOURCE_SELECTION_REVIEW_PASSED" : "NOT_CONFIRMED",
                 d.failure(), d.elapsedMs(), d.generation(), review, d.serviceNotice()));
     }
 

@@ -143,8 +143,8 @@ class SyntheticReviewDiagnosticsTest {
         server.createContext("/v1/chat/completions",exchange->{
             String sent=new String(exchange.getRequestBody().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
             boolean reviewing=sent.contains("<review_data>");
-            String decision=json.writeValueAsString(Map.of("claimsSupported",!rejected.get(),"conditionsPreserved",true,
-                    "onTopic",true,"noServiceClaims",true,"referencesCorrect",!rejected.get(),"questionsJustified",true));
+            String decision=json.writeValueAsString(Map.of("sourceChecks",List.of(Map.of("referenceId","E1","onTopic",true,
+                    "applicabilityPreserved",!rejected.get())),"conditionsPreserved",true,"gapAccurate",true,"noServiceClaims",true,"questionsJustified",true));
             String draft=json.writeValueAsString(Map.of("sourceIds",List.of("E1"),"transition","REFERENCE","questionKeys",List.of(),"gap","NONE"));
             byte[] body=json.writeValueAsBytes(Map.of("id","fixture","object","chat.completion","created",1,"model","fixture",
                     "choices",List.of(Map.of("index",0,"finish_reason","stop","message",Map.of("role","assistant","content",reviewing?decision:draft,"reasoning_content","never store hidden thoughts")))));
@@ -166,6 +166,7 @@ class SyntheticReviewDiagnosticsTest {
                 assertFalse(answer.text().contains("合成资料内容"));assertTrue(answer.diagnostics().adoptedReferenceIds().isEmpty());
                 String packet=Files.readString(directory.resolve(request+".json"));
                 assertTrue(packet.contains("合成资料内容"));assertFalse(packet.contains("synthetic-test-key"));assertFalse(packet.contains("hidden thoughts"));
+                assertTrue(packet.contains("sourceChecks"));assertTrue(packet.contains("applicabilityPreserved"));
             }
             rejected.set(false);
             try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,second,user,()->List.of("合成甲","合成乙"),now)) {

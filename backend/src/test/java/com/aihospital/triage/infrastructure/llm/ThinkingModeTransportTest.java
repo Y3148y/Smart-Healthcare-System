@@ -25,7 +25,7 @@ class ThinkingModeTransportTest {
             if (!reviewing) request.set(sent);
             String draft = json.writeValueAsString(Map.of("sourceIds",List.of("E1"),"transition","REFERENCE","questionKeys",List.of(),"gap","NONE"));
             if(text.get().contains("你患有"))draft="{\"sourceIds\":[\"E1\"],\"transition\":\"你患有某疾病。\",\"questionKeys\":[],\"gap\":\"NONE\"}";
-            if (reviewing) draft = AnswerSupportReviewerTest.PASS;
+            if (reviewing) draft = AnswerSupportReviewerTest.selectionDecision(null,List.of("E1"));
             byte[] bytes = json.writeValueAsBytes(Map.of("choices",List.of(Map.of("finish_reason",finish.get(),"message",Map.of("content",draft,"reasoning_content","synthetic-private-reasoning"))),"usage",Map.of("prompt_tokens",12,"completion_tokens",20)));
             if (status.get()!=200) bytes="synthetic-secret-provider-error".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.get(),bytes.length); exchange.getResponseBody().write(bytes); exchange.close();

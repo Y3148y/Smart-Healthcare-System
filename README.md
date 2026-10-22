@@ -163,7 +163,7 @@ IDEA保存的环境变量只供该启动进程及其子进程使用，不提交�
 | `AI_QDRANT_URL`、`AI_QDRANT_COLLECTION` | 默认 `http://127.0.0.1:6333`、`ai_hospital_knowledge_v2`；使用其他既有集合时显式覆盖，不自动迁移数据 |
 | `AI_RERANK_ENABLED` | 默认 `false`；有服务和额度后显式启用 |
 | `AI_STREAM_RESPONSE` | 默认 `true`；供应商SSE接收，医学正文仍先核对和保存 |
-| `AI_ANSWER_REVIEW_REQUIRE_CLAIM_PROOF` | 默认 `true`；核对响应需逐断言绑定原文与采用引用，非法或不完整则降级 |
+| `AI_ANSWER_REVIEW_REQUIRE_CLAIM_PROOF` | 保留的旧自由草稿证明选项，默认 `true`；主患者原文选择使用专用强制核对，不用此开关跳过引用绑定或语义检查；现也影响核对输出预算 |
 | `AI_LEXICAL_BACKEND` | 默认 `elasticsearch`；`memory` 为显式轻量选项 |
 | `AI_ELASTICSEARCH_URL`、`AI_ELASTICSEARCH_API_KEY` | 默认 `http://127.0.0.1:9201`；远端须 HTTPS，API Key 仅从环境注入 |
 | `AI_ELASTICSEARCH_MIN_SCORE`、`AI_ELASTICSEARCH_TITLE_BOOST` | 默认0 / 2；ES专用阈值与标题权重，尚未调优，不沿用内存0.28 |

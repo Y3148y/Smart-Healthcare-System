@@ -36,7 +36,7 @@ class NarrationScopeTest {
             if (!reviewing) captured.set(sent);
             String draft = json.writeValueAsString(Map.of("sourceIds",List.of(),"transition","NONE","questionKeys",List.of(),
                     "gap",text.get().equals("资料未覆盖该问题，无法确认。")?"NOT_COVERED":text.get()));
-            if (reviewing) draft = AnswerSupportReviewerTest.PASS;
+            if (reviewing) draft = AnswerSupportReviewerTest.selectionDecision(null,List.of());
             byte[] body = json.writeValueAsBytes(Map.of("id", "test", "object", "chat.completion", "created", 1,
                     "model", "test", "choices", List.of(Map.of("index", 0, "finish_reason", "stop",
                     "message", Map.of("role", "assistant", "content", draft)))));
