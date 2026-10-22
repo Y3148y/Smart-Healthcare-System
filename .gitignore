@@ -39,6 +39,9 @@ tools/mcp-client/node_modules/
 !/docs/ARCHITECTURE.md
 !/docs/AGENT.md
 !/docs/RAG.md
+!/docs/GETTING_STARTED.md
+!/docs/INTERVIEW_GUIDE.md
+!/docs/INTERVIEW_DRILL.md
 !/docs/images/
 /docs/images/*
 !/docs/images/patient-triage.png

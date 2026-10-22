@@ -339,6 +339,9 @@ Maven Wrapper固定3.9.16并校验发行包SHA-256，首次运行需下载依赖
 | [知识资产](knowledge/README.md) | 目录与元数据格式、管理员上传、审核状态 |
 | [来源采集与导入](tools/knowledge-sync/README.md) | 来源许可、清洗校验、待审导入和测试准入 |
 | [贡献指南](CONTRIBUTING.md) | 测试入口、分支规范、公开范围与提交要求 |
+| [项目入门](docs/GETTING_STARTED.md) | 从离线测试、启动到读懂一轮真实问答 |
+| [项目面试模板](docs/INTERVIEW_GUIDE.md) | 30秒/2分钟讲解、核心技术问答、指标与证据清单 |
+| [面经题型与模拟拷打](docs/INTERVIEW_DRILL.md) | 45分钟模拟面试、22组连续追问、现场练习与复盘模板 |
 
 ## 常见问题
 

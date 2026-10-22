@@ -3,6 +3,7 @@ const { execFileSync } = require('node:child_process')
 const allowedCorpusName = /^(document\.zh-CN\.md|provenance\.json|source(?:\.nlm)?\.en\.md)$/
 const allowedDocs = new Set([
   'docs/AGENT.md', 'docs/ARCHITECTURE.md', 'docs/RAG.md',
+  'docs/GETTING_STARTED.md', 'docs/INTERVIEW_GUIDE.md', 'docs/INTERVIEW_DRILL.md',
   'docs/images/patient-triage.png', 'docs/images/admin-dashboard.png'
 ])
 
