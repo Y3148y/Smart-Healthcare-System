@@ -4,7 +4,7 @@ const allowedCorpusName = /^(document\.zh-CN\.md|provenance\.json|source(?:\.nlm
 const allowedDocs = new Set([
   'docs/AGENT.md', 'docs/ARCHITECTURE.md', 'docs/RAG.md',
   'docs/GETTING_STARTED.md', 'docs/INTERVIEW_GUIDE.md', 'docs/INTERVIEW_DRILL.md',
-  'docs/images/patient-triage.png', 'docs/images/admin-dashboard.png'
+  'docs/images/patient-triage.png', 'docs/images/admin-dashboard.png', 'docs/images/project-mark.svg'
 ])
 
 function prohibitedReason(path) {

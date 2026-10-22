@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="112" viewBox="0 0 112 112" role="img" aria-labelledby="title desc">
+  <title id="title">医疗导诊助手项目标识</title>
+  <desc id="desc">深蓝色对话框中的蓝色医疗十字与三个连接节点。</desc>
+  <rect x="8" y="8" width="96" height="96" rx="27" fill="#13263f"/>
+  <path d="M32 29h48a9 9 0 0 1 9 9v29a9 9 0 0 1-9 9H53L35 88V76h-3a9 9 0 0 1-9-9V38a9 9 0 0 1 9-9Z" fill="none" stroke="#edf4fc" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M47 39h12v11h11v12H59v11H47V62H36V50h11Z" fill="#55a6ff"/>
+  <path d="M77 42v17" stroke="#9fb5cd" stroke-width="2"/>
+  <circle cx="77" cy="40" r="3" fill="#edf4fc"/>
+  <circle cx="77" cy="50" r="3" fill="#edf4fc"/>
+  <circle cx="77" cy="60" r="3" fill="#edf4fc"/>
+</svg>

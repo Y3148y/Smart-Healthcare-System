@@ -46,3 +46,4 @@ tools/mcp-client/node_modules/
 /docs/images/*
 !/docs/images/patient-triage.png
 !/docs/images/admin-dashboard.png
+!/docs/images/project-mark.svg

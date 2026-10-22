@@ -6,7 +6,7 @@ test('public source, technical docs, demo screenshots and corpus text assets are
   assert.deepEqual(inspectTrackedFiles([
     'backend/src/main/java/App.java', 'docs/RAG.md',
     'docs/GETTING_STARTED.md', 'docs/INTERVIEW_GUIDE.md', 'docs/INTERVIEW_DRILL.md',
-    'docs/images/patient-triage.png', 'docs/images/admin-dashboard.png',
+    'docs/images/patient-triage.png', 'docs/images/admin-dashboard.png', 'docs/images/project-mark.svg',
     'knowledge/corpus/neurology/migraine/document.zh-CN.md',
     'knowledge/corpus/neurology/migraine/provenance.json',
     'knowledge/corpus/neurology/migraine/source.en.md',
