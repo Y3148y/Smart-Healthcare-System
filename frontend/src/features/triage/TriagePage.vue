@@ -49,11 +49,13 @@ function evidenceMethod(meta:ResponseProvenance):string{
   if(sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED')return '暂时无法核实参考资料的当前有效性，本轮片段及引用已隐藏，不代表没有相关资料'
   if(evidence?.retrievalStatus==='DEPENDENCY_UNAVAILABLE')return '资料检索暂不可用，不代表没有相关资料'
   if(evidence?.retrievalStatus==='NOT_APPLICABLE')return '本轮没有医学检索内容，未执行 RAG；这与检索未命中不同'
+  if(meta.modelStatus==='SOURCE_LIMITED')return meta.knowledgeHits ? `检索到 ${meta.knowledgeHits} 条资料，但本轮未选用适用引用；不等于没有执行检索` : '本轮未取得可选用的医学引用，仅显示资料范围提示与追问'
   if(!meta.knowledgeHits)return '未找到可引用的医学知识片段'
   if(!evidence)return `检索到 ${meta.knowledgeHits} 条资料；旧记录未采集回答实际引用情况`
   if(meta.modelStatus==='SOURCE_EXCERPT'&&evidence.validationStatus==='SOURCE_EXCERPT_VERIFIED'&&evidence.supportReview?.status==='REJECTED')return `生成草稿未采用；当前展示 ${evidence.adoptedReferenceIds.length} 份资料原文，不是对您个人情况的判断，也不代表问题已被完整回答`
   if(evidence.supportReview?.status==='REJECTED')return `检索到 ${meta.knowledgeHits} 条资料，但生成内容未通过本轮问题与资料依据核对，未采用`
   if(evidence.supportReview?.status==='UNAVAILABLE')return `检索到 ${meta.knowledgeHits} 条资料；回答依据核对暂未完成，未采用生成内容`
+  if(evidence.validationStatus==='SOURCE_QUOTE_VERIFIED')return `模型选择了 ${evidence.adoptedReferenceIds.length} 份资料；医学正文为后端组装的完整原文，适用性核对不代表个人诊断`
   if(evidence.validationStatus==='REFERENCE_INTEGRITY_PASSED')return `检索到 ${meta.knowledgeHits} 条资料，本次回答引用 ${evidence.adoptedReferenceIds.length} 条。引用不等于已确认您的个人病情`
   return `检索到 ${meta.knowledgeHits} 条资料；本次未采用经引用校验的模型回答`
 }
@@ -67,6 +69,8 @@ function answerMethod(meta:ResponseProvenance):string{
   if(meta.modelStatus==='SERVICE_ONLY')return '本轮未调用回答生成模型；系统按固定分支整理服务查询结果。意图抽取或工具规划可能已调用模型，详见下方'
   const sourceState=meta.answerEvidence?.failure?.code||meta.answerEvidence?.retrievalStatus
   if(meta.modelStatus==='VALIDATION_BLOCKED'&&(sourceState==='ANSWER_SOURCE_CHANGED'||sourceState==='ANSWER_SOURCE_UNAVAILABLE'||sourceState==='ANSWER_SOURCE_UNTRACKED'))return '回答因参考资料有效性未确认而暂不展示；这不是模型额度耗尽或模型能力不足的判断'
+  if(meta.modelStatus==='SOURCE_LIMITED')return '模型未选用医学资料，仅展示资料范围提示与追问；本轮不提供预约'
+  if(meta.modelStatus==='SOURCE_QUOTED')return 'AI 选择资料与追问，医学正文保持来源原文'
   if(meta.modelStatus==='LIVE')return 'AI 模型已参与回答'
   if(meta.modelStatus==='SOURCE_EXCERPT')return '资料原文摘录：未采用被拒绝的模型草稿，不是模型核对通过的个人结论'
   if(meta.modelStatus==='LIVE_UNGROUNDED')return 'AI 模型回答一般问题；本次无可引用知识资料'

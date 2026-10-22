@@ -12,7 +12,7 @@ import java.util.UUID;
 /** Maps measured answer diagnostics to existing audit storage; never estimates provider usage. */
 public final class AnswerCallAudit {
     private AnswerCallAudit() {}
-    private static final Set<String> COMPLETED = Set.of("LIVE", "LIVE_UNGROUNDED", "DEMO", "DEMO_UNGROUNDED", "SAFETY_RULE", "SERVICE_ONLY");
+    private static final Set<String> COMPLETED = Set.of("LIVE", "SOURCE_QUOTED", "LIVE_UNGROUNDED", "DEMO", "DEMO_UNGROUNDED", "SAFETY_RULE", "SERVICE_ONLY");
 
     public static List<CallLog> records(String purpose, String actor, NarrationModel.Answer answer,
                                         long elapsedMs, List<ToolTrace> tools) {

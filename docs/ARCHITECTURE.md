@@ -65,6 +65,8 @@ LangChain4j 提供消息类型、模型响应和 OpenAI-compatible 客户端。`
 
 ## 生成侧安全边界
 
+患者主回答契约由 `triage.infrastructure.llm.SourceAnswerPlan` 限定：模型只选资料及对话项，后端逐字绑定引用原文与通用对话模板，拒绝自由医学正文或问题文本。`OptionalNarrationModel` 复用原内容过滤及一次核对，`AnswerEvidenceFreshness` 对成功 `SOURCE_QUOTED` 再核当前来源及完整原段；不增加模型调用，也不增加风险/目录/预约授权。来源或完整原段核验失败不放行原文，成功仍有选材/条件判定局限。没有选用资料的SOURCE_LIMITED与拒绝摘录均不允许普通预约，统一由Disposition.answerAllowsBooking控制。SOURCE_QUOTED、拒绝后SOURCE_EXCERPT及旧生成文本分开观测与评分，见[RAG契约](RAG.md#来源原文与受控对话引导)。
+
 `SourceExcerptFallback` 是支持核对拒绝后的确定性原文展示，不采用被拒草稿的任何段落。`KnowledgeCatalog.sourceExcerptState` 核验来源唯一性及当前获准正文，`MarkdownChunker.completeParagraphRange` 复用切分器检查完整段落边界；`OptionalNarrationModel.sourceExcerptAllowed` 复用原不安全内容、药品及内部服务字段检查，失败整片跳过，不删句改写。最后仍执行 `AnswerEvidenceFreshness`，来源变化即停止展示。
 
 摘录终态为 `SOURCE_EXCERPT`，保留原 `REJECTED` 和失败码；`serviceNotice.bookingAllowed=false`。引擎清空医生，会话保存前目录刷新不得补回医生，`SimulationBookingService.validateEligibility` 再次阻断新预约和待确认动作；既有幂等回执重放语义不变，独立 `walk-in` 是另一显式业务路径。EMERGENCY固定安全路径及URGENT分诊不启用摘录，风险、就医提示和原规则不改变。边界与验证见 [RAG](RAG.md#核对拒绝后的来源摘录)。

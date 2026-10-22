@@ -43,6 +43,8 @@ public class OptionalNarrationModel implements NarrationModel {
                 || intent != com.aihospital.triage.domain.CurrentRequestIntent.BookingIntent.DECLINED
                 && com.aihospital.triage.domain.CurrentRequestIntent.directionRequested(request);
         var notice = serviceRequested && "openai-compatible".equalsIgnoreCase(mode) ? serviceNotice(services) : null;
+        if(notice!=null&&!com.aihospital.triage.domain.Disposition.answerAllowsBooking(answer.status()))
+            notice=new AnswerEvidence.ServiceNotice(notice.messages(),false);
         var d = answer.diagnostics();
         if (d == null || notice == null) return answer;
         return new Answer(answer.text(), answer.status(), answer.modelName(), new AnswerEvidence.Diagnostics(
@@ -63,7 +65,7 @@ public class OptionalNarrationModel implements NarrationModel {
             generation = new com.aihospital.triage.domain.AnswerEvidence.Generation("PROMPT_PREPARATION", null, null, null, null);
             String request = currentRequest(history, symptom);
             var assembled=new ContextAssembler(inputTokenBudget).structured(
-                    hasReferences->MedicalAnswerInstructions.generation(request,hasReferences),CONVERSATION_STYLE,
+                    hasReferences->MedicalAnswerInstructions.generation(request,hasReferences),"仅返回来源ID及对话项的JSON选择计划，不返回自然语言正文。",
                     request,AnswerEvidence.references(evidence),history);
             references=assembled.references();
             List<ChatMessage> messages=new ArrayList<>(assembled.messages());
@@ -91,7 +93,7 @@ public class OptionalNarrationModel implements NarrationModel {
                         traceId, retrievalStatus, "SCHEMA_OR_REFERENCE_BLOCKED", references, List.of(), List.of(), failure, started, generation);
             }
             AnswerDraftValidator.Checked checked;
-            try { checked = AnswerDraftValidator.check(raw, references); }
+            try { checked = SourceAnswerPlan.check(raw, references); }
             catch (Exception invalid) {
                 var failure = new com.aihospital.triage.domain.AnswerEvidence.Failure(
                         invalid instanceof AnswerDraftValidator.InvalidDraftException known ? known.code()
@@ -139,8 +141,8 @@ public class OptionalNarrationModel implements NarrationModel {
                         traceId, retrievalStatus, "SUPPORT_BLOCKED", references, List.of(), checked.uncovered(),
                         failure, started, generation), review);
             }
-            return withReview(diagnosed(new Answer(checked.text(), evidence.isEmpty() ? "LIVE_UNGROUNDED" : "LIVE", model),
-                    traceId, retrievalStatus, "REFERENCE_INTEGRITY_PASSED", references, checked.adopted(), checked.uncovered(),
+            return withReview(diagnosed(new Answer(checked.text(), checked.adopted().isEmpty() ? "SOURCE_LIMITED" : "SOURCE_QUOTED", model),
+                    traceId, retrievalStatus, checked.adopted().isEmpty()?"SOURCE_PLAN_LIMITED":"SOURCE_QUOTE_VERIFIED", references, checked.adopted(), checked.uncovered(),
                     null, started, generation), review);
         } catch (Exception ex) {
             var invalidResponse = ConfiguredChatTransport.responseFailure(ex);

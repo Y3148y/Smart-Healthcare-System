@@ -24,6 +24,8 @@ const phaseLabel=computed(()=>({NOT_RUN:'未执行',PROMPT_PREPARATION:'停留�
     <p v-for="(item,i) in compositeRoutes" :key="`composite-route-${i}`">意图处理方向：{{compositeLabel(item.name)}}。这是处理路线，不证明已查询工具或完成预约。</p>
     <p>LLM 生成请求：{{ phaseLabel }}。{{ generation?.inputTokens!=null?`输入 ${generation.inputTokens} Token；`:'' }}{{ generation?.outputTokens!=null?`输出 ${generation.outputTokens} Token。`:'' }}</p>
     <p v-if="meta.answerEvidence?.supportReview">回答依据核对：{{ meta.answerEvidence.supportReview.status }}（模型核对，不是医学审核）。</p>
+    <p v-if="meta.modelStatus==='SOURCE_QUOTED'">模型选择资料、衔接类型和追问项；医学正文由后端按来源原文组装，不是模型改写。核对仍检查相关性和适用条件，不代表个人诊断。</p>
+    <p v-if="meta.modelStatus==='SOURCE_LIMITED'">本轮没有选用医学引用，仅显示资料范围提示及通用追问；有无检索命中仍以本轮检索记录为准，不提供本轮预约。</p>
     <p v-if="meta.modelStatus==='SOURCE_EXCERPT'">草稿被拒绝；本轮降级为后端资料原文摘录，保留原失败记录。摘录不等于模型通过核对、问题已解决或个人就诊建议。</p>
     <p v-for="(item,i) in contexts" :key="`context-${i}`">{{ contextLabel(item.name) }} · 上下文预算：保守估计 {{ item.contextBudget?.estimatedInputTokens }} / {{ item.contextBudget?.inputTokenBudget }}（UTF-8 字节与消息开销估算，非实际用量）；整条移除历史 {{ item.contextBudget?.historyMessagesRemoved }} 条、证据 {{ item.contextBudget?.referencesRemoved }} 份。<span v-if="item.contextBudget?.turnInputBudget!=null&&item.contextBudget?.turnInputReserved!=null"> 本轮累计预占估算 {{ item.contextBudget.turnInputReserved }} / {{ item.contextBudget.turnInputBudget }}，剩余 {{ (item.contextBudget.turnInputBudget??0)-(item.contextBudget.turnInputReserved??0) }}；不是实际消耗或账单。</span></p>
     <p v-if="!events">旧记录未保存详细执行链，RRF 与 rerank 状态未知。</p>

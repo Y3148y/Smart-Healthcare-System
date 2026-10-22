@@ -73,7 +73,7 @@ function answerCase(message,index,messages,assessments) {
   const decision=assessment?.result;
   const decisionConfidence=Number.isFinite(decision?.confidence)?decision.confidence:null;
   const result={messageId:message.id,traceId:diagnostics?.traceId??null,
-    answerMode:message.provenance?.modelStatus==='SOURCE_EXCERPT'?'SOURCE_EXCERPT':'OTHER',
+    answerMode:['SOURCE_EXCERPT','SOURCE_QUOTED'].includes(message.provenance?.modelStatus)?message.provenance.modelStatus:'OTHER',
     answerSnapshot:{text:message.content,contentSha256:typeof message.content==='string'?sha256(message.content):null},
     currentUserMessageId:userMessageId??null,context:history.messages,contextOrigin:history.origin,
     disposition:safety?{riskLevel:assessment.result.riskLevel??null,grounded:assessment.result.grounded??null,
@@ -122,7 +122,7 @@ export function scoreAnswerReviewPacket(packet) {
   if(packet?.schemaVersion!==1||packet.kind!=='PERSISTED_ANSWER_REVIEW'||!Array.isArray(packet.cases))
     throw new Error('Invalid persisted-answer review packet');
   const provenance=reviewProvenance(packet);
-  const seen=new Set(),scored=[],excerptScored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
+  const seen=new Set(),scored=[],excerptScored=[],quotedScored=[],rows=[],dispositionCases=[];let unreviewed=0,unreviewable=0;
   for(const item of packet.cases) {
     if(typeof item.messageId!=='string'||!item.messageId||seen.has(item.messageId)) throw new Error('Invalid or duplicate answer message identity');
     seen.add(item.messageId);
@@ -143,7 +143,7 @@ export function scoreAnswerReviewPacket(packet) {
       const quality=answerQuality(review);
       if(quality.correct===null)unreviewed++;
       if(quality.correct!==null||typeof quality.faithfulness==='number')
-        (item.answerMode==='SOURCE_EXCERPT'?excerptScored:scored).push(quality);
+        (item.answerMode==='SOURCE_EXCERPT'?excerptScored:item.answerMode==='SOURCE_QUOTED'?quotedScored:scored).push(quality);
       rows.push({messageId:item.messageId,status:review.correctness==='UNREVIEWED'?'UNREVIEWED':'REVIEWED',quality,
         ...(item.answerMode?{answerMode:item.answerMode}:{})});
     }
@@ -170,6 +170,10 @@ export function scoreAnswerReviewPacket(packet) {
       value:ratio(excerptScored.filter(q=>typeof q.faithfulness==='number').reduce((n,q)=>n+q.faithfulness,0),excerptScored.filter(q=>typeof q.faithfulness==='number').length),
       evaluated:excerptScored.filter(q=>typeof q.faithfulness==='number').length},
       sourceExcerptNotice:'Source quotation only; excluded from generated-answer quality, not proof of relevance, resolution, clinical correctness or model-review success.'}:{}),
+    ...(packet.cases.some(item=>item.answerMode==='SOURCE_QUOTED')?{sourceQuotedFaithfulness:{
+      value:ratio(quotedScored.filter(q=>typeof q.faithfulness==='number').reduce((n,q)=>n+q.faithfulness,0),quotedScored.filter(q=>typeof q.faithfulness==='number').length),
+      evaluated:quotedScored.filter(q=>typeof q.faithfulness==='number').length},
+      sourceQuotedNotice:'Successful source selection with literal medical text and bounded dialogue acts; separate from rejected-draft excerpts and generated prose. Not proof of applicability or clinical correctness.'}:{}),
     confidenceCalibration:confidenceCalibration(dispositionCases),cases:rows,
     interpretation:'Reviewer-supplied labels only; reviewer identity and clinical competence are not authenticated. Confidence calibration requires representative independent disposition labels and is not a clinical accuracy claim.'};
 }

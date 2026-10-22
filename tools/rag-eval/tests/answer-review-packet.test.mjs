@@ -142,3 +142,23 @@ test('source quotations have their own denominator and cannot inflate generated 
   assert.equal(result.answerCorrectness.value,null);
   item.answerMode='OTHER';assert.throws(()=>scoreAnswerReviewPacket(packet),/context and source snapshot changed/);
 })
+
+
+test('generated prose, successful source selection and rejected-draft excerpts keep separate denominators',()=>{
+  const cases=[];
+  for(const mode of ['OTHER','SOURCE_QUOTED','SOURCE_EXCERPT']) {
+    const source=fixture();source.messages.at(-1).provenance.modelStatus=mode;
+    for(const message of source.messages){message.id+='-'+mode;if(message.provenance)message.provenance.turnTrace.userMessageId+='-'+mode;}
+    source.assessments[0].assistantMessageId+='-'+mode;
+    const item=answerReviewPacket(source).cases.at(-1);
+    const claims=mode==='OTHER'
+      ?[{text:'Supported fixture.',support:'SUPPORTED',referenceIds:['E1']},{text:'Unsupported fixture.',support:'UNSUPPORTED',referenceIds:[]}]
+      :[{text:'Source fixture.',support:mode==='SOURCE_QUOTED'?'SUPPORTED':'UNSUPPORTED',referenceIds:mode==='SOURCE_QUOTED'?['E1']:[]}];
+    item.answerReview={...item.answerReview,claimsExhaustive:true,claims};cases.push(item);
+  }
+  const result=scoreAnswerReviewPacket({schemaVersion:1,kind:'PERSISTED_ANSWER_REVIEW',cases});
+  assert.deepEqual(result.faithfulness,{value:.5,evaluated:1});
+  assert.deepEqual(result.sourceQuotedFaithfulness,{value:1,evaluated:1});
+  assert.deepEqual(result.sourceExcerptFaithfulness,{value:0,evaluated:1});
+  assert.deepEqual(result.answerCorrectness,{value:null,evaluated:0});
+})

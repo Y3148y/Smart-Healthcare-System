@@ -23,7 +23,8 @@ class ThinkingModeTransportTest {
             String sent = new String(exchange.getRequestBody().readAllBytes(),StandardCharsets.UTF_8);
             boolean reviewing = sent.contains("<review_data>");
             if (!reviewing) request.set(sent);
-            String draft = json.writeValueAsString(Map.of("paragraphs",List.of(Map.of("text",text.get(),"kind","GENERAL_INFORMATION","referenceIds",List.of("E1"))),"questions",List.of(),"uncovered",List.of()));
+            String draft = json.writeValueAsString(Map.of("sourceIds",List.of("E1"),"transition","REFERENCE","questionKeys",List.of(),"gap","NONE"));
+            if(text.get().contains("你患有"))draft="{\"sourceIds\":[\"E1\"],\"transition\":\"你患有某疾病。\",\"questionKeys\":[],\"gap\":\"NONE\"}";
             if (reviewing) draft = AnswerSupportReviewerTest.PASS;
             byte[] bytes = json.writeValueAsBytes(Map.of("choices",List.of(Map.of("finish_reason",finish.get(),"message",Map.of("content",draft,"reasoning_content","synthetic-private-reasoning"))),"usage",Map.of("prompt_tokens",12,"completion_tokens",20)));
             if (status.get()!=200) bytes="synthetic-secret-provider-error".getBytes(StandardCharsets.UTF_8);
@@ -36,7 +37,7 @@ class ThinkingModeTransportTest {
                 ReflectionTestUtils.setField(model,"thinkingBudget",thinking ? "1024" : "");
                 var history=List.of(new NarrationModel.Turn("USER","咳嗽"),new NarrationModel.Turn("ASSISTANT","持续多久？"),new NarrationModel.Turn("USER","两天"));
                 var answer=model.answerWithEvidence("咳嗽两天","","",List.of(new Evidence("资料","source","资料提供一般入口参考。",.8)),"可观察",history,null,false,"MATCHED");
-                assertEquals("LIVE",answer.status());
+                assertEquals("SOURCE_QUOTED",answer.status());
                 assertEquals("PASSED",answer.diagnostics().supportReview().status());
                 assertEquals(false,answer.diagnostics().supportReview().thinkingEnabled());
                 var sent=json.readTree(request.get());

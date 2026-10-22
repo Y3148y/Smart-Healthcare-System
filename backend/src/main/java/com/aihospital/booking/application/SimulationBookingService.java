@@ -78,7 +78,7 @@ public class SimulationBookingService {
             var session = triage.requireOwner(sessionId, patient);
             var result = triage.latestResult(sessionId, patient);
             if (!"已完成分诊".equals(session.status()) || result == null || !result.grounded()
-                    || "SOURCE_EXCERPT".equals(result.modelStatus())
+                    || !com.aihospital.triage.domain.Disposition.answerAllowsBooking(result.modelStatus())
                     || !com.aihospital.triage.domain.Disposition.isBookable(result.riskLevel()))
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "该分诊会话当前不允许普通预约，请线下就医或申请人工导诊");
             boolean recommended = result.doctor() != null && doctorId.equals(result.doctor().id())

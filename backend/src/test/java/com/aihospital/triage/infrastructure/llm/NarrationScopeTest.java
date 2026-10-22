@@ -34,8 +34,8 @@ class NarrationScopeTest {
             String sent = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             boolean reviewing = sent.contains("<review_data>");
             if (!reviewing) captured.set(sent);
-            String draft = json.writeValueAsString(Map.of("paragraphs", List.of(Map.of("text", text.get(),
-                    "kind", "LIMITATION", "referenceIds", List.of())), "questions", List.of(), "uncovered", List.of()));
+            String draft = json.writeValueAsString(Map.of("sourceIds",List.of(),"transition","NONE","questionKeys",List.of(),
+                    "gap",text.get().equals("资料未覆盖该问题，无法确认。")?"NOT_COVERED":text.get()));
             if (reviewing) draft = AnswerSupportReviewerTest.PASS;
             byte[] body = json.writeValueAsBytes(Map.of("id", "test", "object", "chat.completion", "created", 1,
                     "model", "test", "choices", List.of(Map.of("index", 0, "finish_reason", "stop",
@@ -57,13 +57,13 @@ class NarrationScopeTest {
                     new Turn("USER", "我现在不预约，只问日常注意事项，不用追问。"));
             var withdrawn = model.answerWithEvidence("累计问题", "", "", List.of(), "fallback",
                     history, services, true, "NO_MATCH");
-            assertEquals("LIVE_UNGROUNDED", withdrawn.status());
+            assertEquals("SOURCE_LIMITED", withdrawn.status());
             assertNull(withdrawn.diagnostics().serviceNotice());
             assertFalse(captured.get().contains("<service_facts>"));
             assertTrue(captured.get().contains(MedicalAnswerInstructions.task(history.get(2).content())));
-            assertTrue(captured.get().contains("相近症状、标题和主题词不能替代依据"));
+            assertTrue(captured.get().contains("检索相关性不等于适用性"));
             assertTrue(captured.get().contains("我要预约")); // history retained, not erased
-            assertEquals("LIVE_UNGROUNDED", model.answerWithEvidence("现在想预约", "", "", List.of(), "fallback",
+            assertEquals("SOURCE_LIMITED", model.answerWithEvidence("现在想预约", "", "", List.of(), "fallback",
                     List.of(new Turn("USER", "现在想预约")), null, true, "NO_MATCH").status());
             assertFalse(captured.get().contains("<service_facts>"));
             assertTrue(captured.get().contains(MedicalAnswerInstructions.task("现在想预约")));
@@ -71,9 +71,9 @@ class NarrationScopeTest {
             assertFalse(captured.get().contains("\\\"routineBookingAllowed\\\":false"));
             var booking = model.answerWithEvidence("想预约", "", "", List.of(), "fallback",
                     List.of(), services, true, "NO_MATCH");
-            assertEquals("LIVE_UNGROUNDED", booking.status());
+            assertEquals("SOURCE_LIMITED", booking.status());
             assertEquals(List.of("测试科室：模拟可查询"), booking.diagnostics().serviceNotice().messages());
-            assertEquals(true, booking.diagnostics().serviceNotice().bookingAllowed());
+            assertEquals(false, booking.diagnostics().serviceNotice().bookingAllowed());
             assertFalse(captured.get().contains("模拟可查询"));
             assertFalse(booking.text().contains("模拟可查询"));
             var direction = model.answerWithEvidence("分别挂什么科", "", "", List.of(), "fallback",
@@ -92,7 +92,7 @@ class NarrationScopeTest {
                 text.set(internal);
                 var blocked = model.answerWithEvidence("想预约", "", "", List.of(), "fallback", List.of(), services, true, "NO_MATCH");
                 assertEquals("FALLBACK_UNGROUNDED", blocked.status());
-                assertEquals("OUTPUT_INTERNAL_FIELD", blocked.diagnostics().failure().code());
+                assertEquals("OUTPUT_SOURCE_PLAN_INVALID", blocked.diagnostics().failure().code());
                 assertEquals("NO_EVIDENCE_SAFE_FALLBACK", blocked.diagnostics().validationStatus());
                 assertTrue(blocked.diagnostics().adoptedReferenceIds().isEmpty());
                 assertFalse(blocked.text().contains(internal));

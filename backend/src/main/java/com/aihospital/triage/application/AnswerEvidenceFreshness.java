@@ -12,10 +12,27 @@ public final class AnswerEvidenceFreshness {
     public record Checked(NarrationModel.Answer answer, boolean blocked) {}
 
     public static Checked check(KnowledgeCatalog catalog, List<Evidence> evidence, NarrationModel.Answer answer) {
-        if (evidence.isEmpty()) return new Checked(answer, false);
+        if (evidence.isEmpty()&&!"SOURCE_QUOTED".equals(answer.status())) return new Checked(answer, false);
         KnowledgeCatalog.EvidenceState state;
-        try { state = catalog == null ? KnowledgeCatalog.EvidenceState.UNTRACKED : catalog.evidenceState(evidence); }
+        try { state = evidence.isEmpty()||catalog == null ? KnowledgeCatalog.EvidenceState.UNTRACKED : catalog.evidenceState(evidence); }
         catch (RuntimeException unavailable) { state = KnowledgeCatalog.EvidenceState.UNAVAILABLE; }
+        if (state == KnowledgeCatalog.EvidenceState.CURRENT && "SOURCE_QUOTED".equals(answer.status())) {
+            var d=answer.diagnostics();
+            try {
+                if(d==null||d.adoptedReferenceIds().isEmpty())state=KnowledgeCatalog.EvidenceState.UNTRACKED;
+                else for(String id:d.adoptedReferenceIds()) {
+                    var refs=d.retrievedReferences().stream().filter(r->id.equals(r.id())).toList();
+                    if(refs.size()!=1){state=KnowledgeCatalog.EvidenceState.UNTRACKED;break;}
+                    var r=refs.get(0);
+                    var matching=evidence.stream().filter(e->e.title().equals(r.title())&&e.source().equals(r.source())
+                            &&e.excerpt().equals(r.excerpt())&&e.sectionPath().equals(r.sectionPath())).toList();
+                    if(matching.size()!=1||!AnswerEvidence.hash(r.excerpt()).equals(r.contentHash())
+                            ||catalog.sourceExcerptState(matching.get(0))!=KnowledgeCatalog.ExcerptState.COMPLETE_PARAGRAPHS) {
+                        state=KnowledgeCatalog.EvidenceState.UNTRACKED;break;
+                    }
+                }
+            } catch(RuntimeException unavailable){state=KnowledgeCatalog.EvidenceState.UNAVAILABLE;}
+        }
         if (state == KnowledgeCatalog.EvidenceState.CURRENT) return new Checked(answer, false);
         String code = "ANSWER_SOURCE_" + (state == null ? "UNTRACKED" : state.name());
         var old = answer.diagnostics();

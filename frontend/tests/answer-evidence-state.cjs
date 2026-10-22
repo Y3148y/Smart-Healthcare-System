@@ -30,6 +30,18 @@ test('source excerpt is distinct from passed generation and never says the quest
   assert.match(context.answerMethod(state),/资料原文摘录.*未采用被拒绝/)
   assert.doesNotMatch(context.answerMethod(state),/^AI 模型已参与回答/)
 })
+
+test('successful source selection discloses original medical text rather than generated advice',()=>{
+  const state={...meta,modelStatus:'SOURCE_QUOTED',answerEvidence:{retrievalStatus:'MATCHED',validationStatus:'SOURCE_QUOTE_VERIFIED',supportReview:{status:'PASSED'},adoptedReferenceIds:['E1']}}
+  assert.match(context.evidenceMethod(state),/后端组装的完整原文/)
+  assert.match(context.answerMethod(state),/选择资料与追问.*保持来源原文/)
+})
+
+test('declining retrieved material is not confused with skipping or missing retrieval',()=>{
+  const state={...meta,modelStatus:'SOURCE_LIMITED',answerEvidence:{retrievalStatus:'MATCHED',validationStatus:'SOURCE_PLAN_LIMITED',adoptedReferenceIds:[]}}
+  assert.match(context.evidenceMethod(state),/检索到 2 条资料.*未选用.*不等于没有执行检索/)
+  assert.match(context.answerMethod(state),/不提供预约/)
+})
 test('blocked answer does not claim validated adoption', () => assert.match(context.evidenceMethod({ ...meta, answerEvidence: { retrievalStatus: 'MATCHED', validationStatus: 'CONTENT_BLOCKED' } }), /未采用/))
 test('safety takeover remains independent', () => assert.equal(context.evidenceMethod({ ...meta, modelStatus: 'SAFETY_RULE' }), '危险提醒优先于知识检索'))
 test('new operational failure is not presented as a medical fallback', () => assert.match(context.answerMethod({ ...meta, modelStatus: 'FALLBACK', answerEvidence: { failure: { code: 'MODEL_TIMEOUT' } } }), /失败提示，未采用模型生成内容/))

@@ -145,7 +145,7 @@ class SyntheticReviewDiagnosticsTest {
             boolean reviewing=sent.contains("<review_data>");
             String decision=json.writeValueAsString(Map.of("claimsSupported",!rejected.get(),"conditionsPreserved",true,
                     "onTopic",true,"noServiceClaims",true,"referencesCorrect",!rejected.get(),"questionsJustified",true));
-            String draft=json.writeValueAsString(Map.of("paragraphs",List.of(Map.of("text","合成资料内容。","kind","GENERAL_INFORMATION","referenceIds",List.of("E1"))),"questions",List.of(),"uncovered",List.of()));
+            String draft=json.writeValueAsString(Map.of("sourceIds",List.of("E1"),"transition","REFERENCE","questionKeys",List.of(),"gap","NONE"));
             byte[] body=json.writeValueAsBytes(Map.of("id","fixture","object","chat.completion","created",1,"model","fixture",
                     "choices",List.of(Map.of("index",0,"finish_reason","stop","message",Map.of("role","assistant","content",reviewing?decision:draft,"reasoning_content","never store hidden thoughts")))));
             exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,body.length);
@@ -170,7 +170,7 @@ class SyntheticReviewDiagnosticsTest {
             rejected.set(false);
             try(var trace=TurnTraceContext.open(user,"TEST");var scope=SyntheticReviewDiagnostics.open(directory,session,patient,second,user,()->List.of("合成甲","合成乙"),now)) {
                 var answer=model.answerWithEvidence("合成乙","","",evidence,"fallback",List.of(),null,false,"READY");
-                assertEquals("LIVE",answer.status());assertFalse(Files.exists(directory.resolve(second+".json")));
+                assertEquals("SOURCE_QUOTED",answer.status());assertFalse(Files.exists(directory.resolve(second+".json")));
             }
         } finally {server.stop(0);}
     }

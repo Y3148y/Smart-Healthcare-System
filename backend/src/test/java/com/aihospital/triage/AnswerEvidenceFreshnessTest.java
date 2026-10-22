@@ -16,6 +16,42 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class AnswerEvidenceFreshnessTest {
+    private NarrationModel.Answer quoted(List<Evidence> evidence) {
+        return new NarrationModel.Answer("Exact quote and bounded dialogue", "SOURCE_QUOTED", "fixture", draft(evidence).diagnostics());
+    }
+    @Test void sourceQuotedRequiresWholeCurrentParagraphsAndWithdrawalStillWins() {
+        var local=new InMemoryKnowledgeCatalog(false);
+        var catalog=new com.aihospital.knowledge.infrastructure.qdrant.HybridKnowledgeCatalog(local,
+                mock(com.aihospital.knowledge.infrastructure.qdrant.QdrantSemanticIndex.class),null);
+        var doc=local.addDocument("Quoted fixture","# Scope\nOnly if X. Whole original paragraph.");local.approveDocument(doc.id());
+        var evidence=sourceChunks(local,doc);var original=quoted(evidence);
+        assertEquals(KnowledgeCatalog.EvidenceState.CURRENT,catalog.evidenceState(evidence));
+        assertFalse(AnswerEvidenceFreshness.check(catalog,evidence,original).blocked());
+        local.withdrawDocument(doc.id());
+        var result=AnswerEvidenceFreshness.check(catalog,evidence,original);
+        assertTrue(result.blocked());assertTrue(result.answer().diagnostics().adoptedReferenceIds().isEmpty());
+        assertFalse(result.answer().text().contains("Exact quote"));
+        var longDoc=local.addDocument("Long quoted fixture","Whole long paragraph. "+"Still the same paragraph. ".repeat(100));local.approveDocument(longDoc.id());
+        var slices=sourceChunks(local,longDoc);assertTrue(slices.size()>1);
+        assertEquals(KnowledgeCatalog.EvidenceState.CURRENT,catalog.evidenceState(slices));
+        assertTrue(AnswerEvidenceFreshness.check(catalog,slices,quoted(slices)).blocked());
+    }
+    @Test void sourceQuotedRejectsMissingOrChangedReferenceIdentityAndCatalogFailure() {
+        var catalog=new InMemoryKnowledgeCatalog(false);
+        var doc=catalog.addDocument("Quote identity fixture","Whole original paragraph.");catalog.approveDocument(doc.id());
+        var evidence=catalog.approvedCorpus();var original=quoted(evidence);
+        assertTrue(AnswerEvidenceFreshness.check(catalog,List.of(),original).blocked());
+        var untracked=mock(KnowledgeCatalog.class);when(untracked.evidenceState(anyList())).thenReturn(KnowledgeCatalog.EvidenceState.CURRENT);
+        assertTrue(AnswerEvidenceFreshness.check(untracked,evidence,original).blocked());
+        var changed=List.of(new Evidence("other title","source","Other original text.",1));
+        assertTrue(AnswerEvidenceFreshness.check(catalog,evidence,quoted(changed)).blocked());
+        when(untracked.sourceExcerptState(any())).thenThrow(new IllegalStateException("private error"));
+        var unavailable=AnswerEvidenceFreshness.check(untracked,evidence,original);
+        assertTrue(unavailable.blocked());assertFalse(unavailable.answer().toString().contains("private error"));
+    }
+    private List<Evidence> sourceChunks(InMemoryKnowledgeCatalog catalog,KnowledgeDocument doc) {
+        return catalog.documentChunks(doc.id()).stream().map(c->new Evidence(doc.title(),c.source(),c.text(),1,c.sectionPath())).toList();
+    }
     private NarrationModel.Answer draft(List<Evidence> evidence) {
         return new NarrationModel.Answer("WITHHELD_DRAFT", "LIVE", "fixture",
                 new AnswerEvidence.Diagnostics("trace", "MATCHED", "PASSED", AnswerEvidence.references(evidence),

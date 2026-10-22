@@ -273,7 +273,7 @@ public class RuleBasedTriageEngine implements TriageEngine {
                 candidates = candidates.stream().map(candidate -> new DepartmentCandidate(
                         candidate.department(), candidate.reason(), null)).toList();
             }
-            if("SOURCE_EXCERPT".equals(answer.status())) {
+            if(!Disposition.answerAllowsBooking(answer.status())) {
                 bookable=false;
                 candidates=candidates.stream().map(candidate->new DepartmentCandidate(candidate.department(),candidate.reason(),null)).toList();
             }

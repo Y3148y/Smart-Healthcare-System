@@ -34,6 +34,11 @@ public final class Disposition {
         return ROUTINE.equals(riskLevel) || MULTI.equals(riskLevel);
     }
 
+    /** Explicit source limitations and rejected-draft excerpts cannot authorize a slot. */
+    public static boolean answerAllowsBooking(String modelStatus) {
+        return !"SOURCE_EXCERPT".equals(modelStatus)&&!"SOURCE_LIMITED".equals(modelStatus);
+    }
+
     /**
      * The conversation status for a disposition. A session may only report 已完成分诊 when
      * the disposition itself is bookable, so the status can never imply a completed triage

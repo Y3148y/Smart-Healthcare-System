@@ -30,7 +30,7 @@ class AnswerSupportReviewerTest {
         assertTrue(MedicalAnswerInstructions.generation("一般问题",true)
                 .contains(MedicalAnswerInstructions.APPLICABILITY));
         assertTrue(AnswerSupportReviewer.INSTRUCTIONS.contains(MedicalAnswerInstructions.APPLICABILITY));
-        assertTrue(MedicalAnswerInstructions.generation("合成问题",true).contains(MedicalAnswerInstructions.SOURCE_RELATIONS));
+        assertTrue(MedicalAnswerInstructions.generation("合成问题",true).contains("不生成或改写任何医学正文"));
         assertTrue(AnswerSupportReviewer.INSTRUCTIONS.contains(MedicalAnswerInstructions.SOURCE_RELATIONS));
         assertTrue(MedicalAnswerInstructions.SOURCE_RELATIONS.contains("不等于A导致B、A有助于B或A用于实现B"));
         assertTrue(MedicalAnswerInstructions.APPLICABILITY.contains("病程、护理、病因和就医条件"));
@@ -121,7 +121,7 @@ class AnswerSupportReviewerTest {
             boolean reviewing=sent.contains("<review_data>");
             if(reviewing)reviewCalls.incrementAndGet();else generationCalls.incrementAndGet();
             String content=reviewing ? decision(issue.get())
-                    : json.writeValueAsString(new Draft(List.of(new Paragraph(generated.get(),"GENERAL_INFORMATION",List.of("E1"))),List.of(),List.of()));
+                    : "{\"sourceIds\":[\"E1\"],\"transition\":\"REFERENCE\",\"questionKeys\":[],\"gap\":\"NONE\"}";
             byte[] bytes=json.writeValueAsBytes(Map.of("choices",List.of(Map.of("finish_reason","stop","message",Map.of("content",content))),"usage",Map.of("prompt_tokens",12,"completion_tokens",14)));
             exchange.sendResponseHeaders(reviewing?reviewStatus.get():200,bytes.length);
             exchange.getResponseBody().write(bytes);exchange.close();
@@ -151,7 +151,7 @@ class AnswerSupportReviewerTest {
             }
             issue.set(null);generated.set("资料中的一般信息。");
             var accepted=model.answerWithEvidence("只问一般问题","","",List.of(new Evidence("资料","source","资料中的一般信息。",.8)),"fallback",List.of(),services,true,"MATCHED");
-            assertEquals("LIVE",accepted.status()); assertNull(accepted.diagnostics().serviceNotice());
+            assertEquals("SOURCE_QUOTED",accepted.status()); assertNull(accepted.diagnostics().serviceNotice());
             assertEquals("MODEL_REVIEW_PASSED",accepted.diagnostics().semanticSupport());
             reviewStatus.set(429);
             var unavailable=model.answerWithEvidence("question","","",List.of(new Evidence("资料","source","资料中的一般信息。",.8)),"fallback",List.of(),null,true,"MATCHED");

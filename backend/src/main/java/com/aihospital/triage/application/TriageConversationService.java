@@ -144,7 +144,7 @@ public class TriageConversationService {
                 Conversation result = processTurn(id, patient, content, session, updates, progress, trace,turn);
                 var provenance = result.messages().stream().filter(m -> "ASSISTANT".equals(m.role()))
                         .reduce((a,b) -> b).map(Message::provenance).orElse(null);
-                boolean success = provenance != null && !Set.of("FALLBACK", "FALLBACK_UNGROUNDED", "VALIDATION_BLOCKED", "EVIDENCE_BLOCKED", "SOURCE_EXCERPT").contains(provenance.modelStatus())
+                boolean success = provenance != null && !Set.of("FALLBACK", "FALLBACK_UNGROUNDED", "VALIDATION_BLOCKED", "EVIDENCE_BLOCKED", "SOURCE_EXCERPT", "SOURCE_LIMITED").contains(provenance.modelStatus())
                         && provenance.toolFailures() == 0;
                 recordTerminal(trace, success, provenance == null ? "NO_ANSWER" : provenance.modelStatus());
                 return result;
@@ -250,7 +250,7 @@ public class TriageConversationService {
     private TriageResult withCurrentAvailability(TriageResult result) {
         if (Disposition.EMERGENCY.equals(result.riskLevel())) return result;
         boolean schedulingAvailable = Disposition.isBookable(result.riskLevel()) && result.grounded()
-                && !"SOURCE_EXCERPT".equals(result.modelStatus())
+                && Disposition.answerAllowsBooking(result.modelStatus())
                 && result.tools().stream()
                 .anyMatch(trace -> "doctor_schedule_search".equals(trace.tool()) && trace.success());
         Doctor available = !schedulingAvailable ? null : catalog.doctors(result.department()).stream()

@@ -23,7 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@AutoConfigureMockMvc
+// Async SSE workers mutate mock headers while Boot's default print handler iterates them.
+// Disable diagnostic printing only; the response/failure/concurrency assertions remain below.
+@AutoConfigureMockMvc(print=org.springframework.boot.test.autoconfigure.web.servlet.MockMvcPrint.NONE)
 class TriageStreamFailureTest {
     @Autowired MockMvc mvc;
     @MockitoBean TriageConversationService service;

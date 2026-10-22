@@ -42,3 +42,9 @@ test('source excerpts show distinct sources while retaining rejected model revie
   for(const invalid of [{...state,validationStatus:'BLOCKED'},{...state,supportReview:{status:'UNAVAILABLE'}},{...state,failure:{code:'ANSWER_SOURCE_CHANGED'}}])
     assert.ok(!(await render(invalid)).includes('Adopted fixture'))
 })
+
+test('successful source selection is labelled as original text and still requires passed review',async()=>{
+  const state={...valid,validationStatus:'SOURCE_QUOTE_VERIFIED'}
+  assert.ok((await render(state)).includes('本次资料原文的来源'))
+  assert.ok(!(await render({...state,supportReview:{status:'REJECTED'}})).includes('Adopted fixture'))
+})

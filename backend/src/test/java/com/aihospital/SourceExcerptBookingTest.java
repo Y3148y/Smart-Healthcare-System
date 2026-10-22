@@ -57,5 +57,25 @@ class SourceExcerptBookingTest {
         store.saveAssessmentAndAnswer(session,2,withDoctor);
         assertEquals(409,assertThrows(ResponseStatusException.class,()->booking.validateEligibility(doctor.id(),session,patient)).getStatusCode().value());
         assertEquals(3,jdbc.queryForObject("SELECT remaining FROM sim_slot WHERE doctor_id=? AND slot_date=?",Integer.class,doctor.id(),doctor.date()));
+        // Successful source selection does not override risk/grounding. Nor does it remove an existing valid workflow recommendation.
+        for(int i=0;i<3;i++) {
+            boolean grounded=i!=1;String risk=i==0?"尽快就医":"普通";
+            store.saveAssessmentAndAnswer(session,3+i,new TriageResult(session,risk,70,doctor.department(),doctor,"fixture","",
+                    List.of(),List.of(),List.of(),"SOURCE_QUOTED","fixture",LocalDateTime.now(),null,grounded,"fixture"));
+            if(i<2)assertEquals(409,assertThrows(ResponseStatusException.class,()->booking.validateEligibility(doctor.id(),session,patient)).getStatusCode().value());
+            else assertDoesNotThrow(()->booking.validateEligibility(doctor.id(),session,patient));
+        }
+        assertEquals(3,jdbc.queryForObject("SELECT remaining FROM sim_slot WHERE doctor_id=? AND slot_date=?",Integer.class,doctor.id(),doctor.date()));
+        var limited=new TriageResult(session,"普通",70,doctor.department(),doctor,"No applicable source selected","",List.of(),
+                List.of(new ToolTrace("doctor_schedule_search","fixture","","found",1,true,"")),
+                List.of(new DepartmentCandidate(doctor.department(),"fixture",doctor)),"SOURCE_LIMITED","fixture",LocalDateTime.now(),null,true,"fixture");
+        when(engine.triage(eq(session),anyString(),eq(patient),anyList())).thenReturn(limited);
+        conversations.send(session,patient,"Synthetic follow-up with no applicable source selected");
+        var restricted=conversations.latestResult(session,patient);
+        assertEquals("SOURCE_LIMITED",restricted.modelStatus());assertNull(restricted.doctor());
+        assertTrue(restricted.candidates().stream().allMatch(c->c.doctor()==null));
+        assertEquals(409,assertThrows(ResponseStatusException.class,()->actions.prepare(patient,doctor.id(),session,UUID.randomUUID().toString())).getStatusCode().value());
+        assertEquals(409,assertThrows(ResponseStatusException.class,()->booking.book(doctor.id(),session,patient,UUID.randomUUID().toString())).getStatusCode().value());
+        assertEquals(3,jdbc.queryForObject("SELECT remaining FROM sim_slot WHERE doctor_id=? AND slot_date=?",Integer.class,doctor.id(),doctor.date()));
     }
 }

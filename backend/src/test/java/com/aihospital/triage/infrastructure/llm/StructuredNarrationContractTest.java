@@ -48,8 +48,7 @@ class StructuredNarrationContractTest {
     }
     private final ObjectMapper json = new ObjectMapper();
     private String draft(String text, String ids) {
-        return "{\"paragraphs\":[{\"text\":\"" + text + "\",\"kind\":\"GENERAL_INFORMATION\",\"referenceIds\":"
-                + ids + "}],\"questions\":[],\"uncovered\":[\"个人严重程度无法确认\"]}";
+        return "{\"sourceIds\":"+ids+",\"transition\":\"REFERENCE\",\"questionKeys\":[],\"gap\":\"NONE\"}";
     }
     @Test void realAdapterUsesMessageListAndPersistsOnlyValidatedReferences() throws Exception {
         var response = new AtomicReference<>(draft("资料提供一般就医方向，无法确认个人严重程度。", "[\"E1\"]"));
@@ -84,7 +83,8 @@ class StructuredNarrationContractTest {
             var evidence = List.of(new Evidence("方向资料", "source", "稳定的呼吸道症状可咨询呼吸内科。", .9));
             var services = new NarrationModel.ServiceContext(List.of(), false);
             var accepted = model.answerWithEvidence("咳嗽。两天", "呼吸内科", "", evidence, "兜底", history, services, true, "MATCHED");
-            assertEquals("LIVE", accepted.status());
+            assertEquals("SOURCE_QUOTED", accepted.status());
+            assertTrue(accepted.text().contains(evidence.get(0).excerpt()));
             assertEquals(List.of("E1"), accepted.diagnostics().adoptedReferenceIds());
             assertEquals("MODEL_REVIEW_PASSED", accepted.diagnostics().semanticSupport());
             assertEquals("STOP", accepted.diagnostics().generation().finishReason());
@@ -103,17 +103,20 @@ class StructuredNarrationContractTest {
             assertTrue(blocked.diagnostics().adoptedReferenceIds().isEmpty());
             assertNotEquals(accepted.diagnostics().traceId(), blocked.diagnostics().traceId());
             response.set(draft("你患有某疾病。", "[\"E1\"]"));
-            var unsafe = model.answerWithEvidence("问题", "", "", evidence, "兜底", history, services, false, "MATCHED");
+            var unsafe = model.answerWithEvidence("问题", "", "", List.of(new Evidence("Unsafe","source","你患有某疾病。",.9)), "兜底", history, services, false, "MATCHED");
             assertEquals("CONTENT_BLOCKED", unsafe.diagnostics().validationStatus());
             assertEquals("OUTPUT_UNSAFE_PATTERN", unsafe.diagnostics().failure().code());
+            var internal=model.answerWithEvidence("问题","","",List.of(new Evidence("Internal fixture","source","routineBookingAllowed=true",1)),"兜底",history,services,false,"MATCHED");
+            assertEquals("OUTPUT_INTERNAL_FIELD",internal.diagnostics().failure().code());
+            assertTrue(internal.diagnostics().adoptedReferenceIds().isEmpty());
             response.set(draft("建议服用止痛药。", "[\"E1\"]"));
-            assertEquals("VALIDATION_BLOCKED", model.answerWithEvidence("问题", "", "", evidence, "兜底", history,
+            assertEquals("VALIDATION_BLOCKED", model.answerWithEvidence("问题", "", "", List.of(new Evidence("Unsafe medication","source","建议服用止痛药。",.9)), "兜底", history,
                     services, true, "MATCHED").status());
             response.set(draft("一般信息", "[\"E1\"]"));
             var noEvidence = model.answerWithEvidence("问题", "", "", List.of(), "兜底", history,
                     services, true, "NO_MATCH");
             assertEquals("FALLBACK_UNGROUNDED", noEvidence.status());
-            assertEquals("OUTPUT_REFERENCE_COUNT_INVALID", noEvidence.diagnostics().failure().code());
+            assertEquals("OUTPUT_REFERENCE_INVALID", noEvidence.diagnostics().failure().code());
             assertEquals("NO_EVIDENCE_SAFE_FALLBACK", noEvidence.diagnostics().validationStatus());
             assertFalse(noEvidence.text().contains("一般信息"));
             status.set(429);
