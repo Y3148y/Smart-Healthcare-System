@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/project-mark.svg" alt="医疗导诊助手项目标识" width="96" height="96">
+<img src="docs/images/project-mark.svg" alt="医疗导诊助手项目标识" width="88" height="88">
 
 <h1>LangChain4j 医疗导诊助手</h1>
 
@@ -8,10 +8,9 @@
 <p>从一轮咨询，到有来源的回答与受控的模拟预约。</p>
 
 <p>
-  <a href="https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml"><img src="https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg" alt="GitHub Actions构建状态，以实际分支运行为准"></a>
+  <a href="https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml"><img src="https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml/badge.svg" alt="GitHub Actions 构建状态，以实际分支运行为准"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache--2.0-2563EB?style=flat-square" alt="代码许可证 Apache-2.0"></a>
   <a href="https://github.com/Y3148y/Smart-Healthcare-System/stargazers"><img src="https://img.shields.io/github/stars/Y3148y/Smart-Healthcare-System?style=flat-square&amp;color=2563EB" alt="GitHub Stars"></a>
-  <a href="https://github.com/Y3148y/Smart-Healthcare-System/issues"><img src="https://img.shields.io/github/issues/Y3148y/Smart-Healthcare-System?style=flat-square&amp;color=2563EB" alt="GitHub Issues"></a>
 </p>
 
 <p>
@@ -20,13 +19,6 @@
   <a href="backend/pom.xml"><img src="https://img.shields.io/badge/LangChain4j-0.35-13263F?style=flat-square" alt="LangChain4j 0.35"></a>
   <a href="frontend/package.json"><img src="https://img.shields.io/badge/Vue-3-13263F?style=flat-square&amp;logo=vuedotjs&amp;logoColor=white" alt="Vue 3"></a>
   <a href="frontend/package.json"><img src="https://img.shields.io/badge/TypeScript-5-13263F?style=flat-square&amp;logo=typescript&amp;logoColor=white" alt="TypeScript 5"></a>
-</p>
-
-<p>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/MySQL-8.4-13263F?style=flat-square&amp;logo=mysql&amp;logoColor=white" alt="MySQL 8.4"></a>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Elasticsearch-BM25-13263F?style=flat-square&amp;logo=elasticsearch&amp;logoColor=white" alt="Elasticsearch BM25"></a>
-  <a href="docker-compose.yml"><img src="https://img.shields.io/badge/Qdrant-Vector_Search-13263F?style=flat-square" alt="Qdrant向量检索"></a>
-  <a href="compose.app.yml"><img src="https://img.shields.io/badge/Docker-Compose-13263F?style=flat-square&amp;logo=docker&amp;logoColor=white" alt="Docker Compose"></a>
 </p>
 
 <p>
@@ -39,7 +31,7 @@
 <p>
   <a href="https://github.com/Y3148y/Smart-Healthcare-System">GitHub 仓库</a> ·
   <a href="https://github.com/Y3148y/Smart-Healthcare-System/issues">问题反馈</a> ·
-  <a href="https://github.com/Y3148y/Smart-Healthcare-System/pulls">参与开发</a> ·
+  <a href="CONTRIBUTING.md">贡献指南</a> ·
   <a href="https://github.com/Y3148y/Smart-Healthcare-System/actions">构建记录</a>
 </p>
 
@@ -47,57 +39,45 @@
 
 ---
 
-面向学习与二次开发的 **Java AI应用开源示例**。基于LangChain4j、Spring Boot与Vue 3，提供患者咨询、管理员知识运营、混合检索、来源核对及模拟预约，展示模型能力如何与后端业务约束协作。
+面向学习与二次开发的 **Java AI 应用开源示例**。基于 LangChain4j、Spring Boot 与 Vue 3，提供患者咨询、管理员知识运营、混合检索、来源核对及模拟预约，展示模型能力如何与后端业务约束协作。
 
-> 本项目是开源示例，不是诊断、处方或医院上线方案。医学资料与安全规则未经专业临床审核，预约使用模拟号源，尚未接入真实 HIS。请勿将演示认证或开发服务暴露到公网，也不要录入真实患者信息。
+> **重要提示：** 本项目是开源示例，不是诊断、处方或医院上线方案。医学资料与安全规则未经专业临床审核，预约使用模拟号源，尚未接入真实 HIS。请勿将演示认证或开发服务暴露到公网，也不要录入真实患者信息。
 
-<details>
-<summary><strong>📚 阅读导航 · 展开完整目录</strong></summary>
+### 阅读导航
 
-- [项目亮点](#项目亮点)
-- [界面预览](#界面预览)
-- [功能与角色](#功能与角色)
-- [系统架构](#系统架构)
-- [项目地址](#项目地址)
-- [快速开始](#快速开始)
-- [配置说明](#配置说明)
-- [Docker 运行](#docker-运行)
-- [知识库与评估](#知识库与评估)
-- [开发与测试](#开发与测试)
-- [项目结构](#项目结构)
-- [技术文档](#技术文档)
-- [常见问题](#常见问题)
-- [已知限制与安全](#已知限制与安全)
-- [参与贡献](#参与贡献)
-- [许可证](#许可证)
+[项目亮点](#项目亮点) · [界面预览](#界面预览) · [功能与角色](#功能与角色) · [系统架构](#系统架构)
 
-</details>
+[项目地址](#项目地址) · [快速开始](#快速开始) · [配置说明](#配置说明) · [Docker 运行](#docker-运行)
+
+[知识库与评估](#知识库与评估) · [开发与测试](#开发与测试) · [项目结构](#项目结构) · [技术文档](#技术文档)
+
+[常见问题](#常见问题) · [已知限制与安全](#已知限制与安全) · [参与贡献](#参与贡献) · [许可证](#许可证)
 
 ## 项目亮点
 
-| 设计 | 实现方式 |
+| 核心能力 | 工程实现 |
 | --- | --- |
-| 🧩 Agent + Workflow | 普通咨询由模型在白名单内选择只读工具；安全分流、权限与预约状态由后端工作流控制 |
-| 🔎 混合 RAG | Elasticsearch/Lucene BM25 与 embedding/Qdrant 多路召回，RRF 融合，可选 rerank |
-| 📎 来源约束回答 | 模型选择引用与对话项，后端插入完整来源原文；严格校验引用身份、内容哈希、当前授权与完整段落 |
-| 💬 多轮上下文 | 最近最多5轮、累计≤4000字符；完整消息与证据按预算裁剪，结构化观察保留原话来源和版本 |
-| 📚 知识版本治理 | Markdown 元数据与来源绑定、待审导入、追加式审批历史、冻结快照、索引核验与CAS活动版本切换 |
-| 🔁 业务可靠性 | 请求幂等、数据库事务、并发扣号约束、预约二次确认、过期轮次对账和断连后结果回读 |
-| 📊 调用可观测性 | 按 session / turn / trace 关联意图、工具、检索、模型用量、耗时、失败码和最终状态 |
-| 🧪 可复现验证 | 离线测试、隔离数据库/索引集成、浏览器交互测试、检索与答案评分工具及 GitHub Actions |
+| **Agent + Workflow** | 普通咨询由模型在白名单内选择只读工具；安全分流、权限与预约状态由后端工作流控制 |
+| **混合 RAG** | Elasticsearch/Lucene BM25 与 embedding/Qdrant 多路召回，RRF 融合，可选 rerank |
+| **来源约束回答** | 模型选择引用与对话项，后端插入完整来源原文；严格校验引用身份、内容哈希、当前授权与完整段落 |
+| **多轮上下文** | 最近最多 5 轮、累计 ≤ 4000 字符；完整消息与证据按预算裁剪，结构化观察保留原话来源和版本 |
+| **知识版本治理** | Markdown 元数据与来源绑定、待审导入、追加式审批历史、冻结快照、索引核验与 CAS 活动版本切换 |
+| **业务可靠性** | 请求幂等、数据库事务、并发扣号约束、预约二次确认、过期轮次对账和断连后结果回读 |
+| **调用可观测性** | 按 session / turn / trace 关联意图、工具、检索、模型用量、耗时、失败码和最终状态 |
+| **可复现验证** | 离线测试、隔离数据库/索引集成、浏览器交互测试、检索与答案评分工具及 GitHub Actions |
 
-这些是有明确边界的工程能力，不代表医学正确性、一般化质量或真实医院业务验收。
+> 上述能力均有明确工程边界，不代表医学正确性、一般化质量或真实医院业务验收。
 
 ## 界面预览
 
 以下是本地演示账号的实际页面，不包含真实患者数据。点击图片可查看原图；界面截图不代表临床或真实医院系统验收。
 
 <div align="center">
-  <h3>💬 患者端 · 智能预问诊</h3>
+  <h3>患者端 · 智能预问诊</h3>
   <p>新建咨询、描述症状、查看会话与就诊服务入口。</p>
   <a href="docs/images/patient-triage.png"><img src="docs/images/patient-triage.png" alt="患者端真实页面：会话列表、预问诊说明和症状输入区域" width="960"></a>
   <br><br>
-  <h3>🗂️ 管理员端 · 业务与知识管理</h3>
+  <h3>管理员端 · 业务与知识管理</h3>
   <p>科室与医生、知识资料、检索调试、工具及运行观测。</p>
   <a href="docs/images/admin-dashboard.png"><img src="docs/images/admin-dashboard.png" alt="管理员端真实页面：统一左侧导航和知识、检索、工具、观测入口" width="960"></a>
 </div>
@@ -158,18 +138,20 @@ flowchart TD
 
 | 入口 | 地址 | 说明 |
 | --- | --- | --- |
-| 🏠 源码仓库 | [GitHub](https://github.com/Y3148y/Smart-Healthcare-System) | 源码、文档与协作入口 |
-| 📖 新手入门 | [GETTING_STARTED](docs/GETTING_STARTED.md) | 从环境准备到读懂一次问答 |
-| 🧭 架构与设计 | [Architecture](docs/ARCHITECTURE.md) · [Agent](docs/AGENT.md) · [RAG](docs/RAG.md) | 模块、调用与检索边界 |
-| 🐛 问题反馈 | [Issues](https://github.com/Y3148y/Smart-Healthcare-System/issues) | 请附脱敏复现步骤，不提交患者数据或密钥 |
-| 🧪 构建记录 | [GitHub Actions](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml) | 查看对应分支、提交与实际运行结果 |
-| 🏷️ 版本页面 | [Releases](https://github.com/Y3148y/Smart-Healthcare-System/releases) | 是否已有发行版以页面实际内容为准 |
-| 💬 本机患者入口 | [打开预问诊](http://127.0.0.1:5188/?demo=patient&page=triage) | 需先自行启动，不是公网演示站 |
-| 🗂️ 本机管理入口 | [打开管理后台](http://127.0.0.1:5188/?demo=admin&page=admin&adminPage=dashboard) | 本机演示身份，不是正式认证 |
+| **源码仓库** | [GitHub](https://github.com/Y3148y/Smart-Healthcare-System) | 源码、文档与协作入口 |
+| **新手入门** | [GETTING_STARTED](docs/GETTING_STARTED.md) | 从环境准备到读懂一次问答 |
+| **架构与设计** | [Architecture](docs/ARCHITECTURE.md) · [Agent](docs/AGENT.md) · [RAG](docs/RAG.md) | 模块、调用与检索边界 |
+| **问题反馈** | [Issues](https://github.com/Y3148y/Smart-Healthcare-System/issues) | 请附脱敏复现步骤，不提交患者数据或密钥 |
+| **构建记录** | [GitHub Actions](https://github.com/Y3148y/Smart-Healthcare-System/actions/workflows/verify.yml) | 查看对应分支、提交与实际运行结果 |
+| **版本页面** | [Releases](https://github.com/Y3148y/Smart-Healthcare-System/releases) | 是否已有发行版以页面实际内容为准 |
+| **本机患者入口** | [打开预问诊](http://127.0.0.1:5188/?demo=patient&page=triage) | 需先自行启动，不是公网演示站 |
+| **本机管理入口** | [打开管理后台](http://127.0.0.1:5188/?demo=admin&page=admin&adminPage=dashboard) | 本机演示身份，不是正式认证 |
 
 当前没有公开在线演示站。上方徽章表示技术栈、代码许可与GitHub状态，不是临床、安全或行业资质认证；医学资料另有独立许可。
 
 ## 快速开始
+
+**克隆仓库 → 配置环境 → 启动依赖 → 启动后端 → 启动前端**
 
 ### 1. 环境准备
 
@@ -406,15 +388,25 @@ Maven Wrapper固定3.9.16并校验发行包SHA-256，首次运行需下载依赖
 
 ## 常见问题
 
-**URL有 `demo=patient`，是否就没有调用模型？** 不是。它指定演示身份入口；后端 `AI_MODE` 和本轮路径决定是否调用LLM。调用详情区分模型、工具与后端流程。
+### URL 有 `demo=patient`，是否就没有调用模型？
 
-**没有rerank还能检索吗？** 可以。BM25与向量候选仍可经RRF融合，重排默认关闭；故障与当前是否强制依赖分别记录，不能伪称已重排。
+不是。它指定演示身份入口；后端 `AI_MODE` 和本轮路径决定是否调用 LLM。调用详情区分模型、工具与后端流程。
 
-**检索不到资料是否让LLM自行补医学答案？** 当前主患者医学回答不会。无资料、未选用资料、核对失败与来源失效分别处理；特定支持拒绝可展示已核验原文摘录，但不恢复被拒草稿或本轮预约权限。
+### 没有 rerank 还能检索吗？
 
-**为什么模型流已经开启，正文仍要等待？** 未核对的医学草稿不直接外发；先显示处理阶段，核对及保存后发送正文分段。这是当前安全取舍，不是逐token流式体验。
+可以。BM25 与向量候选仍可经 RRF 融合，重排默认关闭；故障与当前是否强制依赖分别记录，不能伪称已重排。
 
-**管理员是否能直接批准仓库里的资料？** 公开原件待审，需先解决使用权限并按工具/后台流程核验。隔离测试准入与临床审核、真实患者发布是三件不同的事。
+### 检索不到资料，是否让 LLM 自行补医学答案？
+
+当前主患者医学回答不会。无资料、未选用资料、核对失败与来源失效分别处理；特定支持拒绝可展示已核验原文摘录，但不恢复被拒草稿或本轮预约权限。
+
+### 为什么模型流已经开启，正文仍要等待？
+
+未核对的医学草稿不直接外发；先显示处理阶段，核对及保存后发送正文分段。这是当前安全取舍，不是逐 token 流式体验。
+
+### 管理员是否能直接批准仓库里的资料？
+
+公开原件待审，需先解决使用权限并按工具/后台流程核验。隔离测试准入与临床审核、真实患者发布是三件不同的事。
 
 ## 已知限制与安全
 
@@ -424,16 +416,13 @@ Maven Wrapper固定3.9.16并校验发行包SHA-256，首次运行需下载依赖
 - 模型、embedding和可选重排分别受供应商权限、额度、接口与超时影响。就绪检查成功不代表这些外部服务正常。
 - 密钥、患者数据、运行日志、来源缓存和本机评估报告不公开；路径与凭据形态检查不能替代完整安全审计。
 
-<details>
-<summary>依赖公告与安全核查边界</summary>
+### 依赖公告与安全核查边界
 
 2026-10-16的运行依赖版本核对记录了Spring MVC 6.2.19的 `GHSA-pc63-qcmh-9cmg`（XSLT视图）与 `GHSA-j9f9-w8pj-32f8`（SSE视图片段）两条公告。应用当前不使用相应视图路径，并用 `ServerRenderingBoundaryTest` 约束这一边界；这不消除公告或代替安全复核。
 
 可选OSV检查仅发送依赖名称/版本，需显式 `--online`；不可将查询失败当作零告警。前端可运行 `npm audit --registry=https://registry.npmjs.org --audit-level=moderate`。这些检查不覆盖所有插件、容器基础镜像、操作系统或业务漏洞，也不是安全认证。
 
 发现可能涉及密钥或患者数据的问题时，请勿在公开Issue粘贴原始日志、凭据、对话或数据库导出；先移除敏感内容，再提供最小复现。
-
-</details>
 
 ## 参与贡献
 
