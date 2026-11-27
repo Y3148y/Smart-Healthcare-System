@@ -33,6 +33,17 @@ public interface KnowledgeCatalog {
     record Retrieval(List<Evidence> evidence, boolean grounded, String message) {}
     record DocumentDetail(KnowledgeDocument document, String source, List<Evidence> segments,
                           String indexStatus, int indexedChunks, String indexNote) {}
+    record EvaluationDocument(String id, String title, List<KnowledgeChunk> chunks) {
+        public EvaluationDocument { chunks=List.copyOf(chunks); }
+    }
+    record EvaluationCorpus(String scope, long sourceRevision, long publicationVersion,
+                            List<EvaluationDocument> documents) {
+        public EvaluationCorpus { documents=List.copyOf(documents); }
+    }
+    /** The source set actually used by retrieval, not the admin's full READY list. */
+    default EvaluationCorpus evaluationCorpus() {
+        throw new UnsupportedOperationException("Retrieval corpus snapshot is unavailable");
+    }
     List<KnowledgeDocument> documents();
     KnowledgeDocument addDocument(String title, String body);
     default KnowledgeDocument addDocument(String title, String body, KnowledgeMetadata metadata) {

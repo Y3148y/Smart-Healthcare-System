@@ -29,6 +29,10 @@ public class AdminKnowledgeController {
     @GetMapping("/runtime") public Map<String,String> runtime(@RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.runtimeDetails();
     }
+    @GetMapping("/retrieval-snapshot") public KnowledgeCatalog.EvaluationCorpus evaluationCorpus(
+            @RequestHeader(value="Authorization",required=false) String auth) {
+        guard.require(auth,"ADMIN");return knowledge.evaluationCorpus();
+    }
     @GetMapping("/{id}/details") public KnowledgeCatalog.DocumentDetail details(@PathVariable String id,
             @RequestHeader(value = "Authorization", required = false) String auth) {
         guard.require(auth, "ADMIN"); return knowledge.documentDetails(id);

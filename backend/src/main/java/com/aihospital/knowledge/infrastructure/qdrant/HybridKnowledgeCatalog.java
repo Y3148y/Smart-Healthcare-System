@@ -115,6 +115,25 @@ public class HybridKnowledgeCatalog implements KnowledgeCatalog {
         return Map.of("status", failure == null ? semantic.status() : failure, "success", String.valueOf(success && failure == null));
     }
 
+    @Override public EvaluationCorpus evaluationCorpus() {
+        var snapshot=approvedSnapshot();
+        var grouped=new TreeMap<String,List<com.aihospital.knowledge.domain.KnowledgeChunk>>();
+        var titles=new HashMap<String,String>();
+        for(var evidence:snapshot.corpus()) {
+            var origins=snapshot.origins().get(Bm25Retriever.key(evidence));
+            if(origins==null||origins.isEmpty())throw new IllegalStateException("Retrieval source identity is unavailable");
+            for(var chunk:origins) {
+                var oldTitle=titles.putIfAbsent(chunk.documentId(),evidence.title());
+                if(oldTitle!=null&&!oldTitle.equals(evidence.title()))throw new IllegalStateException("Retrieval source identity is ambiguous");
+                grouped.computeIfAbsent(chunk.documentId(),ignored->new ArrayList<>()).add(chunk);
+            }
+        }
+        var documents=grouped.entrySet().stream().map(entry->new EvaluationDocument(entry.getKey(),titles.get(entry.getKey()),
+                entry.getValue().stream().distinct().sorted(Comparator.comparingInt(com.aihospital.knowledge.domain.KnowledgeChunk::ordinal)).toList())).toList();
+        if(snapshotFailure(snapshot)!=null)throw new IllegalStateException("Retrieval corpus changed during snapshot");
+        return new EvaluationCorpus("ACTIVE_RETRIEVAL",snapshot.revision(),snapshot.publicationVersion(),documents);
+    }
+
     private boolean indexApprovedCorpus(List<Evidence> corpus) {
         return indexApprovedCorpus(corpus, chunkOrigins());
     }

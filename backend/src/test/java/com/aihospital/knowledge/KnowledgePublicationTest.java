@@ -61,7 +61,7 @@ class KnowledgePublicationTest {
     long version(){return service.pointerVersion();}
     @Test void everyPublicationAndHistoryEndpointRejectsUnauthenticatedAndPatientCallers() throws Exception {
         var patient="Bearer "+new JwtService().issue("synthetic-publication-patient","PATIENT");
-        for(String auth:List.of("",patient))for(String path:List.of("/api/admin/knowledge/releases","/api/admin/knowledge/synthetic/history"))
+        for(String auth:List.of("",patient))for(String path:List.of("/api/admin/knowledge/releases","/api/admin/knowledge/synthetic/history","/api/admin/knowledge/retrieval-snapshot"))
             mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path).header("Authorization",auth))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(auth.isEmpty()?401:403));
         for(String auth:List.of("",patient))for(String method:List.of("POST","DELETE")) {
@@ -73,6 +73,28 @@ class KnowledgePublicationTest {
                     .header("Authorization",auth).contentType("application/json").content("{\"expectedVersion\":0}"))
                     .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().is(auth.isEmpty()?401:403));
         }
+    }
+    @Test void evaluationSnapshotTracksPublishedMembershipWithdrawalAndReapproval() throws Exception {
+        String first=approved();service.buildAndPublish(version());
+        String next=approved();
+        assertTrue(catalog.documents().stream().anyMatch(document->document.id().equals(next)&&document.status().equals("READY")));
+        var snapshot=catalog.evaluationCorpus();
+        assertEquals("ACTIVE_RETRIEVAL",snapshot.scope());assertEquals(version(),snapshot.publicationVersion());
+        assertTrue(snapshot.documents().stream().anyMatch(document->document.id().equals(first)));
+        assertFalse(snapshot.documents().stream().anyMatch(document->document.id().equals(next)),"Unpublished READY material is not a retrieval denominator");
+        var firstChunks=snapshot.documents().stream().filter(document->document.id().equals(first)).findFirst().orElseThrow().chunks();
+        assertEquals(catalog.documentChunks(first),firstChunks);
+        var admin="Bearer "+new JwtService().issue("synthetic-snapshot-admin","ADMIN");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/admin/knowledge/retrieval-snapshot").header("Authorization",admin))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.scope").value("ACTIVE_RETRIEVAL"));
+        documents.withdraw(first,LocalDateTime.now());
+        assertFalse(catalog.evaluationCorpus().documents().stream().anyMatch(document->document.id().equals(first)));
+        documents.approve(first,1,LocalDateTime.now());
+        assertFalse(catalog.evaluationCorpus().documents().stream().anyMatch(document->document.id().equals(first)),"Reapproval cannot rewrite frozen publication membership");
+        service.buildAndPublish(version());
+        assertTrue(catalog.evaluationCorpus().documents().stream().anyMatch(document->document.id().equals(next)));
+        assertTrue(catalog.evaluationCorpus().documents().stream().anyMatch(document->document.id().equals(first)));
     }
     @Test void catalogReadsOnlyActiveApprovedSnapshotAndImmediatelyExcludesWithdrawnMaterial() {
         String first=approved();service.buildAndPublish(version());
