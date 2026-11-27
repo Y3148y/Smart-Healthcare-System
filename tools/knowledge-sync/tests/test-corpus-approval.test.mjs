@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {readdirSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {approveTestDocument,readTestCorpus,TEST_EVIDENCE} from '../lib/test-corpus-approval.mjs';
+import {approveTestDocument,readTestCorpus,parseTestApprovalArgs,TEST_EVIDENCE} from '../lib/test-corpus-approval.mjs';
 
 const fixture=()=>({schemaVersion:1,title:'Synthetic document',body:'Synthetic text',
   contentSha256:createHash('sha256').update('Synthetic text').digest('hex'),metadata:{schemaVersion:1,
@@ -24,7 +24,9 @@ test('all eleven source-bound documents remain pending in the checked-in corpus'
     assert.equal(packet.metadata.intakeAudit.contentSha256,packet.contentSha256);
     assert.equal(packet.metadata.intakeAudit.sourceSnapshots.length,packet.metadata.sources.length);
   }
-  assert.throws(()=>readTestCorpus(paths.slice(1)),/ELEVEN/);
+  assert.throws(()=>readTestCorpus(paths.slice(1)),/DOCUMENT_COUNT/);
+  assert.equal(readTestCorpus(paths.slice(0,2),{expectedCount:2}).length,2);
+  assert.throws(()=>readTestCorpus([paths[0],paths[0]],{expectedCount:2}),/DUPLICATE/);
 });
 test('test approval imports pending, records local-only evidence, approves and verifies chunks',async()=>{
   const calls=[];
@@ -51,7 +53,7 @@ test('test approval imports pending, records local-only evidence, approves and v
 test('external endpoint, missing token, bad state and existing non-test approval fail closed',async()=>{
   await assert.rejects(approveTestDocument(fixture(),{base:'https://example.org/api/',token:'fixture'}),/LOCAL_BACKEND/);
   await assert.rejects(approveTestDocument(fixture(),{}),/TOKEN/);
-  const packet=fixture();packet.metadata.permissionStatus='permitted';
+  const packet=fixture();packet.metadata.permissionStatus='restricted';
   await assert.rejects(approveTestDocument(packet,{token:'fixture'}),/PENDING_CORPUS/);
   const calls=[];
   const fetcher=async(url,options)=>{
@@ -63,6 +65,34 @@ test('external endpoint, missing token, bad state and existing non-test approval
   };
   await assert.rejects(approveTestDocument(fixture(),{token:'fixture',fetcher}),/NOT_TEST_ONLY/);
   assert.deepEqual(calls,['POST','GET','GET']);
+});
+
+test('custom test batches require explicit files and matching count; default remains eleven',()=>{
+  assert.deepEqual(parseTestApprovalArgs([]),{apply:false,paths:[],expectedCount:11});
+  assert.deepEqual(parseTestApprovalArgs(['--apply','--expect-count','2','one.md','two.md']),
+    {apply:true,paths:['one.md','two.md'],expectedCount:2});
+  for(const args of [['one.md'],['--expect-count','2','one.md'],['--expect-count','1'],
+      ['--all'],['--apply','--apply'],['--expect-count','0','one.md'],['--expect-count','1','packet.json']])
+    assert.throws(()=>parseTestApprovalArgs(args));
+});
+
+test('source-permitted material requires test opt-in flow and retains its bound input unchanged',async()=>{
+  const packet=fixture();
+  packet.metadata.permissionStatus='permitted';packet.metadata.permissionEvidence='Source reuse permission only';
+  const before=JSON.stringify(packet),calls=[];
+  const fetcher=async(url,options)=>{
+    const path=new URL(url).pathname;
+    calls.push({path,method:options.method,body:options.body?JSON.parse(options.body):null});
+    const value=path.endsWith('/documents')?{id:'new',status:'PENDING_REVIEW'}:
+      path.endsWith('/details')?{document:{status:'PENDING_REVIEW',title:packet.title,body:packet.body}}:
+      path.endsWith('/metadata') && options.method==='GET'?{metadata:packet.metadata}:
+      path.endsWith('/metadata')?{status:'PENDING_REVIEW'}:
+      path.endsWith('/approve')?{status:'READY'}:[{id:'chunk'}];
+    return {ok:true,json:async()=>value};
+  };
+  assert.equal((await approveTestDocument(packet,{token:'fixture',fetcher})).status,'READY');
+  assert.equal(calls.find(c=>c.method==='PUT').body.permissionEvidence,TEST_EVIDENCE);
+  assert.equal(JSON.stringify(packet),before);
 });
 test('an exact prior TEST_ONLY_LOCAL document can gain a missing audit after controlled withdrawal',async()=>{
   const p=fixture(),sha=createHash('sha256').update('source').digest('hex');
@@ -100,4 +130,49 @@ test('a conflicting pending document without test-only ownership is never promot
   };
   await assert.rejects(approveTestDocument(packet,{token:'fixture',fetcher}),/CONFLICTING_IMPORT_NOT_TEST_ONLY/);
   assert.deepEqual(calls.map(call=>call.split(' ')[0]),['POST','GET','GET','GET']);
+});
+
+test('source-permitted conflicts never take over non-test pending or ready records',async()=>{
+  for(const status of ['PENDING_REVIEW','READY']) {
+    const packet=fixture(),calls=[];
+    packet.metadata.permissionStatus='permitted';packet.metadata.permissionEvidence='Source reuse only';
+    const fetcher=async(url,options)=>{
+      const path=new URL(url).pathname;calls.push(options.method);
+      if(path.endsWith('/documents')) return {ok:false,status:409};
+      const value=path.endsWith('/knowledge')?[{id:'other',title:packet.title,body:packet.body}]:
+        path.endsWith('/details')?{document:{status,title:packet.title,body:packet.body}}:
+        {metadata:packet.metadata};
+      return {ok:true,json:async()=>value};
+    };
+    await assert.rejects(approveTestDocument(packet,{token:'fixture',fetcher}),/CONFLICTING_IMPORT_NOT_TEST_ONLY/);
+    assert.deepEqual(calls,['POST','GET','GET','GET']);
+  }
+});
+
+test('repeating a source-permitted test import reuses approval without another mutation',async()=>{
+  const packet=fixture(),calls=[];
+  packet.metadata.permissionStatus='permitted';packet.metadata.permissionEvidence='Source reuse only';
+  let storedMetadata=null,status='PENDING_REVIEW';
+  const fetcher=async(url,options)=>{
+    const path=new URL(url).pathname;calls.push(options.method+' '+path);
+    let value;
+    if(path.endsWith('/documents')) {
+      if(storedMetadata) return {ok:false,status:409};
+      storedMetadata=JSON.parse(options.body).metadata;value={id:'same',status};
+    } else if(path.endsWith('/knowledge')) value=[{id:'same',title:packet.title,body:packet.body}];
+    else if(path.endsWith('/details')) value={document:{title:packet.title,body:packet.body,status}};
+    else if(path.endsWith('/metadata')) {
+      if(options.method==='PUT') storedMetadata=JSON.parse(options.body);
+      value={metadata:storedMetadata};
+    } else if(path.endsWith('/approve')) {status='READY';value={status};}
+    else if(path.endsWith('/chunks')) value=[{id:'chunk'}];
+    else throw new Error('UNEXPECTED_REQUEST');
+    return {ok:true,json:async()=>value};
+  };
+  await approveTestDocument(packet,{token:'fixture',fetcher});
+  const secondStart=calls.length;
+  await approveTestDocument(packet,{token:'fixture',fetcher});
+  assert.deepEqual(calls.slice(secondStart).map(call=>call.split(' ')[0]),['POST','GET','GET','GET','GET']);
+  assert.equal(calls.filter(call=>call.endsWith('/approve')).length,1);
+  assert.equal(packet.metadata.permissionEvidence,'Source reuse only');
 });

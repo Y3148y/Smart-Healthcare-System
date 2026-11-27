@@ -1,5 +1,5 @@
 import {readMarkdownFile} from './markdown-file.mjs';
-import {importPendingPacket,localApiBase} from './local-import.mjs';
+import {importPendingPacket,localApiBase,validateLocalPacket} from './local-import.mjs';
 
 const TEST_EVIDENCE='TEST_ONLY_LOCAL: maintainer authorized these example documents for isolated development testing; clinical, translation and scope review remain incomplete.';
 
@@ -18,7 +18,10 @@ async function jsonRequest(url,options,fetcher) {
 export async function approveTestDocument(packet,{base,token,fetcher=fetch}) {
   const url=localApiBase(base);
   if(typeof token!=='string' || !token || /\s/.test(token)) throw new Error('ADMIN_TOKEN_REQUIRED');
-  if(packet?.metadata?.permissionStatus!=='pending' || !packet.metadata.sources?.length)
+  validateLocalPacket(packet);
+  // Source reuse permission is distinct from clinical/test approval. Restricted
+  // material is never promoted; permitted source material still starts pending.
+  if(!['pending','permitted'].includes(packet.metadata.permissionStatus))
     throw new Error('PENDING_CORPUS_PACKET_REQUIRED');
   let id;
   let conflictingImport=false;
@@ -54,8 +57,11 @@ export async function approveTestDocument(packet,{base,token,fetcher=fetch}) {
       if(withdrawn?.status!=='PENDING_REVIEW') throw new Error('TEST_WITHDRAWAL_FAILED');
     }
   } else {
+    const unchangedSourcePermission=declared.metadata?.permissionStatus===packet.metadata.permissionStatus
+      && declared.metadata?.permissionEvidence===packet.metadata.permissionEvidence;
     if(detail?.document?.status!=='PENDING_REVIEW' || !['pending','permitted'].includes(declared.metadata?.permissionStatus)
-        || (declared.metadata.permissionStatus==='permitted' && declared.metadata.permissionEvidence!==TEST_EVIDENCE))
+        || (declared.metadata.permissionStatus==='permitted'
+          && declared.metadata.permissionEvidence!==TEST_EVIDENCE && !unchangedSourcePermission))
       throw new Error('UNEXPECTED_APPROVAL_STATE');
   }
   if(detail.document.status==='PENDING_REVIEW' || currentAudit!==expectedAudit) {
@@ -69,12 +75,32 @@ export async function approveTestDocument(packet,{base,token,fetcher=fetch}) {
   return {title:packet.title,status:'READY',chunks:chunks.length};
 }
 
-export function readTestCorpus(paths) {
-  if(!Array.isArray(paths) || paths.length!==11) throw new Error('EXPECTED_ELEVEN_DOCUMENTS');
+export function readTestCorpus(paths,{expectedCount=11}={}) {
+  if(!Number.isSafeInteger(expectedCount) || expectedCount<1 || expectedCount>100
+      || !Array.isArray(paths) || paths.length!==expectedCount) throw new Error('UNEXPECTED_DOCUMENT_COUNT');
   const packets=paths.map(path=>readMarkdownFile(path).packet);
-  if(new Set(packets.map(packet=>packet.title)).size!==11)
+  if(new Set(packets.map(packet=>packet.title)).size!==expectedCount)
     throw new Error('DUPLICATE_CORPUS_DOCUMENT');
+  if(packets.some(packet=>packet.metadata.permissionStatus==='restricted'))
+    throw new Error('RESTRICTED_CORPUS_DOCUMENT');
   return packets;
+}
+
+/** Explicit files only: no implicit expansion of an operator's new drafts. */
+export function parseTestApprovalArgs(args) {
+  let apply=false,expectedCount;
+  const paths=[];
+  for(let i=0;i<args.length;i++) {
+    const arg=args[i];
+    if(arg==='--apply' && !apply) apply=true;
+    else if(arg==='--expect-count' && expectedCount===undefined && /^[1-9]\d{0,2}$/.test(args[i+1]??''))
+      expectedCount=Number(args[++i]);
+    else if(!arg.startsWith('--') && /\.md$/i.test(arg)) paths.push(arg);
+    else throw new Error('INVALID_TEST_APPROVAL_ARGUMENTS');
+  }
+  if((paths.length>0)!==(expectedCount!==undefined) || (expectedCount!==undefined
+      && (expectedCount>100 || paths.length!==expectedCount))) throw new Error('EXPLICIT_DOCUMENT_COUNT_REQUIRED');
+  return {apply,paths,expectedCount:expectedCount??11};
 }
 
 export {TEST_EVIDENCE};
