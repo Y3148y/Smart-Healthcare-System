@@ -427,6 +427,8 @@ Maven Wrapper固定3.9.16并校验发行包SHA-256，首次运行需下载依赖
 
 可选OSV检查仅发送依赖名称/版本，需显式 `--online`；不可将查询失败当作零告警。前端可运行 `npm audit --registry=https://registry.npmjs.org --audit-level=moderate`。这些检查不覆盖所有插件、容器基础镜像、操作系统或业务漏洞，也不是安全认证。
 
+前端锁定版本已更新至 Vite 6.4.6 和 vue-tsc 3.3.14：前者包含 [`GHSA-8g5g-mxqh-grgj`](https://github.com/advisories/GHSA-8g5g-mxqh-grgj) 的修复，后者通过新版语言核心移除了受 [`GHSA-g3hv-75wg-m249`](https://github.com/advisories/GHSA-g3hv-75wg-m249) 影响的 minimatch 依赖。2026-11-27本机npm审计未报告已知漏洞；后续以锁文件和当次审计结果为准。
+
 发现可能涉及密钥或患者数据的问题时，请勿在公开Issue粘贴原始日志、凭据、对话或数据库导出；先移除敏感内容，再提供最小复现。
 
 ## 参与贡献
