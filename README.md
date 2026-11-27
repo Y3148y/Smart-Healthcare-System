@@ -293,7 +293,9 @@ docker compose -f docker-compose.yml -f compose.app.yml up -d --build --wait
 → 按章节/段落切分 → ES倒排与embedding/Qdrant索引 → 核验并激活
 ```
 
-11篇公开示例位于 [knowledge/corpus](knowledge/corpus)，按症状主题分目录，每篇含正文、元数据与必要来源文本。当前资料可由实际切分器得到78个片段；不会为展示overlap而人为扩充正文。在线问答检索数据库中的获准资料，不通过来源URL临时抓网页。
+11篇公开示例位于 [knowledge/corpus](knowledge/corpus)，按症状主题分目录，每篇含正文、元数据与必要来源文本。切分先遵循章节和段落，再用JTokkit 1.1.0的`cl100k_base`实际计数：每片≤420 tokens、长段重叠≤60 tokens；多完整段落合并另受1000字符展示适配限制。原文偏移仍为Unicode码点。固定编码用于切分，不等同于Qwen计费token；上下文预算仍为独立估算，实际用量取供应商usage。
+
+2026-11-26离线检查得到78个片段，最长281 tokens，未触发长段重叠；不会为展示overlap而人为扩充正文。在线问答检索数据库中的获准资料，不通过来源URL临时抓网页。切分版本升级后须重新核验索引及发布，旧版本检索成绩不能视为新版本成绩；操作边界见[RAG说明](docs/RAG.md#切分与索引)。
 
 公开原件的 `permissionStatus=pending` 不因开源自动获批，也不会随启动导入。维护者授权的**隔离本机测试准入**见[导入工具](tools/knowledge-sync/README.md)；测试库READY不表示临床审核或真实患者发布许可。管理员上传及资产格式见[知识目录说明](knowledge/README.md)。
 

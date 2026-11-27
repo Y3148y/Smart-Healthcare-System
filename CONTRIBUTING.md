@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | 后端契约、权限、模型适配器 | `backend` 下 `.\mvnw.cmd test`（JDK 17） | 默认无外部模型；显式集成组另需隔离数据库/索引 |
 | 前端组件契约、构建 | `frontend` 下 `npm test`、`npm run build` | 无外部模型 |
-| 知识来源、导入与切分 | `tools/knowledge-sync` 下 `npm test`、`npm run audit:corpus` | 离线；来源下载须另行显式执行 |
+| 知识来源、导入与切分 | `tools/knowledge-sync` 下 `npm test`、`npm run audit:corpus`；按README准备JTokkit后运行 `ChunkInspection.java` 的语料检查及 `--self-test` | 离线；核对token上限、原文覆盖和完整段落；来源下载须另行显式执行 |
 | 检索、答案、意图/工具评分器 | `tools/rag-eval` 下 `npm test` | 合成夹具验证评分契约，不是医学质量成绩 |
 | SSE 分片解码 | `node scripts/test-progress-client.cjs` | 无服务；使用前端已安装的 TypeScript |
 | 观察回看与运行链路组件 | `node scripts/test-observation-trace-ui.cjs` | 随机本机端口、真实 Chromium、合成 GET 拦截 |
