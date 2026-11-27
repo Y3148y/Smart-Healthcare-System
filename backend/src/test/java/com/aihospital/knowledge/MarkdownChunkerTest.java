@@ -39,7 +39,7 @@ class MarkdownChunkerTest {
         var chunks = chunker.split("doc", "Title", "source", body);
         boolean[] covered = new boolean[body.codePointCount(0, body.length())];
         for (var chunk : chunks) {
-            assertTrue(chunk.text().codePointCount(0, chunk.text().length()) <= 420);
+            assertTrue(MarkdownChunker.tokenCount(chunk.text()) <= MarkdownChunker.MAX_TOKENS);
             int from = body.offsetByCodePoints(0, chunk.start());
             int to = body.offsetByCodePoints(0, chunk.end());
             assertEquals(body.substring(from, to), chunk.text());
@@ -47,7 +47,10 @@ class MarkdownChunkerTest {
             for (int i = chunk.start(); i < chunk.end(); i++) covered[i] = true;
         }
         assertTrue(chunks.size() > 1);
-        assertEquals(60, chunks.get(0).end() - chunks.get(1).start());
+        String overlap = body.substring(body.offsetByCodePoints(0, chunks.get(1).start()),
+                body.offsetByCodePoints(0, chunks.get(0).end()));
+        assertFalse(overlap.isEmpty());
+        assertTrue(MarkdownChunker.tokenCount(overlap) <= MarkdownChunker.OVERLAP_TOKENS);
         for (boolean point : covered) assertTrue(point, "source content must not disappear between windows");
     }
 
@@ -82,12 +85,42 @@ class MarkdownChunkerTest {
     }
 
     @Test void packingPreservesSourceOffsetsAndNeverExceedsWindow() {
-        String body = "## Scope\n" + ("A".repeat(130) + "\n\n").repeat(5);
+        String body = "## Scope\n" + ("🧠".repeat(43) + "\n\n").repeat(5);
         var chunks = chunker.split("doc", "Title", "source", body);
         assertEquals(2, chunks.size());
         for (var chunk : chunks) {
-            assertTrue(chunk.text().codePointCount(0, chunk.text().length()) <= MarkdownChunker.MAX_LENGTH);
+            assertTrue(MarkdownChunker.tokenCount(chunk.text()) <= MarkdownChunker.MAX_TOKENS);
             assertEquals(body.substring(body.offsetByCodePoints(0, chunk.start()), body.offsetByCodePoints(0, chunk.end())), chunk.text());
+        }
+    }
+
+    @Test void countsBpeTokensRatherThanCharactersAndKeepsLiteralSpecialTokens() {
+        assertEquals(2, MarkdownChunker.tokenCount("hello world"));
+        String body = "hello ".repeat(300).strip();
+        var chunks = chunker.split("doc", "Title", "source", body);
+        assertEquals(1, chunks.size());
+        assertTrue(body.length() > MarkdownChunker.MAX_TOKENS);
+        assertEquals(body, chunks.get(0).text());
+        String literal = "source <|endoftext|> text";
+        assertEquals(literal, chunker.split("doc", "Title", "source", literal).get(0).text());
+    }
+
+    @Test void multilingualWindowsPreserveEverySourcePointAndActualTokenBudget() {
+        var encoding = com.knuddels.jtokkit.Encodings.newLazyEncodingRegistry()
+                .getEncoding(com.knuddels.jtokkit.api.EncodingType.CL100K_BASE);
+        for (String sample : List.of("急性心肌梗死🧠。", "hello world; ", " e\u0301𠀀👩‍⚕️\r\n", "<|endoftext|>")) {
+            String body = sample.repeat(180).strip();
+            var chunks = chunker.split("doc", "Title", "source", body);
+            int previousEnd = 0;
+            for (var chunk : chunks) {
+                assertTrue(encoding.countTokensOrdinary(chunk.text()) <= 420);
+                assertTrue(chunk.start() <= previousEnd, "no missing source between windows");
+                assertTrue(chunk.end() > previousEnd, "windows must advance");
+                assertEquals(body.substring(body.offsetByCodePoints(0, chunk.start()),
+                        body.offsetByCodePoints(0, chunk.end())).replace('\r', ' '), chunk.text());
+                previousEnd = chunk.end();
+            }
+            assertEquals(body.codePointCount(0, body.length()), previousEnd);
         }
     }
 }

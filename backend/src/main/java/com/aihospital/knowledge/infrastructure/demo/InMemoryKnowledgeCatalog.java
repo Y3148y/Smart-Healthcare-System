@@ -129,8 +129,10 @@ public class InMemoryKnowledgeCatalog implements KnowledgeCatalog {
         chunks.remove(id);
     }
     public String chunkingProfile() {
-        return MarkdownChunker.VERSION + ";maxCodePoints=" + MarkdownChunker.MAX_LENGTH
-                + ";overlapCodePoints=" + MarkdownChunker.OVERLAP
+        return MarkdownChunker.VERSION + ";tokenizer=" + MarkdownChunker.TOKENIZER
+                + ";maxTokens=" + MarkdownChunker.MAX_TOKENS
+                + ";overlapTokens=" + MarkdownChunker.OVERLAP_TOKENS
+                + ";maxPackedChars=" + MarkdownChunker.MAX_PACKED_CHARS
                 + ";split=paragraph-and-heading;offset=source-body;normalize=CR-to-space-and-trim";
     }
     @Override public synchronized List<KnowledgeChunk> documentChunks(String id) {

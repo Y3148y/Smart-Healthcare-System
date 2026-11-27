@@ -32,6 +32,8 @@
             <exclusions><exclusion><groupId>org.apache.opennlp</groupId><artifactId>opennlp-tools</artifactId></exclusion></exclusions>
         </dependency>
         <dependency><groupId>dev.langchain4j</groupId><artifactId>langchain4j-open-ai</artifactId><version>${langchain4j.version}</version></dependency>
+        <!-- Fixed offline chunk tokenizer; not the configured provider's billing tokenizer. -->
+        <dependency><groupId>com.knuddels</groupId><artifactId>jtokkit</artifactId><version>1.1.0</version></dependency>
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     </dependencies>
     <build><plugins>

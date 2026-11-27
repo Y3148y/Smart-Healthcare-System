@@ -70,10 +70,23 @@ class SourceExcerptFallbackTest {
         }
     }
     @Test void longParagraphSlicesCannotBecomeWholeSourceQuotations() {
-        var e=source("Long fixture","Only if X. "+"Long original sentence without a paragraph break. ".repeat(40));
+        String body="Only if X. "+"Long original sentence without a paragraph break. ".repeat(80);
+        assertTrue(MarkdownChunker.tokenCount(body)>MarkdownChunker.MAX_TOKENS);
+        var e=source("Long fixture",body);
         assertTrue(e.size()>1);
         for(var item:e)assertEquals(KnowledgeCatalog.ExcerptState.PARTIAL_PARAGRAPH,catalog.sourceExcerptState(item));
         var original=rejected(e,List.of("WRONG_REFERENCE"));assertSame(original,SourceExcerptFallback.apply(catalog,narration,e,true,original));
+    }
+    @Test void tokenPackingDoesNotMakePreviouslyQuotableShortParagraphsOversized() {
+        String body="# Scope\n"+("hello ".repeat(50).strip()+"\n\n").repeat(5);
+        var e=source("Packing fixture",body);
+        assertTrue(e.size()>1);
+        for(var item:e)assertEquals(KnowledgeCatalog.ExcerptState.COMPLETE_PARAGRAPHS,catalog.sourceExcerptState(item));
+        var result=excerpt(e);
+        assertEquals("SOURCE_EXCERPT",result.status());
+        assertFalse(result.diagnostics().adoptedReferenceIds().isEmpty());
+        assertTrue(result.text().length()<=1200);
+        assertTrue(result.text().contains(e.get(0).excerpt()));
     }
     @Test void ambiguousSourceIdentitiesFailClosedAndNoMissingReferenceCanBeAdded() {
         var e=source("Duplicate fixture","Whole original content.");

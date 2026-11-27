@@ -1,5 +1,8 @@
 package com.aihospital.knowledge.domain;
 
+import com.knuddels.jtokkit.Encodings;
+import com.knuddels.jtokkit.api.Encoding;
+import com.knuddels.jtokkit.api.EncodingType;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -11,9 +14,14 @@ import java.util.regex.Pattern;
 
 /** Deterministic paragraph/heading splitting; no medical facts or classifications are inferred. */
 public final class MarkdownChunker {
-    public static final String VERSION = "markdown-section-pack-codepoint-v3";
-    public static final int MAX_LENGTH = 420;
-    public static final int OVERLAP = 60;
+    public static final String TOKENIZER = "cl100k_base";
+    public static final String VERSION = "markdown-section-pack-cl100k_base-jtokkit1.1.0-v4";
+    public static final int MAX_TOKENS = 420;
+    public static final int OVERLAP_TOKENS = 60;
+    // Packing only: leave room under the answer's 1200 UTF-16 character display gate.
+    // A single large source paragraph is still token-split; display guards remain independent.
+    public static final int MAX_PACKED_CHARS = 1000;
+    private static final Encoding ENCODING = Encodings.newLazyEncodingRegistry().getEncoding(EncodingType.CL100K_BASE);
     private static final Pattern HEADING = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
     private record Block(int start, int end, List<String> headings) {}
 
@@ -25,7 +33,8 @@ public final class MarkdownChunker {
         Block packed = null;
         for (Block block : blocks(body)) {
             if (packed != null && packed.headings().equals(block.headings())
-                    && body.codePointCount(packed.start(), block.end()) <= MAX_LENGTH) {
+                    && normalized(body, packed.start(), block.end()).length() <= MAX_PACKED_CHARS
+                    && tokenCount(normalized(body, packed.start(), block.end())) <= MAX_TOKENS) {
                 packed = new Block(packed.start(), block.end(), packed.headings());
             } else {
                 if (packed != null) append(result, id, version, source, body, packed.start(), packed.end(), packed.headings());
@@ -97,11 +106,13 @@ public final class MarkdownChunker {
         while (start < end && Character.isWhitespace(body.charAt(start))) start++;
         while (end > start && Character.isWhitespace(body.charAt(end - 1))) end--;
         while (start < end) {
-            int remaining = body.codePointCount(start, end);
-            int stop = body.offsetByCodePoints(start, Math.min(MAX_LENGTH, remaining));
+            int stop = prefixEnd(body, start, end, MAX_TOKENS);
             if (stop < end) {
                 int boundary = Math.max(body.lastIndexOf('。', stop - 1), body.lastIndexOf('；', stop - 1));
-                if (boundary >= start && body.codePointCount(start, boundary + 1) > 120) stop = boundary + 1;
+                if (boundary >= start) {
+                    int tokens = tokenCount(normalized(body, start, boundary + 1));
+                    if (tokens > 120 && tokens <= MAX_TOKENS) stop = boundary + 1;
+                }
             }
             int trimmedStart = start, trimmedEnd = stop;
             while (trimmedStart < trimmedEnd && Character.isWhitespace(body.charAt(trimmedStart))) trimmedStart++;
@@ -115,9 +126,47 @@ public final class MarkdownChunker {
                         "unicode_code_point", text, sha256(text), source, VERSION));
             }
             if (stop >= end) break;
-            int overlap = Math.min(OVERLAP, body.codePointCount(start, stop) - 1);
-            start = body.offsetByCodePoints(stop, -overlap);
+            start = overlapStart(body, start, stop);
         }
+    }
+
+    /** Ordinary text treats special-token spellings in documents as literal source content. */
+    public static int tokenCount(String text) {
+        return ENCODING.countTokensOrdinary(text);
+    }
+
+    private static String normalized(String body, int start, int end) {
+        return body.substring(start, end).strip().replace('\r', ' ');
+    }
+
+    private static int prefixEnd(String body, int start, int end, int budget) {
+        if (tokenCount(normalized(body, start, end)) <= budget) return end;
+        int low = 1, high = body.codePointCount(start, end), accepted = start;
+        // BPE counts need not be monotone: retain only tested, fitting boundaries.
+        // This seeks a bounded window, not a mathematically maximal prefix.
+        while (low <= high) {
+            int middle = low + (high - low) / 2;
+            int candidate = body.offsetByCodePoints(start, middle);
+            if (tokenCount(normalized(body, start, candidate)) <= budget) {
+                accepted = candidate;
+                low = middle + 1;
+            } else high = middle - 1;
+        }
+        if (accepted == start) throw new IllegalStateException("Tokenizer cannot fit a source code point");
+        return accepted;
+    }
+
+    private static int overlapStart(String body, int start, int stop) {
+        int low = 1, high = body.codePointCount(start, stop) - 1, accepted = stop;
+        while (low <= high) {
+            int middle = low + (high - low) / 2;
+            int candidate = body.offsetByCodePoints(stop, -middle);
+            if (tokenCount(body.substring(candidate, stop).replace('\r', ' ')) <= OVERLAP_TOKENS) {
+                accepted = candidate;
+                low = middle + 1;
+            } else high = middle - 1;
+        }
+        return accepted;
     }
 
     public static String sha256(String text) {

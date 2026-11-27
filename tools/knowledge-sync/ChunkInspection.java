@@ -27,9 +27,9 @@ class ChunkInspection {
         int previousEnd=-1;
         var covered=new BitSet(body.codePointCount(0,body.length()));
         for(var chunk:chunks) {
-          int length=chunk.text().codePointCount(0,chunk.text().length());
+          int length=MarkdownChunker.tokenCount(chunk.text());
           int bodyLength=body.codePointCount(0,body.length());
-          if(chunk.sectionPath().isEmpty() || length>MarkdownChunker.MAX_LENGTH || length==0
+          if(chunk.sectionPath().isEmpty() || length>MarkdownChunker.MAX_TOKENS || length==0
               || chunk.start()<0 || chunk.end()>bodyLength || chunk.start()>=chunk.end()
               || chunk.start()<=previousStart || !ids.add(chunk.chunkId()))
             throw new IllegalStateException(path+": invalid chunk position or identity");
@@ -90,16 +90,16 @@ class ChunkInspection {
         if(paragraphStart>=0)assertParagraphContained(path,chunks,paragraphStart,paragraphEnd,sectionPath);
         if(!chunks.equals(chunker.split(path.getParent().toString(),body.lines().findFirst().orElseThrow(),"local-source",body)))
           throw new IllegalStateException(path+": nondeterministic chunks");
-        System.out.printf("%s bodyCodePoints=%d chunks=%d shortUnder80=%d maxChunk=%d%n",
+        System.out.printf("%s bodyCodePoints=%d chunks=%d shortUnder80Tokens=%d maxChunkTokens=%d%n",
           path.getParent().getFileName(),body.codePointCount(0,body.length()),chunks.size(),
-          chunks.stream().filter(c->c.text().codePointCount(0,c.text().length())<80).count(),
-          chunks.stream().mapToInt(c->c.text().codePointCount(0,c.text().length())).max().orElse(0));
+          chunks.stream().filter(c->MarkdownChunker.tokenCount(c.text())<80).count(),
+          chunks.stream().mapToInt(c->MarkdownChunker.tokenCount(c.text())).max().orElse(0));
         documents++;total+=chunks.size();
       }
     }
     if(documents==0)throw new IllegalStateException("No corpus documents found");
-    System.out.printf("documents=%d totalChunks=%d shortUnder80=%d longest=%d overlappingWindows=%d maxLength=%d overlapSetting=%d chunker=%s%n",
-      documents,total,shortChunks,longest,overlappingWindows,MarkdownChunker.MAX_LENGTH,MarkdownChunker.OVERLAP,MarkdownChunker.VERSION);
+    System.out.printf("documents=%d totalChunks=%d shortUnder80Tokens=%d longestTokens=%d overlappingWindows=%d maxTokens=%d overlapTokens=%d chunker=%s%n",
+      documents,total,shortChunks,longest,overlappingWindows,MarkdownChunker.MAX_TOKENS,MarkdownChunker.OVERLAP_TOKENS,MarkdownChunker.VERSION);
   }
 
   private static void assertParagraphContained(Path path, List<com.aihospital.knowledge.domain.KnowledgeChunk> chunks,
@@ -126,7 +126,7 @@ class ChunkInspection {
     } catch (IllegalStateException expected) {
       if(!expected.getMessage().contains("section path differs"))throw expected;
     }
-    String longBody=prefix+"a".repeat(MarkdownChunker.MAX_LENGTH+30);
+    String longBody=prefix+"hello ".repeat(MarkdownChunker.MAX_TOKENS+30).strip();
     try {
       assertParagraphContained(Path.of("synthetic"),
           chunker.split("synthetic","Synthetic","local",longBody),prefix.length(),longBody.length(),List.of("Synthetic"));

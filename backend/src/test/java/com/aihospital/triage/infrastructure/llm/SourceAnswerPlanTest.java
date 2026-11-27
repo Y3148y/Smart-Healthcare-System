@@ -7,6 +7,18 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SourceAnswerPlanTest {
+    @Test void tokenPackedCompleteParagraphsRemainSelectableWithoutTruncation() throws Exception {
+        String body="# Scope\n"+("hello ".repeat(50).strip()+"\n\n").repeat(5);
+        var chunks=new com.aihospital.knowledge.domain.MarkdownChunker().split("fixture","Fixture","source",body);
+        assertTrue(chunks.size()>1);
+        for(var chunk:chunks) {
+            assertTrue(com.aihospital.knowledge.domain.MarkdownChunker.completeParagraphRange(body,chunk));
+            var references=AnswerEvidence.references(List.of(new Evidence("Fixture","source",chunk.text(),.9,chunk.sectionPath())));
+            var result=SourceAnswerPlan.check("{\"sourceIds\":[\"E1\"],\"transition\":\"REFERENCE\",\"questionKeys\":[\"DURATION\",\"ONSET\"],\"gap\":\"APPLICABILITY_UNKNOWN\"}",references);
+            assertTrue(result.text().length()<=1200);
+            assertEquals(chunk.text(),result.draft().paragraphs().get(0).text());
+        }
+    }
     final List<AnswerEvidence.Reference> refs=AnswerEvidence.references(List.of(
             new Evidence("Fixture","https://example.invalid","Only if condition X. Try action A.\n\nDo not infer benefit B.",.9,List.of("Scope"))));
     @Test void medicalBodyComesOnlyFromExactSourceWhileModelChoosesDialogueActs() throws Exception {

@@ -301,8 +301,11 @@ docker compose -f docker-compose.yml -f compose.app.yml up -d --build --wait
 # 仓库根目录：离线校验正文与来源指纹，不调用模型
 node tools/knowledge-sync/validate-document.mjs --corpus
 
-# backend已编译且使用JDK17：通过应用实际切分器检查片段
-java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+# JDK17：编译并准备离线tokenizer，再用应用实际切分器检查片段
+cd backend
+.\mvnw.cmd compile org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies '-DincludeArtifactIds=jtokkit'
+cd ..
+java --class-path 'backend/target/classes;backend/target/dependency/*' tools/knowledge-sync/ChunkInspection.java knowledge/corpus
 ```
 
 ### 如何衡量质量

@@ -91,9 +91,13 @@ jobs:
           ES_SNAPSHOT_TEST_URL: http://127.0.0.1:9201
         run: node scripts/test-es-snapshot-live.mjs --apply
       - name: Inspect public corpus with the application chunker
-        run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+        run: |
+          cd backend
+          ./mvnw --batch-mode org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies -DincludeArtifactIds=jtokkit
+          cd ..
+          java --class-path 'backend/target/classes:backend/target/dependency/*' tools/knowledge-sync/ChunkInspection.java knowledge/corpus
       - name: Check chunk-boundary regression examples
-        run: java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java --self-test
+        run: java --class-path 'backend/target/classes:backend/target/dependency/*' tools/knowledge-sync/ChunkInspection.java --self-test
       - name: Reproduce all eleven documents in one isolated MySQL and hybrid-index lifecycle
         env:
           AI_MODE: demo

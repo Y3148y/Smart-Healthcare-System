@@ -109,13 +109,16 @@ Windows先将 `JAVA_HOME` 指向自己安装的JDK17；Linux/macOS使用 `./mvnw
 
 资料位于 `knowledge/corpus/<主题>/<症状>/`，含中文正文、provenance与必要来源快照。正文元数据通过哈希关联来源，线上从数据库的获准资料检索，不在每次问答时抓来源网页。
 
-切分按标题和段落，同章节短段合并；长段上限420 Unicode码点、重叠60。当前11篇78片段实际未触发长段重叠；配置上限不等于实际长度。完整段落也不保证跨段医学条件完整。
+切分按标题和段落，同章节短段合并；使用JTokkit 1.1.0的`cl100k_base`实际计数，每片最多420 tokens，长段重叠最多60 tokens。原文定位仍用Unicode码点；此tokenizer是固定切分度量，不保证与百炼Qwen计费token一致。完整段落也不保证跨段医学条件完整。切分策略升级后须重新构建索引并核验发布，旧评估结果不能直接用于新版本。
 
 ```powershell
 # 仓库根目录，离线，不调用模型
 node tools/knowledge-sync/validate-document.mjs --corpus
-# backend编译后，用应用实际切分器核对
-java --class-path backend/target/classes tools/knowledge-sync/ChunkInspection.java knowledge/corpus
+# 编译并准备tokenizer后，用应用实际切分器核对
+cd backend
+.\mvnw.cmd compile org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies '-DincludeArtifactIds=jtokkit'
+cd ..
+java --class-path 'backend/target/classes;backend/target/dependency/*' tools/knowledge-sync/ChunkInspection.java knowledge/corpus
 ```
 
 ## 9. 遇到问题先分层定位
